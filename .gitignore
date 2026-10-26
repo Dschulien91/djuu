@@ -1,0 +1,4 @@
+data/raw/
+data/djuu.db*
+data/*.tmp
+__pycache__/

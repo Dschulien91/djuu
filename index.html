@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Djuu Hamburg</title>
+  <meta name="description" content="Alle Orte für Familien in Hamburg auf einer Karte – mit Filtern für Wickeltisch, Hund, Kinderwagen und Öffnungszeiten.">
+  <meta name="theme-color" content="#0E4D45">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Figtree:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="vendor/leaflet.css">
+  <link rel="stylesheet" href="vendor/MarkerCluster.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="view-map">
+  <div id="app">
+    <header class="top">
+      <div class="brand" aria-label="Djuu">dj<span>uu</span></div>
+      <label class="search">
+        <span class="sr">Suche</span>
+        <input id="q" type="search" placeholder="Ort oder Name suchen" autocomplete="off">
+      </label>
+      <button id="locate" class="iconbtn" type="button" aria-label="Mein Standort" title="Mein Standort">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="7.5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+      </button>
+    </header>
+
+    <div class="rows">
+      <div class="chiprow" id="presets" aria-label="Schnelle Fragen"></div>
+      <div class="chiprow" id="cats" aria-label="Kategorien"></div>
+      <div class="chiprow filters" id="activeFilters" aria-label="Filter"></div>
+    </div>
+
+    <main class="stage">
+      <div id="map" aria-label="Karte"></div>
+      <div class="status" id="status" role="status">Lade Orte …</div>
+      <div class="addhint" id="addHint" hidden>
+        <span>Tippe auf die Karte, wo der neue Ort ist.</span>
+        <button type="button" id="addCancel">Abbrechen</button>
+      </div>
+
+      <section class="panel" id="panel">
+        <div class="panel-list" id="listView">
+          <div class="listhead" id="listHead"></div>
+          <ol class="list" id="list"></ol>
+          <button type="button" class="more" id="more" hidden>Mehr anzeigen</button>
+        </div>
+        <div class="panel-events" id="eventsView" hidden></div>
+      </section>
+
+      <section class="sheet" id="sheet" hidden aria-modal="false" role="dialog">
+        <div class="sheet-grip" aria-hidden="true"></div>
+        <button type="button" class="sheet-close" id="sheetClose" aria-label="Schließen">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+        </button>
+        <div class="sheet-body" id="sheetBody"></div>
+      </section>
+    </main>
+
+    <nav class="tabs" aria-label="Ansicht">
+      <button type="button" data-view="map" class="on">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2-6-2zM9 4v14M15 6v14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>Karte
+      </button>
+      <button type="button" data-view="list">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="4" cy="6" r="1.4" fill="currentColor"/><circle cx="4" cy="12" r="1.4" fill="currentColor"/><circle cx="4" cy="18" r="1.4" fill="currentColor"/></svg>Liste
+      </button>
+      <button type="button" data-view="events">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3 10h18M8 3v4M16 3v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>Events
+      </button>
+      <button type="button" data-view="add">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Eintragen
+      </button>
+    </nav>
+  </div>
+
+  <div class="toast" id="toast" role="status" hidden></div>
+
+  <script src="vendor/leaflet.js"></script>
+  <script src="vendor/leaflet.markercluster.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
