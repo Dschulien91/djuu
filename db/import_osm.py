@@ -1,10 +1,14 @@
-"""Import all family-relevant places in Hamburg from OpenStreetMap (Overpass API).
+"""Import all family-relevant places in Hamburg from OpenStreetMap (Geofabrik extract, read locally).
+
+QUERY documents the same selection as an Overpass query for ad-hoc checks.
 
 License: ODbL 1.0 – attribution "© OpenStreetMap-Mitwirkende" required, derived database must stay open.
 """
 import json
+import re
+from datetime import datetime, timezone
 
-from common import connect, fetch, register_source, replace_records, save_raw
+from common import RAW_DIR, connect, register_source, replace_records
 
 ENDPOINTS = ['https://overpass-api.de/api/interpreter', 'https://overpass.private.coffee/api/interpreter']
 
@@ -138,55 +142,61 @@ def facts_from(t):
     return f
 
 
-def run():
+FAMILY_TAGS = ('changing_table', 'highchair', 'kids_area', 'baby_feeding', 'toilets:children', 'indoor_play', 'drink:babyccino')
+
+
+def wanted(t):
+    """Category for a tag set, applying the same narrowing filters as the Overpass query."""
+    g = t.get
+    if g('leisure') == 'swimming_pool' and (g('access') in ('private', 'customers', 'no') or g('location') == 'indoor'): return None
+    if g('leisure') == 'sports_centre' and not any(x in (g('sport') or '') for x in ('swimming', 'climbing', 'trampoline', 'bouldering')): return None
+    if g('shop') == 'clothes' and not any(x in (g('clothes') or '') for x in ('children', 'babies')): return None
+    if g('landuse') == 'farmyard' and not re.search('kinder|jugend', g('name') or '', re.I): return None
+    if g('amenity') == 'social_facility' and 'child' not in (g('social_facility:for') or '') and 'famil' not in (g('social_facility:for') or ''): return None
+    if g('amenity') == 'clinic' and 'paediatrics' not in (g('healthcare:speciality') or ''): return None
+    cat = categorize(t)
+    if cat is None and any(k in t for k in FAMILY_TAGS): cat = 'familienfreundlich'
+    return cat
+
+
+def centroid(points):
+    pts = [(p.lat, p.lon) for p in points if p.location.valid()] if points and hasattr(points[0], 'location') else points
+    if not pts: return None
+    return sum(p[0] for p in pts) / len(pts), sum(p[1] for p in pts) / len(pts)
+
+
+def run(pbf=RAW_DIR / 'hamburg-latest.osm.pbf'):
+    """Read the Geofabrik Hamburg extract (download: tools/download-osm.sh)."""
+    import osmium
     con = connect()
     register_source(con, 'osm', 'OpenStreetMap', 'https://www.openstreetmap.org', 'ODbL 1.0',
                     '© OpenStreetMap-Mitwirkende', priority=60)
-    data = None
-    for ep in ENDPOINTS * 3:
-        try:
-            print('Overpass:', ep)
-            r = fetch(ep, method='POST', data={'data': QUERY}, timeout=700, retries=3)
-            data = r.json()
-            break
-        except Exception as e:
-            print('  failed:', e)
-    if data is None:
-        raise SystemExit('Overpass not reachable, try again later')
-    save_raw('osm_hamburg.json', json.dumps(data, ensure_ascii=False))
-    recs = []
-    for el in data['elements']:
-        t = el.get('tags', {})
-        cat = categorize(t)
-        if not cat: continue
-        lat = el.get('lat') or el.get('center', {}).get('lat')
-        lon = el.get('lon') or el.get('center', {}).get('lon')
-        if lat is None: continue
-        ref = f"{el['type']}/{el['id']}"
-        recs.append({'ref': ref, 'category': cat, 'name': t.get('name'), 'lat': lat, 'lon': lon,
-                     'url': f'https://www.openstreetmap.org/{ref}', 'raw': t, 'facts': facts_from(t)})
-    n = replace_records(con, 'osm', recs)
-    print(f'OSM: {n} records')
-    import_devices(con)
-
-
-def import_devices(con):
-    """Playground equipment mapped as separate nodes; stored as source 'osm_geraete' and merged onto playgrounds."""
-    q = '[out:json][timeout:300];area["name"="Hamburg"]["admin_level"="4"]->.hh;node["playground"](area.hh);out;'
     register_source(con, 'osm_geraete', 'OpenStreetMap Spielgeräte', 'https://www.openstreetmap.org', 'ODbL 1.0',
                     '© OpenStreetMap-Mitwirkende', priority=60)
-    for ep in ENDPOINTS * 3:
-        try:
-            data = fetch(ep, method='POST', data={'data': q}, timeout=400, retries=3).json()
-            break
-        except Exception as e:
-            print('  failed:', e)
-    else:
-        return
-    save_raw('osm_geraete.json', json.dumps(data, ensure_ascii=False))
-    recs = [{'ref': f"node/{e['id']}", 'category': 'geraet', 'lat': e['lat'], 'lon': e['lon'], 'raw': e.get('tags'),
-             'facts': {'playground_equipment': e['tags'].get('playground')}} for e in data['elements']]
-    print('OSM Geräte:', replace_records(con, 'osm_geraete', recs))
+    observed = datetime.fromtimestamp(pbf.stat().st_mtime, timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+    recs, devices = [], []
+    def add(kind, oid, t, latlon):
+        cat = wanted(t)
+        if not cat or not latlon: return
+        ref = f'{kind}/{oid}'
+        recs.append({'ref': ref, 'category': cat, 'name': t.get('name'), 'lat': latlon[0], 'lon': latlon[1],
+                     'url': f'https://www.openstreetmap.org/{ref}', 'raw': t, 'facts': facts_from(t), 'observed_at': observed})
+    for o in osmium.FileProcessor(str(pbf)).with_locations().with_areas():
+        if not o.tags: continue
+        t = {tag.k: tag.v for tag in o.tags}
+        if o.is_node():
+            if 'playground' in t and t.get('leisure') != 'playground':
+                devices.append({'ref': f'node/{o.id}', 'category': 'geraet', 'lat': o.location.lat, 'lon': o.location.lon,
+                                'raw': t, 'facts': {'playground_equipment': t['playground']}, 'observed_at': observed})
+            add('node', o.id, t, (o.location.lat, o.location.lon) if o.location.valid() else None)
+        elif o.is_way():
+            pts = [(n.lat, n.lon) for n in o.nodes if n.location.valid()]
+            add('way', o.id, t, centroid(pts))
+        elif o.is_area() and not o.from_way():
+            pts = [(n.lat, n.lon) for ring in o.outer_rings() for n in ring if n.location.valid()]
+            add('relation', o.orig_id(), t, centroid(pts))
+    print('OSM:', replace_records(con, 'osm', recs), 'records')
+    print('OSM Geräte:', replace_records(con, 'osm_geraete', devices))
 
 
 if __name__ == '__main__':

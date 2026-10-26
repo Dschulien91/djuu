@@ -68,8 +68,10 @@ def fetch(url, *, method='GET', data=None, params=None, check_robots=False, time
             if r.status_code == 200:
                 return r
             if r.status_code not in (429, 500, 502, 503, 504):
-                r.raise_for_status()
+                raise requests.HTTPError(f'HTTP {r.status_code}', response=r)
             print(f'  {host}: HTTP {r.status_code}, retry in {wait}s')
+        except requests.HTTPError:
+            raise
         except requests.RequestException as e:
             if attempt == retries - 1:
                 raise
