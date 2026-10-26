@@ -1,6 +1,6 @@
-# Djuu – Prototyp v0.1
+# Djuu – Prototyp v0.2
 
-Karte mit allen familienrelevanten Orten in Hamburg (ca. 9.200 Orte aus OpenStreetMap) mit Filtern.
+Karte mit allen familienrelevanten Orten in Hamburg (ca. 16.400 Orte aus 34 offenen Quellen, jede Angabe mit Quelle) mit Filtern.
 Installierbare Web-App (PWA): läuft auf Android, iPhone und Desktop aus demselben Code.
 
 ## Starten (lokal)
@@ -14,10 +14,13 @@ Dann http://localhost:8765 im Browser öffnen.
 ## Daten aktualisieren
 
 ```
-sh tools/fetch-data.sh
+sh tools/download-osm.sh
+cd db
+python import_osm.py; python import_spieli.py; python import_mangrove.py; python import_hamburg.py; python import_wikidata.py
+python merge.py; python import_websites.py; python merge.py; python export.py; python stats.py
 ```
 
-Lädt `data/orte.tsv` und `data/geraete.tsv` neu von der Overpass-API (mit Wiederholungen, weil die Server oft voll sind).
+Die Datenbank (`data/djuu.db`) bleibt lokal, die App liest `data/places.json`.
 
 ## Was der Prototyp kann
 

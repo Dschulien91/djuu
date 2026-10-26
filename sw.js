@@ -1,8 +1,8 @@
-// Djuu service worker v0.1: app shell and data work offline, map tiles need network.
-const CACHE = 'djuu-0.1';
+// Djuu service worker v0.2: app shell and data work offline, map tiles need network.
+const CACHE = 'djuu-0.2';
 const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png',
   'vendor/leaflet.js', 'vendor/leaflet.css', 'vendor/leaflet.markercluster.js', 'vendor/MarkerCluster.css',
-  'data/orte.tsv', 'data/geraete.tsv'];
+  'data/places.json'];
 
 self.addEventListener('install', e => e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())));
 self.addEventListener('activate', e => e.waitUntil(

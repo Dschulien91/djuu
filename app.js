@@ -1,96 +1,91 @@
-/* Djuu prototype v0.1 – family map for Hamburg.
-   Data: OpenStreetMap (data/orte.tsv, data/geraete.tsv, built by tools/fetch-data.sh).
-   User input (ratings, confirmations, new places) is stored on this device only. */
+/* Djuu v0.2 – family map for Hamburg.
+   Data: data/places.json, exported from the Djuu database (db/export.py). Every value carries its source.
+   User input (new places, confirmations, ratings, photos) is stored on this device only until the server exists.
+   Data model of user input is server-ready: see STORE below. */
 'use strict';
 
-const VERSION = '0.1';
+const VERSION = '0.2';
 
-// ---------- Categories ----------
-const CATS = [
-  { id: 'spielplatz', label: 'Spielplätze', color: '#E8590C' },
-  { id: 'indoor', label: 'Indoor-Spielen', color: '#D6336C' },
-  { id: 'cafe', label: 'Cafés', color: '#9C36B5' },
-  { id: 'restaurant', label: 'Restaurants', color: '#6741D9' },
-  { id: 'eis', label: 'Eis', color: '#F06595' },
-  { id: 'windeln', label: 'Windeln & Drogerie', color: '#1971C2' },
-  { id: 'apotheke', label: 'Apotheken', color: '#2F9E44' },
-  { id: 'kinderarzt', label: 'Kinderärzte', color: '#E03131' },
-  { id: 'wc', label: 'Toiletten', color: '#0C8599' },
-  { id: 'wickel', label: 'Weitere Wickelplätze', color: '#0CA678' },
-  { id: 'aufzug', label: 'Aufzüge', color: '#5C677D' },
-  { id: 'baden', label: 'Baden', color: '#1098AD' },
-  { id: 'buecherei', label: 'Bücherhallen', color: '#A0522D' },
-  { id: 'ausflug', label: 'Zoo & Museum', color: '#E67700' },
-  { id: 'spielzeug', label: 'Spielzeug', color: '#AE3EC9' },
+// ---------- Category groups (chips) and categories (detail labels) ----------
+const GROUPS = [
+  { id: 'spielplatz', label: 'Spielplätze', color: '#E8590C', cats: ['spielplatz'] },
+  { id: 'drinnen', label: 'Drinnen spielen', color: '#D6336C', cats: ['indoor', 'spielhaus', 'freizeit'] },
+  { id: 'essen', label: 'Essen & Trinken', color: '#9C36B5', cats: ['cafe', 'restaurant', 'imbiss', 'eis'] },
+  { id: 'einkauf', label: 'Windeln & Einkauf', color: '#1971C2', cats: ['windeln', 'laden'] },
+  { id: 'wickeln', label: 'Wickeln, Stillen, WC', color: '#0C8599', cats: ['wc', 'wickel', 'familienfreundlich'] },
+  { id: 'gesundheit', label: 'Gesundheit', color: '#E03131', cats: ['apotheke', 'kinderarzt', 'hebamme', 'klinik', 'babyklappe'] },
+  { id: 'kultur', label: 'Kultur & Ausflüge', color: '#E67700', cats: ['museum', 'kultur', 'ausflug', 'buecherei'] },
+  { id: 'baden', label: 'Baden', color: '#1098AD', cats: ['baden'] },
+  { id: 'natur', label: 'Parks & Natur', color: '#2F9E44', cats: ['park', 'picknick', 'grillplatz', 'trinkwasser'] },
+  { id: 'hund', label: 'Hundeauslauf', color: '#8D6E63', cats: ['hundeauslauf'] },
+  { id: 'zentren', label: 'Familienzentren & Beratung', color: '#6741D9', cats: ['treffpunkt', 'beratung'] },
+  { id: 'kita', label: 'Kitas', color: '#F59F00', cats: ['kita'] },
+  { id: 'unterwegs', label: 'Aufzüge & Bahnhöfe', color: '#5C677D', cats: ['aufzug', 'bahnhof'] },
 ];
-const CAT = Object.fromEntries(CATS.map(c => [c.id, c]));
-
-const SUBTYPE = {
-  chemist: 'Drogerie', baby_goods: 'Babyladen', convenience: 'Späti / kleiner Supermarkt', kiosk: 'Kiosk',
-  supermarket: 'Supermarkt', fuel: 'Tankstelle', toys: 'Spielzeugladen', zoo: 'Zoo / Tierpark', museum: 'Museum',
-  public_bath: 'Schwimmbad', water_park: 'Spaßbad', sports_centre: 'Schwimmhalle', indoor_play: 'Indoorspielplatz',
+const CAT_LABEL = {
+  spielplatz: 'Spielplatz', indoor: 'Drinnen spielen', spielhaus: 'Spielhaus', freizeit: 'Freizeit', cafe: 'Café',
+  restaurant: 'Restaurant', imbiss: 'Imbiss', eis: 'Eis', windeln: 'Drogerie / Supermarkt / Späti', laden: 'Laden',
+  wc: 'Toilette', wickel: 'Wickelplatz', familienfreundlich: 'Familienfreundlicher Ort', apotheke: 'Apotheke',
+  kinderarzt: 'Kinderarzt', hebamme: 'Hebamme', klinik: 'Klinik', babyklappe: 'Babyklappe', museum: 'Museum',
+  kultur: 'Kultur', ausflug: 'Ausflugsziel', buecherei: 'Bücherhalle', baden: 'Baden', park: 'Park', picknick: 'Picknickplatz',
+  grillplatz: 'Grillplatz', trinkwasser: 'Trinkwasser', hundeauslauf: 'Hundeauslaufzone', treffpunkt: 'Familienzentrum / Treffpunkt',
+  beratung: 'Beratung', kita: 'Kita', aufzug: 'Aufzug', bahnhof: 'Bahnhof',
 };
-
-function categorize(t) {
-  if (t['healthcare:speciality'] && /paediatrics/.test(t['healthcare:speciality'])) return 'kinderarzt';
-  if (t.leisure === 'playground') {
-    if (/^(private|no|customers)$/.test(t.access || '')) return null;
-    return t.indoor === 'yes' ? 'indoor' : 'spielplatz';
-  }
-  if (t.leisure === 'indoor_play') return 'indoor';
-  if (t.leisure === 'water_park' || t.amenity === 'public_bath' || (t.leisure === 'sports_centre' && /swimming/.test(t.sport || ''))) return 'baden';
-  const a = t.amenity;
-  if (a === 'cafe') return 'cafe';
-  if (a === 'restaurant') return 'restaurant';
-  if (a === 'ice_cream') return 'eis';
-  if (a === 'toilets') return 'wc';
-  if (a === 'library') return 'buecherei';
-  if (a === 'pharmacy') return 'apotheke';
-  if (a === 'fuel') return 'windeln';
-  if (/^(chemist|baby_goods|convenience|kiosk|supermarket)$/.test(t.shop || '')) return 'windeln';
-  if (t.shop === 'toys') return 'spielzeug';
-  if (t.highway === 'elevator') return 'aufzug';
-  if (t.tourism === 'zoo' || t.tourism === 'museum') return 'ausflug';
-  if (t.changing_table === 'yes') return 'wickel';
-  return null;
-}
+const GROUP_OF = {};
+for (const g of GROUPS) for (const c of g.cats) GROUP_OF[c] = g;
 
 // ---------- Attributes (the filters Google does not have) ----------
-// Each returns true / false / 'limited' / null (unknown).
-const yn = v => v === 'yes' || v === 'designated' ? true : v === 'no' ? false : v === 'limited' ? 'limited' : null;
+// keys: fact keys in places.json, first non-empty wins. groups: where the filter is offered (null = everywhere).
+const truthy = v => /^(yes|designated|room|true|ja|1|limited|partial)$/i.test(v) ? (v === 'limited' || v === 'partial' ? 'limited' : 'yes') : /^(no|false|nein|0)$/i.test(v) ? 'no' : null;
 const ATTRS = [
-  { id: 'wickeltisch', label: 'Wickeltisch', from: t => yn(t.changing_table) },
-  { id: 'kinderwagen', label: 'Kinderwagen / stufenlos', from: t => yn(t.wheelchair) },
-  { id: 'hochstuhl', label: 'Hochstuhl', from: t => yn(t.highchair), cats: ['cafe', 'restaurant', 'eis'] },
-  { id: 'spielecke', label: 'Spielecke', from: t => yn(t.kids_area), cats: ['cafe', 'restaurant', 'eis', 'apotheke', 'windeln', 'buecherei'] },
-  { id: 'hund', label: 'Hund erlaubt', from: t => !t.dog ? null : /yes|leashed|outside/.test(t.dog) ? true : t.dog === 'no' ? false : null },
-  { id: 'toilette', label: 'Toilette', from: t => t.amenity === 'toilets' ? true : yn(t.toilets), cats: ['cafe', 'restaurant', 'eis', 'spielplatz', 'baden', 'buecherei', 'ausflug', 'indoor'] },
+  { id: 'wickeltisch', label: 'Wickeltisch', keys: ['changing_table'], groups: ['essen', 'einkauf', 'wickeln', 'gesundheit', 'kultur', 'baden', 'drinnen', 'zentren', 'unterwegs'], q: 'Gibt es hier einen Wickeltisch?' },
+  { id: 'stillen', label: 'Stillmöglichkeit / Stillraum', keys: ['baby_feeding'], groups: ['essen', 'einkauf', 'wickeln', 'gesundheit', 'kultur', 'baden', 'drinnen', 'zentren', 'unterwegs'], q: 'Gibt es hier eine Stillmöglichkeit?' },
+  { id: 'hochstuhl', label: 'Hochstuhl', keys: ['highchair'], groups: ['essen'], q: 'Gibt es Hochstühle?' },
+  { id: 'spielecke', label: 'Spielecke', keys: ['kids_area'], groups: ['essen', 'einkauf', 'kultur', 'gesundheit', 'zentren'], q: 'Gibt es eine Spielecke?' },
+  { id: 'kindermenue', label: 'Kindermenü', keys: ['kids_menu'], groups: ['essen'], q: 'Gibt es ein Kindermenü?' },
+  { id: 'windeln', label: 'Windeln / Babynahrung', keys: [], groups: ['einkauf'], q: 'Gibt es hier Windeln oder Babynahrung?' },
+  { id: 'kleinkind', label: 'Bereich für Kleinkinder', keys: ['for_baby', 'for_toddler'], groups: ['spielplatz'], q: 'Gibt es einen Bereich für Kleinkinder?' },
+  { id: 'eingezaeunt', label: 'Eingezäunt', keys: ['fenced'], groups: ['spielplatz'], q: 'Ist der Spielplatz eingezäunt?' },
+  { id: 'schatten', label: 'Schatten', keys: ['shade'], groups: ['spielplatz'], q: 'Gibt es Schatten?' },
+  { id: 'wc_nahe', label: 'WC in der Nähe', keys: ['wc_near'], groups: ['spielplatz'], q: 'Gibt es ein WC in der Nähe?' },
+  { id: 'wasser', label: 'Wasserspiel', keys: ['water_play'], groups: ['spielplatz'], q: 'Gibt es ein Wasserspiel?' },
+  { id: 'kinderwagen', label: 'Kinderwagengeeignet', keys: ['stroller', 'wheelchair'], q: 'Kommt man gut mit dem Kinderwagen hin?' },
+  { id: 'toilette', label: 'Toilette', keys: ['toilets'], groups: ['essen', 'kultur', 'baden', 'drinnen', 'natur', 'einkauf'], q: 'Gibt es eine Toilette?' },
+  { id: 'drinnen', label: 'Drinnen', keys: ['indoor'], groups: ['spielplatz', 'drinnen', 'kultur', 'baden', 'zentren'], q: 'Ist es drinnen?' },
+  { id: 'hund', label: 'Hunde erlaubt', keys: ['dog'], q: 'Sind Hunde erlaubt?' },
+  { id: 'kostenlos', label: 'Kostenlos', keys: ['fee'], invert: true, groups: ['spielplatz', 'drinnen', 'kultur', 'baden', 'wickeln', 'zentren'], q: 'Ist es kostenlos?' },
 ];
 const ATTR = Object.fromEntries(ATTRS.map(a => [a.id, a]));
 
-// Playground equipment, matched from separately mapped device nodes.
+function normValue(attr, key, v) {
+  if (v == null || v === '') return null;
+  if (attr.id === 'hund') return /yes|leashed|outside|offleash/.test(v) ? 'yes' : v === 'no' ? 'no' : null;
+  if (attr.id === 'wc_nahe') return 'yes';
+  if (attr.invert) { const t = truthy(v); return t === 'yes' ? 'no' : t === 'no' ? 'yes' : null; }
+  return truthy(v);
+}
+
 const GEAR = [
   { id: 'schaukel', label: 'Schaukel', re: /swing/ },
   { id: 'rutsche', label: 'Rutsche', re: /slide/ },
-  { id: 'sand', label: 'Sandkasten', re: /sandpit|sand/ },
+  { id: 'sand', label: 'Sandkasten', re: /sand/ },
   { id: 'klettern', label: 'Klettern', re: /climb|structure|rope|net/ },
-  { id: 'wasser', label: 'Wasserspiel', re: /water|splash|pump|archimedes/ },
   { id: 'seilbahn', label: 'Seilbahn', re: /zipwire|zip_line|cableway/ },
   { id: 'wippe', label: 'Wippe / Wipptier', re: /seesaw|springy/ },
+  { id: 'trampolin', label: 'Trampolin', re: /trampoline/ },
 ];
-
-const TIME_FILTERS = [
-  { id: 'jetzt', label: 'Jetzt geöffnet' },
-  { id: 'sonntag', label: 'Sonntags geöffnet' },
-];
+const TIME_FILTERS = [{ id: 'jetzt', label: 'Jetzt geöffnet' }, { id: 'sonntag', label: 'Sonntags geöffnet' }];
+const AGES = [{ id: '0-2', label: '0–2 Jahre' }, { id: '3-6', label: '3–6 Jahre' }, { id: '7+', label: 'ab 7 Jahre' }];
 
 const PRESETS = [
-  { id: 'windeln-jetzt', label: 'Jetzt Windeln kaufen', cats: ['windeln', 'apotheke'], filters: ['jetzt'] },
-  { id: 'windeln-sonntag', label: 'Windeln am Sonntag', cats: ['windeln', 'apotheke'], filters: ['sonntag'] },
-  { id: 'wickeln', label: 'Wickeln unterwegs', cats: [], filters: ['wickeltisch'] },
-  { id: 'cafe-hund', label: 'Café mit Kind und Hund', cats: ['cafe'], filters: ['hund'] },
-  { id: 'regen', label: 'Es regnet', cats: ['indoor', 'baden', 'buecherei', 'ausflug'], filters: [] },
-  { id: 'wasser', label: 'Wasserspielplatz', cats: ['spielplatz'], filters: ['wasser'] },
+  { id: 'windeln-jetzt', label: 'Jetzt Windeln kaufen', groups: ['einkauf'], cats: ['apotheke'], filters: ['jetzt'] },
+  { id: 'windeln-sonntag', label: 'Windeln am Sonntag', groups: ['einkauf'], cats: ['apotheke'], filters: ['sonntag'] },
+  { id: 'wickeln', label: 'Wickeln unterwegs', groups: [], filters: ['wickeltisch'] },
+  { id: 'stillen', label: 'Stillen', groups: [], filters: ['stillen'] },
+  { id: 'cafe-hund', label: 'Café mit Kind und Hund', groups: ['essen'], filters: ['hund'] },
+  { id: 'regen', label: 'Es regnet', groups: ['drinnen', 'kultur', 'baden'], filters: [] },
+  { id: 'kleinkind', label: 'Spielplatz für die Kleinen', groups: ['spielplatz'], filters: ['kleinkind'] },
+  { id: 'hund', label: 'Hund darf rennen', groups: ['hund'], filters: [] },
 ];
 
 // ---------- Opening hours (common OSM formats; holidays ignored) ----------
@@ -98,7 +93,7 @@ const DAYS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
 const DAY_DE = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 function parseOH(s) {
   if (!s) return null;
-  s = s.replace(/"[^"]*"/g, '').trim();
+  s = s.replace(/"[^"]*"/g, '').replace(/\bDi\b/g, 'Tu').replace(/\bMi\b/g, 'We').replace(/\bDo\b/g, 'Th').replace(/\bSo\b/g, 'Su').trim();
   if (s === '24/7') return { always: true };
   const week = Array(7).fill(null);
   const spill = Array(7).fill(null).map(() => []);
@@ -108,7 +103,7 @@ function parseOH(s) {
     const m = rule.match(/^((?:Mo|Tu|We|Th|Fr|Sa|Su|PH|SH)(?:-(?:Mo|Tu|We|Th|Fr|Sa|Su))?(?:\s*,\s*(?:Mo|Tu|We|Th|Fr|Sa|Su|PH|SH)(?:-(?:Mo|Tu|We|Th|Fr|Sa|Su))?)*)(?:\s+(.*))?$/);
     if (m) { days = m[1]; times = (m[2] || '').trim(); }
     else if (/^\d/.test(rule) || /^(off|closed)$/.test(rule)) { days = 'Mo-Su'; times = rule; }
-    else return null; // months, weeks, dates: too complex for the prototype
+    else return null;
     const idx = [];
     let onlyHolidays = true;
     for (const part of days.split(/\s*,\s*/)) {
@@ -147,104 +142,103 @@ function isOpen(oh, date = new Date()) {
 const opensSunday = oh => !oh ? null : oh.always ? true : oh.week[6].length > 0;
 const fmtMin = m => m === 1440 ? '24:00' : String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
 
-// ---------- Local storage (prototype: this device only) ----------
-const STORE_KEY = 'djuu.v1';
-let local = { attrs: {}, confirms: {}, reviews: {}, places: [] };
-try { Object.assign(local, JSON.parse(localStorage.getItem(STORE_KEY) || '{}')); } catch (e) { /* storage blocked */ }
-function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(local)); } catch (e) { /* ignore */ } }
+// ---------- Local store (server-ready shape) ----------
+// contributions: one per "add place" or "add info" form; attrs hold 'yes' | 'no' | 'unknown' (unknown kept separately on purpose)
+// confirmations: one tap answers to "Gibt es X noch?"; reviews: stars, text, photo ids; reports: flagged content
+const STORE_KEY = 'djuu.v2';
+let store = { contributions: [], confirmations: [], reviews: [], reports: [], events: [], prompted: {} };
+try { Object.assign(store, JSON.parse(localStorage.getItem(STORE_KEY) || '{}')); } catch (e) { /* storage blocked */ }
+function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(store)); } catch (e) { toast('Speicher voll. Bitte weniger Fotos verwenden.'); } }
+const uid = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+
+// Photos live in IndexedDB (localStorage is too small).
+const photoDB = (() => {
+  let dbp;
+  const open = () => dbp || (dbp = new Promise((res, rej) => {
+    const r = indexedDB.open('djuu-photos', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('photos');
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  }));
+  const tx = (mode, fn) => open().then(db => new Promise((res, rej) => { const t = db.transaction('photos', mode); const q = fn(t.objectStore('photos')); t.oncomplete = () => res(q && q.result); t.onerror = () => rej(t.error); }));
+  return { put: (id, data) => tx('readwrite', s => s.put(data, id)), get: id => tx('readonly', s => s.get(id)) };
+})();
+
+async function compressPhoto(file) {
+  const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = URL.createObjectURL(file); });
+  const k = Math.min(1, 1280 / Math.max(img.width, img.height));
+  const c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  URL.revokeObjectURL(img.src);
+  return c.toDataURL('image/jpeg', 0.75);
+}
 
 // ---------- State ----------
-const state = { cats: new Set(), filters: new Set(), preset: null, showUnknown: false, q: '', view: 'map', selected: null, listLimit: 60, adding: false, me: null };
+const state = { groups: new Set(), cats: new Set(), filters: new Set(), preset: null, showUnknown: false, q: '', view: 'map', selected: null, listLimit: 60, me: null };
+let SOURCES = [];
 let places = [];
-let byId = new Map();
+const byId = new Map();
 
 // ---------- Helpers ----------
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const nf = new Intl.NumberFormat('de-DE');
-function toast(msg) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, 2600); }
+const fmtDate = t => new Date(t).toLocaleDateString('de-DE');
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, 3000); }
 function dist(a, b) {
-  const R = 6371000, toR = Math.PI / 180;
-  const dLat = (b[0] - a[0]) * toR, dLon = (b[1] - a[1]) * toR;
-  const x = Math.sin(dLat / 2) ** 2 + Math.cos(a[0] * toR) * Math.cos(b[0] * toR) * Math.sin(dLon / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(x));
+  const R = 6371000, k = Math.PI / 180;
+  const x = (b[1] - a[1]) * k * Math.cos((a[0] + b[0]) * k / 2), y = (b[0] - a[0]) * k;
+  return R * Math.hypot(x, y);
 }
 const fmtDist = m => m < 1000 ? Math.round(m / 10) * 10 + ' m' : (m / 1000).toFixed(1).replace('.', ',') + ' km';
+const placeColor = p => (GROUP_OF[p.cat] || GROUPS[0]).color;
 
-// Value of an attribute for a place, user input wins over OSM.
+// User answers for an attribute: contributions and confirmations, newest wins.
+function userAnswers(pid, attrId) {
+  const out = [];
+  for (const c of store.contributions) if (c.placeId === pid && c.attrs?.[attrId] && c.attrs[attrId] !== 'unknown') out.push({ v: c.attrs[attrId], at: c.createdAt });
+  for (const c of store.confirmations) if (c.placeId === pid && c.attr === attrId) out.push({ v: c.answer, at: c.at });
+  return out.sort((a, b) => b.at - a.at);
+}
+
+// Value of an attribute: { v: 'yes'|'no'|'limited'|null, src, method, evidence, confirmations }
 function attrVal(p, id) {
-  const mine = local.attrs[p.id]?.[id];
-  if (mine !== undefined) return { v: mine, src: 'du' };
-  if (ATTR[id]) { const v = p.osmAttrs[id]; return { v, src: v === null ? null : 'osm' }; }
-  if (GEAR.some(g => g.id === id)) {
-    if (p.cat !== 'spielplatz' && p.cat !== 'indoor') return { v: null, src: null };
-    if (!p.gear) return { v: null, src: null };
-    return { v: p.gear.has(id) ? true : null, src: p.gear.has(id) ? 'osm' : null };
+  const ua = userAnswers(p.id, id);
+  if (GEAR.some(g => g.id === id)) return { v: p.gear?.has(id) ? 'yes' : null, src: p.gear ? 'OpenStreetMap' : null };
+  const a = ATTR[id];
+  let base = { v: null };
+  if (id === 'toilette' && p.cat === 'wc') base = { v: 'yes', src: 'Kategorie' };
+  else if (id === 'wasser' && p.gear?.has('wasser')) base = { v: 'yes', src: 'OpenStreetMap' };
+  else for (const k of a.keys) {
+    const f = p.f[k];
+    const v = f && normValue(a, k, f[0]);
+    if (v) { base = { v, src: SOURCES[f[1]]?.[1], method: f[2], conf: f[3], evidence: f[4] }; break; }
   }
-  return { v: null, src: null };
+  if (ua.length) return { ...base, v: ua[0].v, src: 'Nutzer', method: 'user', confirmations: ua, osm: base };
+  return base;
 }
 function filterVal(p, f) {
-  if (f === 'jetzt') return p.oh === undefined ? null : isOpen(p.oh);
+  if (f === 'jetzt') return isOpen(p.oh);
   if (f === 'sonntag') return opensSunday(p.oh);
-  return attrVal(p, f).v;
+  const v = attrVal(p, f).v;
+  return v === 'yes' || v === 'limited' ? true : v === 'no' ? false : null;
 }
 
 // ---------- Data loading ----------
-async function loadTSV(url) {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(url + ' ' + res.status);
-  const lines = (await res.text()).split('\n');
-  const head = lines.shift().split('\t');
-  const unq = v => v && v[0] === '"' && v.endsWith('"') ? v.slice(1, -1).replace(/""/g, '"') : v;
-  return lines.filter(Boolean).map(l => { const c = l.replace(/\r$/, '').split('\t'); const o = {}; head.forEach((h, i) => { if (c[i]) o[h] = unq(c[i]); }); return o; });
-}
-
-function buildPlace(t) {
-  const cat = categorize(t);
-  if (!cat || !t['@lat']) return null;
-  const osmAttrs = {};
-  for (const a of ATTRS) osmAttrs[a.id] = a.from(t);
-  const sub = SUBTYPE[t.shop] || SUBTYPE[t.amenity] || SUBTYPE[t.tourism] || SUBTYPE[t.leisure] || '';
-  return {
-    id: t['@type'][0] + t['@id'], osm: t['@type'] + '/' + t['@id'],
-    lat: +t['@lat'], lon: +t['@lon'], cat, sub,
-    name: t.name || defaultName(cat, sub),
-    named: !!t.name,
-    street: [t['addr:street'], t['addr:housenumber']].filter(Boolean).join(' '),
-    web: t.website || t['contact:website'] || '', phone: t.phone || '',
-    hoursRaw: t.opening_hours || '', oh: t.opening_hours ? parseOH(t.opening_hours) : undefined,
-    changingWhere: t['changing_table:location'] || '', fee: t.fee || '', cuisine: t.cuisine || '',
-    osmAttrs, gear: null, mine: false,
-  };
-}
-function defaultName(cat, sub) {
-  return { spielplatz: 'Spielplatz', wc: 'Öffentliche Toilette', aufzug: 'Aufzug', wickel: 'Wickelplatz' }[cat] || sub || CAT[cat].label;
-}
-
-function attachGear(devices) {
-  // Bucket playgrounds in a ~100 m grid, then give each device to the nearest playground within 80 m.
-  const cell = 0.001, grid = new Map();
-  const key = (la, lo) => Math.floor(la / cell) + ':' + Math.floor(lo / (cell * 1.7));
-  for (const p of places) if (p.cat === 'spielplatz' || p.cat === 'indoor') {
-    const k = key(p.lat, p.lon); (grid.get(k) || grid.set(k, []).get(k)).push(p);
+function buildPlace(row) {
+  const [id, name, cat, lat, lon, district, f, srcs] = row;
+  const p = { id, name: name || CAT_LABEL[cat] || 'Ort', named: !!name, cat, lat, lon, district, f, srcs: srcs || [], mine: false };
+  if (f.opening_hours) { p.hoursRaw = f.opening_hours[0]; p.oh = parseOH(p.hoursRaw); }
+  if (f.gear) {
+    p.gear = new Set();
+    for (const g of GEAR) if (g.re.test(f.gear[0])) p.gear.add(g.id);
+    if (/water|splash|pump|archimedes/.test(f.gear[0])) p.gear.add('wasser');
   }
-  for (const d of devices) {
-    const la = +d['@lat'], lo = +d['@lon'], v = d.playground || '';
-    const gi = Math.floor(la / cell), gj = Math.floor(lo / (cell * 1.7));
-    let best = null, bd = 80;
-    for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) for (const p of grid.get((gi + i) + ':' + (gj + j)) || []) {
-      const m = dist([la, lo], [p.lat, p.lon]); if (m < bd) { bd = m; best = p; }
-    }
-    if (!best) continue;
-    best.gear = best.gear || new Set();
-    for (const g of GEAR) if (g.re.test(v)) best.gear.add(g.id);
-  }
+  return p;
 }
-
-function addLocalPlaces() {
-  for (const lp of local.places) {
-    const p = { ...lp, osmAttrs: {}, gear: null, mine: true, named: true, oh: lp.hoursRaw ? parseOH(lp.hoursRaw) : undefined };
-    for (const a of ATTRS) p.osmAttrs[a.id] = null;
+function addUserPlaces() {
+  for (const c of store.contributions) if (c.isNew && !byId.has(c.placeId)) {
+    const p = { id: c.placeId, name: c.name, named: true, cat: c.cat, lat: c.lat, lon: c.lon, district: '', f: {}, srcs: [], mine: true };
+    if (c.hours) { p.hoursRaw = c.hours; p.oh = parseOH(c.hours); }
     places.push(p); byId.set(p.id, p);
   }
 }
@@ -253,7 +247,7 @@ function addLocalPlaces() {
 const map = L.map('map', { zoomControl: false, minZoom: 10, maxBounds: [[53.25, 9.55], [53.85, 10.45]] }).setView([53.5600, 9.9800], 13);
 L.control.zoom({ position: 'bottomright' }).addTo(map);
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  maxZoom: 19, attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap-Mitwirkende</a>',
+  maxZoom: 19, attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · Quellen je Ort',
 }).addTo(map);
 const cluster = L.markerClusterGroup({
   chunkedLoading: true, showCoverageOnHover: false, maxClusterRadius: 48, disableClusteringAtZoom: 17,
@@ -266,7 +260,7 @@ map.addLayer(cluster);
 const iconCache = {};
 function iconFor(p, unknown) {
   const k = p.cat + (unknown ? 'u' : '') + (p.mine ? 'm' : '');
-  return iconCache[k] || (iconCache[k] = L.divIcon({ className: '', iconSize: [18, 18], html: `<div class="pin${unknown ? ' unk' : ''}${p.mine ? ' mine' : ''}" style="--c:${CAT[p.cat].color}"></div>` }));
+  return iconCache[k] || (iconCache[k] = L.divIcon({ className: '', iconSize: [18, 18], html: `<div class="pin${unknown ? ' unk' : ''}${p.mine ? ' mine' : ''}" style="--c:${placeColor(p)}"></div>` }));
 }
 function markerFor(p, unknown) {
   if (!p.marker) { p.marker = L.marker([p.lat, p.lon]); p.marker.on('click', () => openPlace(p.id)); }
@@ -276,23 +270,25 @@ function markerFor(p, unknown) {
 let meMarker = null;
 
 // ---------- Filtering ----------
+function activeGroups() { return [...state.groups]; }
 function relevantFilters() {
-  const cats = [...state.cats];
-  const fits = a => !a.cats || cats.length === 0 || cats.some(c => a.cats.includes(c));
-  const list = ATTRS.filter(fits).map(a => ({ id: a.id, label: a.label }));
-  const out = [...TIME_FILTERS, ...list];
-  if (cats.includes('spielplatz') || cats.includes('indoor') || state.filters.size && GEAR.some(g => state.filters.has(g.id))) out.push(...GEAR);
+  const gs = activeGroups();
+  const fits = a => !a.groups || gs.length === 0 || gs.some(g => a.groups.includes(g));
+  const out = [...TIME_FILTERS, ...ATTRS.filter(fits).map(a => ({ id: a.id, label: a.label }))];
+  if (gs.includes('spielplatz') || GEAR.some(g => state.filters.has(g.id))) out.push(...GEAR);
   return out;
 }
-
+function inSelection(p) {
+  if (!state.groups.size && !state.cats.size) return true;
+  return state.groups.has(GROUP_OF[p.cat]?.id) || state.cats.has(p.cat);
+}
 function compute() {
   const q = state.q.trim().toLowerCase();
   const fs = [...state.filters];
-  const res = { match: [], unknown: [], total: 0 };
+  const res = { match: [], unknown: [] };
   for (const p of places) {
-    if (state.cats.size && !state.cats.has(p.cat)) continue;
-    if (q && !(p.name.toLowerCase().includes(q) || p.street.toLowerCase().includes(q) || CAT[p.cat].label.toLowerCase().includes(q))) continue;
-    res.total++;
+    if (!inSelection(p)) continue;
+    if (q && !(p.name.toLowerCase().includes(q) || (p.district || '').toLowerCase().includes(q) || (CAT_LABEL[p.cat] || '').toLowerCase().includes(q))) continue;
     let unk = false, ok = true;
     for (const f of fs) {
       const v = filterVal(p, f);
@@ -306,17 +302,16 @@ function compute() {
 }
 
 let last = null;
+const shownList = () => state.showUnknown ? last.match.concat(last.unknown) : last.match;
 function render() {
   last = compute();
-  const shown = state.showUnknown ? last.match.concat(last.unknown) : last.match;
   cluster.clearLayers();
   cluster.addLayers(last.match.map(p => markerFor(p, false)).concat(state.showUnknown ? last.unknown.map(p => markerFor(p, true)) : []));
   renderStatus();
   renderChips();
-  renderList(shown);
+  renderList(shownList());
   if (state.view === 'events') renderEvents();
 }
-
 function renderStatus() {
   const s = $('#status');
   const m = last.match.length, u = last.unknown.length;
@@ -325,292 +320,526 @@ function renderStatus() {
     (u ? ` <button type="button" id="toggleUnk">${state.showUnknown ? 'ausblenden' : 'zeigen'}</button>` : '');
   const b = $('#toggleUnk'); if (b) b.onclick = () => { state.showUnknown = !state.showUnknown; render(); };
 }
-
 function renderChips() {
   $('#presets').innerHTML = PRESETS.map(p => `<button type="button" class="chip preset${state.preset === p.id ? ' on' : ''}" data-preset="${p.id}">${esc(p.label)}</button>`).join('');
-  const counts = {}; for (const p of places) counts[p.cat] = (counts[p.cat] || 0) + 1;
-  const ordered = CATS.filter(c => state.cats.has(c.id)).concat(CATS.filter(c => !state.cats.has(c.id)));
-  $('#cats').innerHTML = ordered.filter(c => counts[c.id]).map(c =>
-    `<button type="button" class="chip${state.cats.has(c.id) ? ' on' : ''}" data-cat="${c.id}" style="--c:${c.color}"><span class="dot"></span>${esc(c.label)} <span class="n">${nf.format(counts[c.id])}</span></button>`).join('');
+  const counts = {}; for (const p of places) { const g = GROUP_OF[p.cat]?.id; counts[g] = (counts[g] || 0) + 1; }
+  const ordered = GROUPS.filter(g => state.groups.has(g.id)).concat(GROUPS.filter(g => !state.groups.has(g.id)));
+  $('#cats').innerHTML = ordered.filter(g => counts[g.id]).map(g =>
+    `<button type="button" class="chip${state.groups.has(g.id) ? ' on' : ''}" data-group="${g.id}" style="--c:${g.color}"><span class="dot"></span>${esc(g.label)} <span class="n">${nf.format(counts[g.id])}</span></button>`).join('');
   const labels = Object.fromEntries([...TIME_FILTERS, ...ATTRS, ...GEAR].map(f => [f.id, f.label]));
+  const rel = relevantFilters().slice(0, 6);
   $('#activeFilters').innerHTML = `<button type="button" class="chip filter" id="openFilters">
       <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Filter${state.filters.size ? ' (' + state.filters.size + ')' : ''}</button>` +
-    relevantFilters().slice(0, 6).concat([...state.filters].filter(f => !relevantFilters().slice(0, 6).some(r => r.id === f)).map(id => ({ id, label: labels[id] })))
+    rel.concat([...state.filters].filter(f => !rel.some(r => r.id === f)).map(id => ({ id, label: labels[id] })))
       .map(f => `<button type="button" class="chip filter${state.filters.has(f.id) ? ' on' : ''}" data-filter="${f.id}">${esc(f.label)}</button>`).join('');
 }
-
 function tagsFor(p) {
   const out = [];
-  const o = isOpen(p.oh);
-  if (o === true) out.push('<span class="tag open">offen</span>');
+  if (isOpen(p.oh) === true) out.push('<span class="tag open">offen</span>');
   for (const a of ATTRS) {
     const { v } = attrVal(p, a.id);
-    if (v === true || v === 'limited') out.push(`<span class="tag y">${esc(a.label)}${v === 'limited' ? ' (eingeschr.)' : ''}</span>`);
-    else if (v === false) out.push(`<span class="tag n">${esc(a.label)}</span>`);
+    if (v === 'yes' || v === 'limited') out.push(`<span class="tag y">${esc(a.label)}${v === 'limited' ? ' (eingeschr.)' : ''}</span>`);
+    else if (v === 'no') out.push(`<span class="tag n">${esc(a.label)}</span>`);
   }
   if (p.gear) for (const g of GEAR) if (p.gear.has(g.id)) out.push(`<span class="tag">${esc(g.label)}</span>`);
-  return out.length ? `<div class="tags">${out.join('')}</div>` : '';
+  return out.length ? `<div class="tags">${out.slice(0, 8).join('')}</div>` : '';
 }
-
-function origin() { return state.me || [map.getCenter().lat, map.getCenter().lng]; }
-
+const origin = () => state.me || [map.getCenter().lat, map.getCenter().lng];
 function renderList(shown) {
   const o = origin();
   const sorted = shown.map(p => [dist(o, [p.lat, p.lon]), p]).sort((a, b) => a[0] - b[0]);
   $('#listHead').innerHTML = deskTabs() + `${nf.format(shown.length)} Orte, sortiert nach Entfernung ${state.me ? 'von dir' : 'zur Kartenmitte'}`;
   $('#list').innerHTML = sorted.slice(0, state.listLimit).map(([d, p]) => `
-    <li><button type="button" class="item" data-id="${p.id}" style="--c:${CAT[p.cat].color}">
+    <li><button type="button" class="item" data-id="${p.id}" style="--c:${placeColor(p)}">
       <span class="dot"></span>
-      <span><h3>${esc(p.name)}</h3><span class="sub">${esc(p.sub || CAT[p.cat].label)}${p.street ? ' · ' + esc(p.street) : ''}</span>${tagsFor(p)}</span>
+      <span><h3>${esc(p.name)}</h3><span class="sub">${esc(CAT_LABEL[p.cat] || '')}${p.district ? ' · ' + esc(p.district) : ''}</span>${tagsFor(p)}</span>
       <span class="dist">${fmtDist(d)}</span>
     </button></li>`).join('');
   $('#more').hidden = sorted.length <= state.listLimit;
   bindDeskTabs();
 }
-
 function deskTabs() {
   return `<div class="desk-tabs">
     <button type="button" class="chip${state.view !== 'events' ? ' on' : ''}" data-dview="list">Orte</button>
     <button type="button" class="chip${state.view === 'events' ? ' on' : ''}" data-dview="events">Events</button>
     <button type="button" class="chip preset" data-dview="add">+ Ort eintragen</button></div>`;
 }
-function bindDeskTabs() {
-  document.querySelectorAll('[data-dview]').forEach(b => b.onclick = () => setView(b.dataset.dview === 'list' ? 'map' : b.dataset.dview));
-}
+function bindDeskTabs() { document.querySelectorAll('[data-dview]').forEach(b => b.onclick = () => setView(b.dataset.dview === 'list' ? 'map' : b.dataset.dview)); }
 
-// ---------- Detail sheet ----------
-function openSheet(html) { $('#sheetBody').innerHTML = html; $('#sheet').hidden = false; $('#sheet').scrollTop = 0; }
+// ---------- Sheet ----------
+function openSheet(html, cls = '') { const s = $('#sheet'); $('#sheetBody').innerHTML = html; s.className = 'sheet ' + cls; s.hidden = false; s.scrollTop = 0; }
 function closeSheet() {
   $('#sheet').hidden = true;
+  if (wiz.map) { wiz.map.remove(); wiz.map = null; }
   if (state.selected) { byId.get(state.selected)?.marker?._icon?.classList.remove('sel'); state.selected = null; }
 }
-
 function valPill(v) {
-  if (v === true) return '<span class="val y">Ja</span>';
-  if (v === false) return '<span class="val n">Nein</span>';
+  if (v === 'yes') return '<span class="val y">Ja</span>';
+  if (v === 'no') return '<span class="val n">Nein</span>';
   if (v === 'limited') return '<span class="val l">Eingeschränkt</span>';
   return '<span class="val u">Unbekannt</span>';
 }
-
+function srcText(r) {
+  if (!r.src) return 'Weißt du es?';
+  if (r.method === 'user') return `Bestätigt ${r.confirmations.length}×, zuletzt am ${fmatDateSafe(r.confirmations[0].at)} (auf diesem Gerät)`;
+  if (r.method === 'website') return `Laut Webseite (automatisch gelesen, ${Math.round((r.conf || 0.6) * 100)} % sicher)`;
+  if (r.method === 'computed') return 'Berechnet aus Kartendaten';
+  return 'Quelle: ' + r.src;
+}
+const fmatDateSafe = t => t ? fmtDate(t) : '';
 function hoursTable(p) {
   if (!p.hoursRaw) return '<p class="muted">Keine Öffnungszeiten bekannt.</p>';
   if (!p.oh) return `<p>${esc(p.hoursRaw)}</p>`;
   if (p.oh.always) return '<p><b>Rund um die Uhr geöffnet</b></p>';
   const today = dayIdx(new Date());
-  return '<table class="hours">' + p.oh.week.map((r, d) => `<tr class="${d === today ? 'today' : ''}"><td>${DAY_DE[d]}</td><td>${r.length ? r.map(([a, b]) => fmtMin(a) + '–' + fmtMin(b)).join(', ') : 'geschlossen'}</td></tr>`).join('') + '</table><p class="note">Feiertage sind im Prototyp nicht berücksichtigt.</p>';
+  return '<table class="hours">' + p.oh.week.map((r, d) => `<tr class="${d === today ? 'today' : ''}"><td>${DAY_DE[d]}</td><td>${r.length ? r.map(([a, b]) => fmtMin(a) + '–' + fmtMin(b)).join(', ') : 'geschlossen'}</td></tr>`).join('') + '</table><p class="note">Feiertage sind noch nicht berücksichtigt.</p>';
+}
+const visibleAttrs = p => ATTRS.filter(a => !a.groups || a.groups.includes(GROUP_OF[p.cat]?.id) || attrVal(p, a.id).v !== null);
+
+async function photoTags(ids) {
+  const out = [];
+  for (const id of ids || []) { try { const d = await photoDB.get(id); if (d) out.push(`<img src="${d}" alt="Foto von Nutzer" loading="lazy">`); } catch (e) { /* ignore */ } }
+  return out.join('');
 }
 
-function openPlace(id) {
+async function openPlace(id) {
   const p = byId.get(id); if (!p) return;
   if (state.selected) byId.get(state.selected)?.marker?._icon?.classList.remove('sel');
   state.selected = id;
-  const c = CAT[p.cat];
   const open = isOpen(p.oh);
-  const attrs = ATTRS.filter(a => !a.cats || a.cats.includes(p.cat) || attrVal(p, a.id).v !== null);
-  const conf = local.confirms[id];
-  const revs = local.reviews[id] || [];
-  const avg = revs.length ? (revs.reduce((s, r) => s + r.stars, 0) / revs.length).toFixed(1).replace('.', ',') : null;
+  const reviews = store.reviews.filter(r => r.placeId === id && !store.reports.some(x => x.targetId === r.id));
+  const ages = [...new Set(store.contributions.filter(c => c.placeId === id).flatMap(c => c.ages || []))];
+  const f = p.f;
   const route = `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lon}`;
+  const web = f.website?.[0];
+  const addrTxt = f.address?.[0] || [f.street?.[0], f.housenumber?.[0]].filter(Boolean).join(' ');
+  const extra = [
+    f.description && `<p>${esc(f.description[0])}</p>`,
+    f.dog_rule && `<p><b>${esc(f.dog_rule[0])}</b></p>`,
+    f.water_status && `<p><b>Wasserqualität:</b> ${esc(f.water_status[0])}${f.water_quality_eu ? ` (EU: ${esc(f.water_quality_eu[0])})` : ''}</p>`,
+    f.age_groups && `<p><b>Altersgruppen (Stadt Hamburg):</b> ${esc(f.age_groups[0])} Jahre</p>`,
+    f.services && `<p class="muted">${esc(f.services[0]).slice(0, 300)}</p>`,
+    f.care_types && `<p class="muted">Betreuung: ${esc(f.care_types[0])}</p>`,
+  ].filter(Boolean).join('');
+  const photosHtml = await photoTags(store.contributions.filter(c => c.placeId === id).flatMap(c => c.photoIds || []));
+  if (state.selected !== id) return;
   openSheet(`
-    <span class="kind" style="--c:${c.color}"><span class="dot"></span>${esc(p.sub || c.label)}${p.mine ? ' · von dir eingetragen' : ''}</span>
+    <span class="kind" style="--c:${placeColor(p)}"><span class="dot"></span>${esc(CAT_LABEL[p.cat] || '')}${p.district ? ' · ' + esc(p.district) : ''}${p.mine ? ' · von dir eingetragen' : ''}</span>
     <h2>${esc(p.name)}</h2>
     <div class="facts">
-      ${p.street ? `<span>${esc(p.street)}</span>` : ''}
-      ${open === true ? '<span style="color:var(--yes);font-weight:700">Jetzt geöffnet</span>' : open === false ? '<span style="color:var(--no);font-weight:700">Jetzt geschlossen</span>' : ''}
-      ${avg ? `<span>★ ${avg} (${revs.length} ${revs.length === 1 ? 'Bewertung' : 'Bewertungen'} von dir)</span>` : ''}
-      ${p.phone ? `<span class="muted">Telefon: <span style="user-select:all">${esc(p.phone)}</span></span>` : ''}
+      ${addrTxt ? `<span>${esc(addrTxt)}</span>` : ''}
+      ${open === true ? '<span class="open-now">Jetzt geöffnet</span>' : open === false ? '<span class="closed-now">Jetzt geschlossen</span>' : ''}
+      ${ages.length ? `<span>Empfohlen für: ${ages.map(a => esc(AGES.find(x => x.id === a)?.label || a)).join(', ')}</span>` : ''}
+      ${f.phone ? `<span class="muted">Telefon: <span class="selectable">${esc(f.phone[0])}</span></span>` : ''}
     </div>
     <div class="actions">
       <a class="btn primary" href="${route}" target="_blank" rel="noopener">Route</a>
-      ${p.web ? `<a class="btn" href="${esc(p.web.startsWith('http') ? p.web : 'https://' + p.web)}" target="_blank" rel="noopener">Webseite</a>` : ''}
-      ${p.mine ? '' : `<a class="btn" href="https://www.openstreetmap.org/${p.osm}" target="_blank" rel="noopener">In OSM ansehen</a>`}
+      ${web ? `<a class="btn" href="${esc(web.startsWith('http') ? web : 'https://' + web)}" target="_blank" rel="noopener">Webseite</a>` : ''}
+      <button type="button" class="btn sun" id="addInfo">Infos ergänzen</button>
     </div>
-
+    ${photosHtml ? `<div class="photos">${photosHtml}</div>` : ''}
+    ${extra}
     <h4>Für Familien</h4>
     <div class="attrs">
-      ${attrs.map(a => { const { v, src } = attrVal(p, a.id); const mine = local.attrs[id]?.[a.id];
-        return `<div class="attr"><span><span class="lbl">${esc(a.label)}</span><span class="src">${src === 'osm' ? 'Quelle: OpenStreetMap' : src === 'du' ? 'Quelle: deine Angabe' : 'Weißt du es?'}</span></span>
-          <span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end">${valPill(v)}
-          ${mine !== undefined ? `<span class="ask"><button type="button" data-set="${a.id}" data-v="${mine ? 1 : 0}">Zurücknehmen</button></span>`
-            : v === null ? `<span class="ask"><button type="button" data-set="${a.id}" data-v="1" aria-label="${esc(a.label)}: ja">Ja</button><button type="button" data-set="${a.id}" data-v="0" aria-label="${esc(a.label)}: nein">Nein</button></span>`
-            : `<span class="ask"><button type="button" data-set="${a.id}" data-v="${v === false ? 1 : 0}">Stimmt nicht</button></span>`}</span></div>`; }).join('')}
+      ${visibleAttrs(p).map(a => { const r = attrVal(p, a.id);
+        return `<div class="attr"><span><span class="lbl">${esc(a.label)}</span><span class="src">${esc(srcText(r))}</span>
+            ${r.evidence ? `<details class="evidence"><summary>Beleg</summary>„${esc(r.evidence)}“</details>` : ''}</span>
+          <span class="attr-right">${valPill(r.v)}
+          <span class="ask">${r.v === null
+            ? `<button type="button" data-ans="${a.id}" data-v="yes">Ja</button><button type="button" data-ans="${a.id}" data-v="no">Nein</button>`
+            : `<button type="button" data-ans="${a.id}" data-v="${r.v === 'no' ? 'no' : 'yes'}">Stimmt</button><button type="button" data-ans="${a.id}" data-v="${r.v === 'no' ? 'yes' : 'no'}">Stimmt nicht</button>`}</span></span></div>`; }).join('')}
       ${p.gear ? `<div class="attr"><span><span class="lbl">Spielgeräte</span><span class="src">Quelle: OpenStreetMap</span></span><span>${GEAR.filter(g => p.gear.has(g.id)).map(g => esc(g.label)).join(', ') || '–'}</span></div>` : ''}
     </div>
-    ${p.changingWhere ? `<p class="note">Wickeltisch: ${esc({ female_toilet: 'in der Damentoilette', male_toilet: 'in der Herrentoilette', wheelchair_toilet: 'in der barrierefreien Toilette', unisex_toilet: 'in der Unisex-Toilette', dedicated_room: 'eigener Wickelraum', room: 'eigener Raum' }[p.changingWhere] || p.changingWhere)}</p>` : ''}
+    ${['aufzug', 'spielplatz', 'park', 'hundeauslauf', 'trinkwasser', 'picknick'].includes(p.cat) && !p.hoursRaw ? '' : `<h4>Öffnungszeiten</h4>${hoursTable(p)}`}
 
-    ${p.cat === 'aufzug' || p.cat === 'spielplatz' && !p.hoursRaw ? '' : `<h4>Öffnungszeiten</h4>${hoursTable(p)}`}
+    <h4>Bewertungen</h4>
+    ${reviews.length ? '' : '<p class="muted">Noch keine Bewertung. Sei die erste Person!</p>'}
+    <div id="reviewList"></div>
+    <form id="revForm" class="revform">
+      <div class="stars" role="group" aria-label="Sterne">${[1, 2, 3, 4, 5].map(n => `<button type="button" data-star="${n}" aria-label="${n} Sterne">★</button>`).join('')}</div>
+      <div class="field"><label for="revText">Kommentar</label><textarea id="revText" maxlength="500" placeholder="Was sollten andere Eltern wissen?"></textarea></div>
+      <div class="field"><label for="revPhoto">Foto (optional)</label><input id="revPhoto" type="file" accept="image/*">
+        <p class="hint-kids">Bitte keine Gesichter von Kindern fotografieren.</p></div>
+      <p class="error" id="revErr" hidden></p>
+      <div class="actions"><button type="submit" class="btn sun">Bewertung speichern</button></div>
+    </form>
 
-    <h4>Stimmt das noch?</h4>
-    <div class="confirm">
-      <span>${conf ? `Zuletzt von dir ${conf.ok ? 'bestätigt' : 'als falsch gemeldet'}: ${new Date(conf.at).toLocaleDateString('de-DE')}` : 'Sind die Angaben richtig?'}</span>
-      <span class="ask"><button type="button" data-confirm="1">Ja, stimmt</button><button type="button" data-confirm="0">Nein</button></span>
-    </div>
-
-    <h4>Bewerten</h4>
-    <div class="stars" role="group" aria-label="Sterne">${[1, 2, 3, 4, 5].map(n => `<button type="button" data-star="${n}" aria-label="${n} Sterne">★</button>`).join('')}</div>
-    <div class="field"><label for="revText">Kommentar</label><textarea id="revText" placeholder="Was sollten andere Eltern wissen?"></textarea></div>
-    <div class="actions"><button type="button" class="btn sun" id="revSave">Bewertung speichern</button></div>
-    ${revs.map(r => `<div class="review"><b>${'★'.repeat(r.stars)}</b> <span class="muted">${new Date(r.at).toLocaleDateString('de-DE')}</span><div>${esc(r.text)}</div></div>`).join('')}
-    <p class="note">Prototyp: Deine Angaben und Bewertungen werden nur auf diesem Gerät gespeichert.${p.mine ? '' : ' Daten © OpenStreetMap-Mitwirkende (ODbL).'}</p>
+    <h4>Quellen</h4>
+    <p class="note">${p.srcs.map(i => esc(SOURCES[i]?.[1]) + ' (' + esc(SOURCES[i]?.[2]) + ')').join(' · ') || 'Von dir eingetragen'}</p>
+    <p class="note">Prototyp: Deine Angaben, Bewertungen und Fotos werden bisher nur auf diesem Gerät gespeichert.</p>
   `);
   p.marker?._icon?.classList.add('sel');
-  let stars = 0;
+  renderReviews(reviews);
   const body = $('#sheetBody');
-  body.querySelectorAll('[data-set]').forEach(b => b.onclick = () => {
-    const v = b.dataset.v === '1';
-    local.attrs[id] = local.attrs[id] || {};
-    if (local.attrs[id][b.dataset.set] === v) delete local.attrs[id][b.dataset.set]; else local.attrs[id][b.dataset.set] = v;
-    save(); toast('Danke! Gespeichert.'); render(); openPlace(id);
+  body.querySelectorAll('[data-ans]').forEach(b => b.onclick = () => {
+    store.confirmations.push({ placeId: id, attr: b.dataset.ans, answer: b.dataset.v, at: Date.now() });
+    save(); toast('Danke! Das hilft anderen Familien.'); render(); openPlace(id);
   });
-  body.querySelectorAll('[data-confirm]').forEach(b => b.onclick = () => {
-    local.confirms[id] = { ok: b.dataset.confirm === '1', at: Date.now() }; save();
-    toast(b.dataset.confirm === '1' ? 'Danke fürs Bestätigen!' : 'Danke! Bitte korrigiere oben, was nicht stimmt.'); openPlace(id);
-  });
+  $('#addInfo').onclick = () => startWizard({ place: p });
+  let stars = 0;
   body.querySelectorAll('[data-star]').forEach(b => b.onclick = () => {
     stars = +b.dataset.star;
     body.querySelectorAll('[data-star]').forEach(x => x.classList.toggle('on', +x.dataset.star <= stars));
   });
-  $('#revSave').onclick = () => {
-    if (!stars) { toast('Bitte zuerst Sterne vergeben.'); return; }
-    (local.reviews[id] = local.reviews[id] || []).unshift({ stars, text: $('#revText').value.trim(), at: Date.now() });
+  $('#revForm').onsubmit = async e => {
+    e.preventDefault();
+    const err = $('#revErr');
+    if (!stars) { err.textContent = 'Bitte vergib zuerst 1 bis 5 Sterne.'; err.hidden = false; return; }
+    const photoIds = [];
+    const file = $('#revPhoto').files[0];
+    if (file) {
+      if (!file.type.startsWith('image/')) { err.textContent = 'Bitte wähle ein Bild aus (JPG oder PNG).'; err.hidden = false; return; }
+      try { const pidPhoto = uid('ph_'); await photoDB.put(pidPhoto, await compressPhoto(file)); photoIds.push(pidPhoto); }
+      catch (x) { err.textContent = 'Das Foto konnte nicht gespeichert werden. Versuch es ohne Foto.'; err.hidden = false; return; }
+    }
+    store.reviews.push({ id: uid('r_'), placeId: id, stars, text: $('#revText').value.trim(), photoIds, at: Date.now() });
     save(); toast('Bewertung gespeichert.'); openPlace(id);
   };
+}
+async function renderReviews(reviews) {
+  const el = $('#reviewList'); if (!el) return;
+  const parts = [];
+  for (const r of reviews.sort((a, b) => b.at - a.at)) {
+    parts.push(`<div class="review"><b class="stars-read">${'★'.repeat(r.stars)}${'☆'.repeat(5 - r.stars)}</b> <span class="muted">${fmtDate(r.at)}</span>
+      ${r.text ? `<div>${esc(r.text)}</div>` : ''}<div class="photos">${await photoTags(r.photoIds)}</div>
+      <button type="button" class="linkbtn" data-report="${r.id}">Melden</button></div>`);
+  }
+  el.innerHTML = parts.join('');
+  el.querySelectorAll('[data-report]').forEach(b => b.onclick = () => {
+    store.reports.push({ targetType: 'review', targetId: b.dataset.report, at: Date.now() }); save();
+    toast('Gemeldet und ausgeblendet. Mit dem Server geht die Meldung später an das Djuu-Team.');
+    openPlace(state.selected);
+  });
 }
 
 // ---------- Filter sheet ----------
 function openFilters() {
   const f = relevantFilters();
   const counts = {};
-  for (const x of f) { let n = 0; for (const p of places) if ((!state.cats.size || state.cats.has(p.cat))) { const v = filterVal(p, x.id); if (v === true || v === 'limited') n++; } counts[x.id] = n; }
+  for (const x of f) { let n = 0; for (const p of places) if (inSelection(p) && filterVal(p, x.id) === true) n++; counts[x.id] = n; }
   const block = (title, items) => items.length ? `<h4>${title}</h4><div class="filtergrid">${items.map(x => `<button type="button" class="chip filter${state.filters.has(x.id) ? ' on' : ''}" data-f="${x.id}"><span>${esc(x.label)}</span><span class="n">${nf.format(counts[x.id])}</span></button>`).join('')}</div>` : '';
   openSheet(`
     <h2>Filter</h2>
-    <p class="muted" style="margin:0">Die Zahl zeigt, wie viele Orte${state.cats.size ? ' in deiner Auswahl' : ''} die Angabe sicher haben.</p>
+    <p class="muted" style="margin:0">Die Zahl zeigt, wie viele Orte${state.groups.size ? ' in deiner Auswahl' : ''} die Angabe sicher haben.</p>
     ${block('Öffnungszeiten', f.filter(x => TIME_FILTERS.some(t => t.id === x.id)))}
     ${block('Ausstattung', f.filter(x => ATTR[x.id]))}
     ${block('Spielgeräte', f.filter(x => GEAR.some(g => g.id === x.id)))}
     <label class="switch"><input type="checkbox" id="unkSwitch" ${state.showUnknown ? 'checked' : ''}> Orte ohne Angabe blass anzeigen</label>
     <div class="actions"><button type="button" class="btn primary" id="fDone">Fertig</button><button type="button" class="btn" id="fReset">Alles zurücksetzen</button></div>
   `);
-  const body = $('#sheetBody');
-  body.querySelectorAll('[data-f]').forEach(b => b.onclick = () => { toggle(state.filters, b.dataset.f); state.preset = null; b.classList.toggle('on'); render(); });
+  $('#sheetBody').querySelectorAll('[data-f]').forEach(b => b.onclick = () => { toggle(state.filters, b.dataset.f); state.preset = null; b.classList.toggle('on'); render(); });
   $('#unkSwitch').onchange = e => { state.showUnknown = e.target.checked; render(); };
   $('#fDone').onclick = closeSheet;
-  $('#fReset').onclick = () => { state.filters.clear(); state.cats.clear(); state.preset = null; state.showUnknown = false; render(); openFilters(); };
+  $('#fReset').onclick = () => { state.filters.clear(); state.groups.clear(); state.cats.clear(); state.preset = null; state.showUnknown = false; render(); openFilters(); };
 }
 function toggle(set, v) { set.has(v) ? set.delete(v) : set.add(v); }
 
-// ---------- Add a place ----------
-function startAdd() {
-  closeSheet(); setView('map', true);
-  state.adding = true; $('#addHint').hidden = false;
-}
-function stopAdd() { state.adding = false; $('#addHint').hidden = true; }
-map.on('click', e => {
-  if (!state.adding) return;
-  stopAdd();
-  const { lat, lng } = e.latlng;
-  openSheet(`
-    <h2>Neuen Ort eintragen</h2>
-    <p class="muted" style="margin:0">Position: ${lat.toFixed(5)}, ${lng.toFixed(5)}</p>
-    <form id="addForm">
-      <div class="field"><label for="aName">Name</label><input id="aName" required placeholder="z. B. Café Kleiner Fuchs"></div>
-      <div class="field"><label for="aCat">Art</label><select id="aCat">${CATS.map(c => `<option value="${c.id}">${esc(c.label)}</option>`).join('')}</select></div>
-      <div class="field"><label for="aHours">Öffnungszeiten (optional)</label><input id="aHours" placeholder="Mo-Fr 09:00-18:00; Sa 10:00-16:00"></div>
-      <h4>Was weißt du?</h4>
-      ${ATTRS.map(a => `<div class="trio"><span>${esc(a.label)}</span><select id="aa-${a.id}" aria-label="${esc(a.label)}"><option value="">Weiß nicht</option><option value="1">Ja</option><option value="0">Nein</option></select></div>`).join('')}
-      <div class="actions"><button type="submit" class="btn sun">Ort speichern</button></div>
-      <p class="note">Im Prototyp nur auf diesem Gerät gespeichert. Später geht der Eintrag an alle und zurück an OpenStreetMap.</p>
-    </form>`);
-  $('#addForm').onsubmit = ev => {
-    ev.preventDefault();
-    const id = 'u' + Date.now();
-    const lp = { id, osm: '', lat, lon: lng, cat: $('#aCat').value, sub: '', name: $('#aName').value.trim(), street: '', web: '', phone: '', hoursRaw: $('#aHours').value.trim(), changingWhere: '', fee: '', cuisine: '' };
-    local.places.push(lp);
-    local.attrs[id] = {};
-    for (const a of ATTRS) { const v = $('#aa-' + a.id).value; if (v) local.attrs[id][a.id] = v === '1'; }
-    save();
-    const p = { ...lp, osmAttrs: Object.fromEntries(ATTRS.map(a => [a.id, null])), gear: null, mine: true, named: true, oh: lp.hoursRaw ? parseOH(lp.hoursRaw) : undefined };
-    places.push(p); byId.set(id, p);
-    render(); openPlace(id); toast('Ort gespeichert.');
-  };
-});
-$('#addCancel').onclick = stopAdd;
+// ---------- "Ort hinzufügen" wizard: 3 steps, one-handed, under 30 seconds ----------
+const WIZ_TYPES = [
+  { id: 'spielplatz', label: 'Spielplatz', cat: 'spielplatz', icon: '<path d="M4 20V8l4-4 4 4v12M4 12h8M16 20v-9h4v9M14 20h8" />', attrs: ['kleinkind', 'eingezaeunt', 'schatten', 'wc_nahe', 'wasser'] },
+  { id: 'essen', label: 'Café / Restaurant', cat: 'cafe', icon: '<path d="M4 9h12v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V9zM16 10h2a2 2 0 0 1 0 4h-2M7 3v3M11 3v3" />', attrs: ['hochstuhl', 'wickeltisch', 'spielecke', 'kindermenue', 'kinderwagen'] },
+  { id: 'laden', label: 'Laden', cat: 'windeln', icon: '<path d="M5 8h14l-1 12H6L5 8zM9 8V6a3 3 0 0 1 6 0v2" />', attrs: ['windeln', 'sonntag_user'] },
+  { id: 'service', label: 'Service (Wickeln, Stillen, WC)', cat: 'wickel', icon: '<path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.5-7 10-7 10z" />', attrs: ['wickeltisch', 'stillen', 'toilette'] },
+  { id: 'event', label: 'Veranstaltung', cat: 'event', icon: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4" />', attrs: [] },
+];
+const COMMON_ATTRS = ['drinnen', 'kinderwagen', 'hund', 'kostenlos'];
+const EXTRA_ATTR = { sonntag_user: { id: 'sonntag_user', label: 'Sonntags geöffnet' } };
+const wizAttr = id => ATTR[id] || EXTRA_ATTR[id];
+const wiz = { step: 1, data: null, map: null };
 
-// ---------- Events (prototype: examples only) ----------
+function startWizard({ place } = {}) {
+  closeSheet(); setView('map', true);
+  const t = place ? (WIZ_TYPES.find(w => GROUP_OF[place.cat]?.id === w.id || w.cat === place.cat) || null) : null;
+  wiz.data = { placeId: place?.id || null, isNew: !place, type: t?.id || (place ? 'service' : null), name: place?.name || '',
+               lat: place?.lat ?? map.getCenter().lat, lon: place?.lon ?? map.getCenter().lng, attrs: {}, ages: [], comment: '',
+               stars: 0, hours: '', photo: null, eventDate: '', eventTime: '', locating: !place };
+  wiz.step = 1;
+  renderWizard();
+  if (!place && navigator.geolocation) navigator.geolocation.getCurrentPosition(pos => {
+    if (!wiz.data || !wiz.data.locating) return;
+    wiz.data.lat = pos.coords.latitude; wiz.data.lon = pos.coords.longitude; wiz.data.locating = false;
+    if (wiz.map) { wiz.map.setView([wiz.data.lat, wiz.data.lon], 18); wiz.pin.setLatLng([wiz.data.lat, wiz.data.lon]); }
+    $('#wizLocNote') && ($('#wizLocNote').textContent = 'Position per GPS gesetzt. Zieh den Pin, falls er nicht genau stimmt.');
+  }, () => { wiz.data && (wiz.data.locating = false); $('#wizLocNote') && ($('#wizLocNote').textContent = 'Kein GPS. Zieh den Pin an die richtige Stelle.'); }, { enableHighAccuracy: true, timeout: 8000 });
+}
+
+function wizHeader() {
+  return `<div class="progress" aria-label="Schritt ${wiz.step} von 3"><span>Schritt ${Math.min(wiz.step, 3)} von 3</span>
+    <div class="bar"><i style="width:${Math.min(wiz.step, 3) / 3 * 100}%"></i></div></div>`;
+}
+function triRow(id) {
+  const a = wizAttr(id), v = wiz.data.attrs[id] || 'unknown';
+  return `<div class="tri"><span class="tri-label">${esc(a.label)}</span><span class="seg" role="radiogroup" aria-label="${esc(a.label)}">
+    ${[['yes', 'Ja'], ['no', 'Nein'], ['unknown', 'Weiß nicht']].map(([k, l]) => `<button type="button" role="radio" aria-checked="${v === k}" class="${v === k ? 'on ' + k : ''}" data-tri="${id}" data-v="${k}">${l}</button>`).join('')}
+  </span></div>`;
+}
+function nameSuggestions(text) {
+  const d = wiz.data, q = text.trim().toLowerCase();
+  if (!d.isNew || q.length < 2) return [];
+  return places.filter(p => p.named && p.name.toLowerCase().includes(q) && dist([d.lat, d.lon], [p.lat, p.lon]) < 1500)
+    .map(p => [dist([d.lat, d.lon], [p.lat, p.lon]), p]).sort((a, b) => a[0] - b[0]).slice(0, 5);
+}
+
+function renderWizard() {
+  const d = wiz.data, type = WIZ_TYPES.find(t => t.id === d.type);
+  if (wiz.map) { wiz.map.remove(); wiz.map = null; }
+  let html = '';
+  if (wiz.step === 1) {
+    html = `<h2>${d.isNew ? 'Ort hinzufügen' : 'Infos ergänzen'}</h2>${wizHeader()}
+      ${d.isNew ? `<div class="minimap" id="wizMap" aria-label="Position auf der Karte"></div>
+        <p class="note" id="wizLocNote">${d.locating ? 'Suche deine Position …' : 'Zieh den Pin an die richtige Stelle.'}</p>` : `<p class="muted">${esc(d.name)}</p>`}
+      <h4>Was ist es?</h4>
+      <div class="typegrid">${WIZ_TYPES.filter(t => d.isNew || t.id !== 'event').map(t => `<button type="button" class="typebtn${d.type === t.id ? ' on' : ''}" data-type="${t.id}">
+        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${t.icon}</svg><span>${esc(t.label)}</span></button>`).join('')}</div>
+      ${d.isNew ? `<div class="field"><label for="wizName">Name</label><input id="wizName" autocomplete="off" value="${esc(d.name)}" placeholder="z. B. Spielplatz Weiher" maxlength="80">
+        <div class="suggest" id="wizSuggest"></div></div>` : ''}
+      ${d.type === 'event' ? `<div class="row2"><div class="field"><label for="wizDate">Datum</label><input id="wizDate" type="date" value="${esc(d.eventDate)}"></div>
+        <div class="field"><label for="wizTime">Uhrzeit</label><input id="wizTime" type="time" value="${esc(d.eventTime)}"></div></div>` : ''}
+      <div class="field"><label for="wizPhoto">Foto (optional)</label><input id="wizPhoto" type="file" accept="image/*" capture="environment">
+        ${d.photo ? '<img class="preview" src="' + d.photo + '" alt="Vorschau">' : ''}
+        <p class="hint-kids">Bitte keine Gesichter von Kindern zeigen.</p></div>`;
+  } else if (wiz.step === 2) {
+    const own = type?.attrs || [];
+    html = `<h2>Was gibt es hier?</h2>${wizHeader()}
+      <p class="muted">Nur antippen, was du sicher weißt. Alles andere bleibt auf „Weiß nicht“.</p>
+      ${own.length ? `<h4>${esc(type.label)}</h4>${own.map(triRow).join('')}` : ''}
+      <h4>Für alle Orte</h4>${COMMON_ATTRS.filter(a => !own.includes(a)).map(triRow).join('')}`;
+  } else if (wiz.step === 3) {
+    html = `<h2>Noch etwas? (optional)</h2>${wizHeader()}
+      <h4>Für welches Alter passt es am besten?</h4>
+      <div class="agegrid">${AGES.map(a => `<button type="button" class="chip${d.ages.includes(a.id) ? ' on' : ''}" data-age="${a.id}">${a.label}</button>`).join('')}</div>
+      <h4>Bewertung</h4>
+      <div class="stars" role="group" aria-label="Sterne">${[1, 2, 3, 4, 5].map(n => `<button type="button" data-wstar="${n}" class="${n <= d.stars ? 'on' : ''}" aria-label="${n} Sterne">★</button>`).join('')}</div>
+      <div class="field"><label for="wizComment">Kurzer Kommentar</label><input id="wizComment" maxlength="140" value="${esc(d.comment)}" placeholder="z. B. Toller Sandkasten, wenig Schatten"></div>
+      ${d.type !== 'event' ? `<div class="field"><label for="wizHours">Öffnungszeiten (nur wenn bekannt)</label><input id="wizHours" value="${esc(d.hours)}" placeholder="Mo-Fr 09:00-18:00; Sa 10:00-16:00"></div>` : ''}`;
+  } else {
+    const ans = Object.entries(d.attrs).filter(([, v]) => v !== 'unknown');
+    html = `<h2>Alles richtig?</h2>
+      <dl class="summary">
+        <dt>Art</dt><dd>${esc(type?.label || '–')}</dd>
+        <dt>Name</dt><dd>${esc(d.name || '–')}</dd>
+        ${d.type === 'event' ? `<dt>Termin</dt><dd>${esc(d.eventDate)} ${esc(d.eventTime)}</dd>` : ''}
+        <dt>Angaben</dt><dd>${ans.length ? ans.map(([k, v]) => `${esc(wizAttr(k).label)}: <b>${v === 'yes' ? 'Ja' : 'Nein'}</b>`).join('<br>') : 'keine'}</dd>
+        ${d.ages.length ? `<dt>Alter</dt><dd>${d.ages.map(a => esc(AGES.find(x => x.id === a).label)).join(', ')}</dd>` : ''}
+        ${d.stars ? `<dt>Bewertung</dt><dd>${'★'.repeat(d.stars)}</dd>` : ''}
+        ${d.comment ? `<dt>Kommentar</dt><dd>${esc(d.comment)}</dd>` : ''}
+        ${d.hours ? `<dt>Öffnungszeiten</dt><dd>${esc(d.hours)}</dd>` : ''}
+        ${d.photo ? `<dt>Foto</dt><dd><img class="preview" src="${d.photo}" alt="Vorschau"></dd>` : ''}
+      </dl>`;
+  }
+  html += `<p class="error" id="wizErr" hidden></p>
+    <div class="wizbar">
+      ${wiz.step > 1 ? '<button type="button" class="btn big" id="wizBack">Zurück</button>' : '<button type="button" class="btn big" id="wizCancel">Abbrechen</button>'}
+      ${wiz.step === 2 || wiz.step === 3 ? '<button type="button" class="btn big ghost" id="wizSkip">Überspringen</button>' : ''}
+      <button type="button" class="btn big sun" id="wizNext">${wiz.step === 4 ? 'Speichern' : 'Weiter'}</button>
+    </div>`;
+  openSheet(html, 'wizard');
+  bindWizard();
+}
+
+function bindWizard() {
+  const d = wiz.data;
+  if (wiz.step === 1 && d.isNew) {
+    wiz.map = L.map('wizMap', { zoomControl: false, attributionControl: false }).setView([d.lat, d.lon], 17);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(wiz.map);
+    wiz.pin = L.marker([d.lat, d.lon], { draggable: true, icon: L.divIcon({ className: '', iconSize: [26, 26], html: '<div class="pin big" style="--c:#FFC83D"></div>' }) }).addTo(wiz.map);
+    wiz.pin.on('dragend', () => { const ll = wiz.pin.getLatLng(); d.lat = ll.lat; d.lon = ll.lng; d.locating = false; });
+    wiz.map.on('click', e => { wiz.pin.setLatLng(e.latlng); d.lat = e.latlng.lat; d.lon = e.latlng.lng; d.locating = false; });
+    setTimeout(() => wiz.map && wiz.map.invalidateSize(), 50);
+    const inp = $('#wizName');
+    const showSug = () => {
+      d.name = inp.value;
+      $('#wizSuggest').innerHTML = nameSuggestions(inp.value).map(([m, p]) => `<button type="button" data-sug="${p.id}"><b>${esc(p.name)}</b> <span class="muted">${esc(CAT_LABEL[p.cat] || '')} · ${fmtDist(m)}</span></button>`).join('');
+      $('#wizSuggest').querySelectorAll('[data-sug]').forEach(b => b.onclick = () => {
+        const p = byId.get(b.dataset.sug);
+        Object.assign(d, { placeId: p.id, isNew: false, name: p.name, lat: p.lat, lon: p.lon });
+        d.type = d.type || WIZ_TYPES.find(w => GROUP_OF[p.cat]?.id === w.id)?.id || 'service';
+        toast('Den Ort gibt es schon. Du ergänzt jetzt seine Infos.');
+        renderWizard();
+      });
+    };
+    inp.oninput = showSug;
+  }
+  document.querySelectorAll('[data-type]').forEach(b => b.onclick = () => { d.type = b.dataset.type; if (wiz.step === 1 && $('#wizName')) d.name = $('#wizName').value; renderWizard(); });
+  document.querySelectorAll('[data-tri]').forEach(b => b.onclick = () => { d.attrs[b.dataset.tri] = b.dataset.v; renderWizard(); });
+  document.querySelectorAll('[data-age]').forEach(b => b.onclick = () => { d.ages = d.ages.includes(b.dataset.age) ? d.ages.filter(x => x !== b.dataset.age) : d.ages.concat(b.dataset.age); keepStep3(); renderWizard(); });
+  document.querySelectorAll('[data-wstar]').forEach(b => b.onclick = () => { d.stars = d.stars === +b.dataset.wstar ? 0 : +b.dataset.wstar; keepStep3(); renderWizard(); });
+  const photo = $('#wizPhoto');
+  if (photo) photo.onchange = async () => {
+    const file = photo.files[0]; if (!file) return;
+    if (!file.type.startsWith('image/')) return wizError('Bitte wähle ein Bild aus (JPG oder PNG).');
+    try { if ($('#wizName')) d.name = $('#wizName').value; d.photo = await compressPhoto(file); renderWizard(); }
+    catch (e) { wizError('Das Foto konnte nicht gelesen werden. Versuch ein anderes.'); }
+  };
+  $('#wizCancel') && ($('#wizCancel').onclick = () => { wiz.data = null; closeSheet(); });
+  $('#wizBack') && ($('#wizBack').onclick = () => { keepStep3(); wiz.step--; renderWizard(); });
+  $('#wizSkip') && ($('#wizSkip').onclick = () => { keepStep3(); wiz.step++; renderWizard(); });
+  $('#wizNext').onclick = () => wizNext();
+}
+function keepStep3() {
+  const d = wiz.data;
+  if ($('#wizComment')) d.comment = $('#wizComment').value;
+  if ($('#wizHours')) d.hours = $('#wizHours').value;
+  if ($('#wizDate')) d.eventDate = $('#wizDate').value;
+  if ($('#wizTime')) d.eventTime = $('#wizTime').value;
+  if ($('#wizName')) d.name = $('#wizName').value;
+}
+function wizError(msg) { const e = $('#wizErr'); e.textContent = msg; e.hidden = false; e.scrollIntoView({ block: 'nearest' }); }
+
+function wizNext() {
+  const d = wiz.data;
+  keepStep3();
+  if (wiz.step === 1) {
+    if (!d.type) return wizError('Bitte wähle aus, was für ein Ort es ist.');
+    if (d.isNew && d.name.trim().length < 2) return wizError('Bitte gib einen Namen ein (mindestens 2 Zeichen).');
+    if (d.isNew && !(d.lat > 53.39 && d.lat < 53.75 && d.lon > 9.72 && d.lon < 10.33)) return wizError('Der Pin liegt außerhalb von Hamburg. Bitte verschieb ihn.');
+    if (d.type === 'event') {
+      if (!d.eventDate) return wizError('Bitte gib das Datum der Veranstaltung an.');
+      if (new Date(d.eventDate) < new Date(new Date().toDateString())) return wizError('Das Datum liegt in der Vergangenheit.');
+    }
+  }
+  if (wiz.step === 3 && d.hours.trim() && !parseOH(d.hours.trim())) return wizError('Die Öffnungszeiten verstehe ich nicht. Format zum Beispiel: Mo-Fr 09:00-18:00; Sa 10:00-16:00');
+  if (wiz.step < 4) { wiz.step++; return renderWizard(); }
+  saveWizard();
+}
+
+async function saveWizard() {
+  const d = wiz.data, type = WIZ_TYPES.find(t => t.id === d.type);
+  // every question shown counts: untouched ones are stored explicitly as 'unknown' (not as 'no')
+  for (const a of (type?.attrs || []).concat(COMMON_ATTRS)) if (!d.attrs[a]) d.attrs[a] = 'unknown';
+  const photoIds = [];
+  if (d.photo) { try { const id = uid('ph_'); await photoDB.put(id, d.photo); photoIds.push(id); } catch (e) { toast('Foto konnte nicht gespeichert werden.'); } }
+  if (d.type === 'event') {
+    store.events.push({ id: uid('e_'), title: d.name.trim(), date: d.eventDate, time: d.eventTime, lat: d.lat, lon: d.lon,
+                        attrs: d.attrs, ages: d.ages, comment: d.comment.trim(), photoIds, createdAt: Date.now() });
+  } else {
+    const placeId = d.placeId || uid('u_');
+    store.contributions.push({ id: uid('c_'), placeId, isNew: d.isNew, type: d.type, cat: type.cat, name: d.name.trim(), lat: d.lat, lon: d.lon,
+                               attrs: d.attrs, ages: d.ages, hours: d.hours.trim(), photoIds, createdAt: Date.now() });
+    if (d.stars || d.comment.trim()) store.reviews.push({ id: uid('r_'), placeId, stars: d.stars || 0, text: d.comment.trim(), photoIds: [], at: Date.now() });
+    d.placeId = placeId;
+  }
+  save();
+  addUserPlaces();
+  const p = byId.get(d.placeId);
+  const area = p?.district || nearestDistrict(d.lat, d.lon);
+  wiz.data = null;
+  render();
+  openSheet(`<div class="thanks"><svg viewBox="0 0 24 24" width="56" height="56" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="#FFC83D"/><path d="M7 12.5l3.2 3L17 9" stroke="#3A2A00" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <h2>Danke!</h2><p>Dein Eintrag hilft Familien${area ? ' in ' + esc(area) : ' in Hamburg'}.</p>
+    <p class="note">Im Prototyp ist er erst auf deinem Gerät gespeichert. Mit dem Djuu-Server sehen ihn bald alle.</p>
+    <div class="actions" style="justify-content:center">${p ? `<button type="button" class="btn primary" id="thxShow">Ort ansehen</button>` : ''}<button type="button" class="btn" id="thxClose">Fertig</button></div></div>`);
+  $('#thxClose').onclick = closeSheet;
+  if (p) $('#thxShow').onclick = () => { map.setView([p.lat, p.lon], 18); openPlace(p.id); };
+}
+function nearestDistrict(la, lo) {
+  let best = null, bd = 1500;
+  for (const p of places) if (p.district && Math.abs(p.lat - la) < 0.01 && Math.abs(p.lon - lo) < 0.015) { const m = dist([la, lo], [p.lat, p.lon]); if (m < bd) { bd = m; best = p.district; } }
+  return best;
+}
+
+// ---------- One-tap confirmation near a place ----------
+function checkNearby() {
+  if (!state.me || !$('#sheet').hidden || state.view !== 'map') return;
+  const now = Date.now(), MONTH = 30 * 864e5;
+  let best = null;
+  for (const p of places) {
+    if (Math.abs(p.lat - state.me[0]) > 0.0015 || Math.abs(p.lon - state.me[1]) > 0.0025) continue;
+    const m = dist(state.me, [p.lat, p.lon]); if (m > 120) continue;
+    for (const a of ATTRS) {
+      if (attrVal(p, a.id).v !== 'yes') continue;
+      const key = p.id + ':' + a.id;
+      if (store.prompted[key] && now - store.prompted[key] < MONTH) continue;
+      if (!best || m < best.m) best = { m, p, a, key };
+      break;
+    }
+  }
+  const card = $('#nearby');
+  if (!best) { card.hidden = true; return; }
+  const n = userAnswers(best.p.id, best.a.id);
+  card.innerHTML = `<div><span class="muted">Du bist bei ${esc(best.p.name)}</span><b>${esc(best.a.label)}: gibt es das noch?</b>
+      ${n.length ? `<span class="muted">Bestätigt ${n.length}×, zuletzt am ${fmtDate(n[0].at)}</span>` : ''}</div>
+    <div class="ask big"><button type="button" data-near="yes">Ja</button><button type="button" data-near="no">Nein</button><button type="button" data-near="skip" aria-label="Später">×</button></div>`;
+  card.hidden = false;
+  card.querySelectorAll('[data-near]').forEach(b => b.onclick = () => {
+    store.prompted[best.key] = Date.now();
+    if (b.dataset.near !== 'skip') { store.confirmations.push({ placeId: best.p.id, attr: best.a.id, answer: b.dataset.near, at: Date.now() }); toast('Danke! Das hilft anderen Familien.'); render(); }
+    save(); card.hidden = true; setTimeout(checkNearby, 1500);
+  });
+}
+
+// ---------- Events (examples + own entries) ----------
 function nextDow(dow, plusWeeks = 0) { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + ((dow - d.getDay() + 7) % 7 || 7) + plusWeeks * 7); return d; }
-const EVENTS = [
+const EXAMPLE_EVENTS = [
   { d: nextDow(6), time: '10:00–13:00', title: 'Kinderflohmarkt von Eltern für Eltern', where: 'Schulhof in Eimsbüttel', kind: 'Flohmarkt' },
   { d: nextDow(3), time: '16:00', title: 'Bilderbuchkino ab 3 Jahren', where: 'Bücherhalle (Beispiel)', kind: 'Lesen' },
   { d: nextDow(0), time: '11:00', title: 'Familienkonzert: Klassik für Kleine', where: 'Konzertsaal (Beispiel)', kind: 'Musik' },
   { d: nextDow(6, 1), time: '09:00–14:00', title: 'Kinderkleiderbasar Herbst/Winter', where: 'Gemeindehaus in Winterhude', kind: 'Flohmarkt' },
-  { d: nextDow(5), time: '15:00–17:00', title: 'Offener Basteltreff', where: 'Familienzentrum (Beispiel)', kind: 'Basteln' },
 ];
 function renderEvents() {
   const fmtD = new Intl.DateTimeFormat('de-DE', { weekday: 'short' });
+  const own = store.events.map(e => ({ d: new Date(e.date + 'T00:00'), time: e.time, title: e.title, where: nearestDistrict(e.lat, e.lon) || 'Hamburg', kind: 'Von dir eingetragen', mine: true }));
+  const all = own.concat(EXAMPLE_EVENTS).filter(e => e.d >= new Date(new Date().toDateString())).sort((a, b) => a.d - b.d);
   $('#eventsView').innerHTML = deskTabs() + `
-    <div class="banner"><b>Das sind Beispiele.</b> Echte Termine kommen später automatisch von Bücherhallen, Bezirken, Familienzentren und Flohmarkt-Seiten.</div>
-    ${EVENTS.sort((a, b) => a.d - b.d).map(e => `<article class="event"><div class="date"><span>${fmtD.format(e.d)}</span><b>${e.d.getDate()}.</b><span>${e.d.toLocaleDateString('de-DE', { month: 'short' })}</span></div>
-      <div><h3>${esc(e.title)}<span class="badge">Beispiel</span></h3><div class="muted">${esc(e.time)} · ${esc(e.where)}</div><div class="tags"><span class="tag">${esc(e.kind)}</span></div></div></article>`).join('')}`;
+    <div class="banner"><b>Noch Beispiele.</b> Echte Termine kommen bald automatisch von Bücherhallen, Familienzentren und Flohmarkt-Veranstaltern. Eigene Veranstaltungen kannst du über „Eintragen“ hinzufügen.</div>
+    ${all.map(e => `<article class="event"><div class="date"><span>${fmtD.format(e.d)}</span><b>${e.d.getDate()}.</b><span>${e.d.toLocaleDateString('de-DE', { month: 'short' })}</span></div>
+      <div><h3>${esc(e.title)}<span class="badge">${e.mine ? 'Von dir' : 'Beispiel'}</span></h3><div class="muted">${esc(e.time || '')} · ${esc(e.where)}</div><div class="tags"><span class="tag">${esc(e.kind)}</span></div></div></article>`).join('')}`;
   bindDeskTabs();
 }
 
 // ---------- Views ----------
-function setView(v, keepAdd) {
-  if (v === 'add') { startAdd(); return; }
-  if (!keepAdd) stopAdd();
+function setView(v, keep) {
+  if (v === 'add') { startWizard(); return; }
   state.view = v;
   document.body.className = 'view-' + v;
   document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.view === v));
   $('#listView').hidden = v === 'events';
   $('#eventsView').hidden = v !== 'events';
-  if (v === 'events') renderEvents(); else renderList(state.showUnknown ? last.match.concat(last.unknown) : last.match);
+  if (v === 'events') renderEvents(); else if (last) renderList(shownList());
   if (v === 'map') setTimeout(() => map.invalidateSize(), 0);
 }
 
-// ---------- Events wiring ----------
+// ---------- Wiring ----------
 document.addEventListener('click', e => {
   const t = e.target.closest('button'); if (!t) return;
-  if (t.dataset.cat) { toggle(state.cats, t.dataset.cat); state.preset = null; state.listLimit = 60; render(); }
+  if (t.dataset.group) { toggle(state.groups, t.dataset.group); state.preset = null; state.listLimit = 60; render(); }
   else if (t.dataset.filter) { toggle(state.filters, t.dataset.filter); state.preset = null; render(); }
   else if (t.dataset.preset) {
     const p = PRESETS.find(x => x.id === t.dataset.preset);
-    if (state.preset === p.id) { state.preset = null; state.cats.clear(); state.filters.clear(); }
-    else { state.preset = p.id; state.cats = new Set(p.cats); state.filters = new Set(p.filters); }
+    if (state.preset === p.id) { state.preset = null; state.groups.clear(); state.cats.clear(); state.filters.clear(); }
+    else { state.preset = p.id; state.groups = new Set(p.groups); state.cats = new Set(p.cats || []); state.filters = new Set(p.filters); }
     render();
   }
   else if (t.id === 'openFilters') openFilters();
   else if (t.dataset.view) setView(t.dataset.view);
   else if (t.classList.contains('item')) { const p = byId.get(t.dataset.id); if (window.innerWidth < 900) setView('map'); map.setView([p.lat, p.lon], Math.max(map.getZoom(), 17)); setTimeout(() => openPlace(p.id), 50); }
 });
-$('#sheetClose').onclick = closeSheet;
+$('#sheetClose').onclick = () => { wiz.data = null; closeSheet(); setTimeout(checkNearby, 500); };
 $('#more').onclick = () => { state.listLimit += 60; render(); };
 let qt; $('#q').addEventListener('input', e => { clearTimeout(qt); qt = setTimeout(() => { state.q = e.target.value; render(); }, 200); });
-map.on('moveend', () => { if (last && (state.view === 'list' || window.innerWidth >= 900)) renderList(state.showUnknown ? last.match.concat(last.unknown) : last.match); });
+map.on('moveend', () => { if (last && (state.view === 'list' || window.innerWidth >= 900)) renderList(shownList()); });
 $('#locate').onclick = () => {
   if (!navigator.geolocation) { toast('Standort wird von diesem Gerät nicht unterstützt.'); return; }
-  navigator.geolocation.getCurrentPosition(pos => {
+  let first = true;
+  navigator.geolocation.watchPosition(pos => {
     state.me = [pos.coords.latitude, pos.coords.longitude];
-    map.setView(state.me, 16);
+    if (first) { map.setView(state.me, 16); first = false; render(); }
     if (!meMarker) meMarker = L.circleMarker(state.me, { radius: 8, color: '#fff', weight: 3, fillColor: '#1C7ED6', fillOpacity: 1 }).addTo(map);
     else meMarker.setLatLng(state.me);
-    render();
-  }, () => toast('Standort nicht verfügbar. Bitte Freigabe im Browser erlauben.'), { enableHighAccuracy: true, timeout: 8000 });
+    checkNearby();
+  }, () => toast('Standort nicht verfügbar. Bitte Freigabe im Browser erlauben.'), { enableHighAccuracy: true, maximumAge: 30000 });
 };
 setInterval(() => { if (state.filters.has('jetzt')) render(); }, 60000);
 
 // ---------- Boot ----------
 (async () => {
   try {
-    const [rows, devices] = await Promise.all([loadTSV('data/orte.tsv'), loadTSV('data/geraete.tsv').catch(() => [])]);
-    const seen = new Set();
-    for (const r of rows) {
-      const p = buildPlace(r);
-      if (!p || seen.has(p.id)) continue;
-      seen.add(p.id); places.push(p); byId.set(p.id, p);
-    }
-    attachGear(devices);
-    addLocalPlaces();
+    const res = await fetch('data/places.json');
+    if (!res.ok) throw new Error('places.json ' + res.status);
+    const data = await res.json();
+    SOURCES = data.sources;
+    for (const row of data.places) { const p = buildPlace(row); places.push(p); byId.set(p.id, p); }
+    addUserPlaces();
     render();
   } catch (err) {
     $('#status').textContent = 'Daten konnten nicht geladen werden. Bitte Seite neu laden.';

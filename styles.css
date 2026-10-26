@@ -197,3 +197,57 @@ textarea { min-height: 70px; resize: vertical; }
   .sheet { animation: up .22s ease-out; }
   @keyframes up { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
 }
+
+/* v0.2: details, photos, wizard, nearby confirmation */
+.open-now { color: var(--yes); font-weight: 700; }
+.closed-now { color: var(--no); font-weight: 700; }
+.selectable { user-select: all; }
+.attr-right { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.evidence { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.evidence summary { cursor: pointer; color: var(--brand); }
+.photos { display: flex; gap: 8px; overflow-x: auto; margin-top: 10px; }
+.photos img { height: 120px; border-radius: 10px; object-fit: cover; flex: none; }
+.preview { display: block; max-height: 160px; border-radius: 10px; margin-top: 8px; }
+.hint-kids { margin: 4px 0 0; font-size: 12.5px; font-weight: 600; color: var(--no); }
+.error { margin: 10px 0 0; padding: 10px 12px; border-radius: 10px; background: color-mix(in srgb, var(--no) 12%, transparent); color: var(--no); font-weight: 600; }
+.linkbtn { border: 0; background: none; padding: 4px 0; color: var(--muted); font-size: 12.5px; text-decoration: underline; }
+.stars-read { color: #F59F00; letter-spacing: 1px; }
+.revform { margin-top: 8px; }
+
+.sheet.wizard { max-height: 92%; padding-bottom: 0; }
+.progress { display: grid; gap: 6px; margin: 4px 0 6px; font-size: 13px; font-weight: 600; color: var(--muted); }
+.progress .bar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.progress .bar i { display: block; height: 100%; background: var(--sun); border-radius: 3px; }
+.minimap { height: 180px; border-radius: var(--r); overflow: hidden; border: 1px solid var(--line); margin-top: 8px; }
+.pin.big { width: 26px; height: 26px; border-width: 3px; }
+.typegrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.typebtn { display: grid; justify-items: center; gap: 6px; padding: 14px 8px; min-height: 92px; border-radius: var(--r); border: 2px solid var(--line); background: var(--surface); font-weight: 700; font-size: 14px; text-align: center; }
+.typebtn svg { width: 34px; height: 34px; color: var(--brand); }
+.typebtn.on { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 10%, var(--surface)); }
+.suggest { display: grid; gap: 4px; }
+.suggest:empty { display: none; }
+.suggest button { text-align: left; border: 1px solid var(--line); background: var(--bg); border-radius: 10px; padding: 10px 12px; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.tri { display: grid; gap: 6px; padding: 10px 0; border-top: 1px solid var(--line); }
+.tri-label { font-weight: 600; }
+.seg { display: grid; grid-template-columns: 1fr 1fr 1.3fr; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.seg button { min-height: 48px; border: 0; border-left: 1px solid var(--line); background: var(--surface); font-weight: 700; font-size: 15px; }
+.seg button:first-child { border-left: 0; }
+.seg button.on.yes { background: var(--yes); color: var(--bg); }
+.seg button.on.no { background: var(--no); color: var(--bg); }
+.seg button.on.unknown { background: var(--line); color: var(--ink); }
+.agegrid { display: flex; flex-wrap: wrap; gap: 8px; }
+.agegrid .chip { height: 44px; font-size: 15px; padding: 0 16px; }
+.wizbar { position: sticky; bottom: 0; display: flex; gap: 8px; padding: 12px 0 calc(14px + env(safe-area-inset-bottom, 0px)); margin-top: 16px; background: var(--surface); border-top: 1px solid var(--line); }
+.btn.big { flex: 1; justify-content: center; min-height: 52px; font-size: 16px; }
+.btn.ghost { border-color: transparent; background: transparent; color: var(--muted); flex: 0 0 auto; }
+.summary { display: grid; grid-template-columns: auto 1fr; gap: 8px 14px; margin: 12px 0 0; }
+.summary dt { color: var(--muted); font-weight: 600; }
+.summary dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.thanks { text-align: center; padding: 16px 0 8px; }
+.thanks h2 { margin: 10px 0 4px; }
+
+.nearby { position: absolute; z-index: 1150; left: 16px; right: 16px; bottom: 16px; display: grid; gap: 10px; background: var(--surface); border-radius: var(--r); box-shadow: var(--shadow); padding: 12px 14px; border-left: 5px solid var(--sun); }
+.nearby > div:first-child { display: grid; gap: 2px; }
+.ask.big button { min-height: 44px; min-width: 64px; font-size: 15px; }
+@media (min-width: 900px) { .nearby { left: 436px; right: auto; width: 380px; } }
