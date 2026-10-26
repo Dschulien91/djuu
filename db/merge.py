@@ -18,10 +18,10 @@ from common import RAW_DIR, connect, now
 
 MATCH_M = 80
 GROUPS = [  # categories that may describe the same real place
-    {'spielplatz', 'indoor', 'park', 'spielplatz_privat'},
+    {'spielplatz', 'indoor', 'park', 'spielplatz_privat', 'spielhaus'},
     {'cafe', 'restaurant', 'imbiss', 'eis', 'familienfreundlich'},
     {'baden'}, {'buecherei'}, {'museum', 'ausflug', 'kultur'}, {'wc', 'wickel'}, {'kita'},
-    {'treffpunkt', 'kultur'}, {'apotheke'}, {'kinderarzt', 'klinik'}, {'windeln', 'laden'}, {'hundeauslauf', 'park'},
+    {'treffpunkt', 'kultur', 'beratung', 'spielhaus'}, {'apotheke'}, {'kinderarzt', 'klinik'}, {'windeln', 'laden'}, {'hundeauslauf', 'park'},
 ]
 
 

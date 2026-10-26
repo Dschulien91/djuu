@@ -31,7 +31,7 @@ def now():
 
 def connect():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    con = sqlite3.connect(DB_PATH)
+    con = sqlite3.connect(DB_PATH, timeout=60)
     con.execute('PRAGMA foreign_keys = ON')
     con.executescript((Path(__file__).parent / 'schema.sql').read_text(encoding='utf-8'))
     return con
@@ -96,6 +96,7 @@ def register_source(con, id, name, url, license, attribution, priority=50):
                    ON CONFLICT(id) DO UPDATE SET name=excluded.name, url=excluded.url, license=excluded.license,
                    attribution=excluded.attribution, priority=excluded.priority""",
                 (id, name, url, license, attribution, priority))
+    con.commit()  # never hold the write lock during long downloads
 
 
 def replace_records(con, source_id, records):
