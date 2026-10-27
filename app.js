@@ -1,11 +1,11 @@
-/* Djuu v0.4 – family map for Hamburg.
+/* Djuu v0.5 – family map for Hamburg.
    Map first: search + category row on top, one panel (bottom sheet on phones, left column on desktop)
    for list, place details, filters, urgent help, events, saved places and the add-place wizard.
    Data: data/places.json (db/export.py); every value carries its source.
    User input is stored on this device only until the server exists (server-ready shape, see STORE). */
 'use strict';
 
-const VERSION = '0.4';
+const VERSION = '0.5';
 
 // ---------- Icons (24px line icons) ----------
 const ICON = {
@@ -39,27 +39,31 @@ const ICON = {
   blocks: '<rect x="3" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/><rect x="8" y="3" width="8" height="8" rx="1.5"/>',
   elevator: '<rect x="5" y="2.5" width="14" height="19" rx="2.5"/><path d="M9 9.5l3-3 3 3M9 14.5l3 3 3-3"/>',
   toilet: '<path d="M6 3h5v8H6z"/><path d="M4 11h16c0 3.5-2.8 6-6 6h-1l.8 4H8.5l.8-4.3C6.2 16 4 13.8 4 11z"/>',
+  star: '<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>',
+  group: '<circle cx="12" cy="7" r="2.6"/><circle cx="5.5" cy="10" r="2.1"/><circle cx="18.5" cy="10" r="2.1"/><path d="M7.5 20c0-2.8 2-5 4.5-5s4.5 2.2 4.5 5"/><path d="M2 19c0-2.2 1.6-4 3.5-4M22 19c0-2.2-1.6-4-3.5-4"/>',
   pill: '<rect x="3" y="8.5" width="18" height="7" rx="3.5" transform="rotate(-45 12 12)"/><path d="M9.5 9.5l5 5"/>',
 };
 const svg = (name, cls = 'i') => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON[name] || ''}</svg>`;
 
 // ---------- Category groups and categories ----------
 const GROUPS = [
-  { id: 'spielplatz', label: 'Spielplätze', short: 'Spielplätze', icon: 'playground', color: '#E8590C', cats: ['spielplatz'] },
+  { id: 'tipps', label: 'Djuu-Tipps', short: 'Djuu-Tipps', icon: 'star', color: '#E0A100', cats: [], virtual: true },
+  { id: 'spielplatz', label: 'Spielplätze', short: 'Spielplätze', icon: 'playground', color: '#E8590C', cats: ['spielplatz', 'abenteuer'] },
   { id: 'essen', label: 'Essen & Café', short: 'Essen & Café', icon: 'cup', color: '#9C36B5', cats: ['cafe', 'restaurant', 'imbiss', 'eis'] },
   { id: 'wickeln', label: 'Wickeln, Stillen, WC', short: 'Wickeln & WC', icon: 'baby', color: '#0C8599', cats: ['wc', 'wickel', 'familienfreundlich'] },
   { id: 'einkauf', label: 'Windeln & Einkauf', short: 'Windeln', icon: 'bag', color: '#1971C2', cats: ['windeln', 'laden'] },
+  { id: 'kurse', label: 'Kurse & Gruppen', short: 'Kurse & Gruppen', icon: 'group', color: '#C2255C', cats: ['kurs', 'geburtshaus', 'hebamme'] },
   { id: 'drinnen', label: 'Drinnen spielen', short: 'Drinnen', icon: 'house', color: '#D6336C', cats: ['indoor', 'spielhaus', 'freizeit'] },
   { id: 'natur', label: 'Parks & Natur', short: 'Draußen', icon: 'tree', color: '#2F9E44', cats: ['park', 'picknick', 'grillplatz', 'trinkwasser'] },
   { id: 'baden', label: 'Baden', short: 'Baden', icon: 'waves', color: '#1098AD', cats: ['baden'] },
   { id: 'kultur', label: 'Kultur & Ausflüge', short: 'Ausflüge', icon: 'museum', color: '#E67700', cats: ['museum', 'kultur', 'ausflug', 'buecherei'] },
-  { id: 'gesundheit', label: 'Gesundheit', short: 'Gesundheit', icon: 'cross', color: '#E03131', cats: ['apotheke', 'kinderarzt', 'hebamme', 'klinik', 'babyklappe'] },
-  { id: 'zentren', label: 'Familienzentren & Beratung', short: 'Familienzentren', icon: 'people', color: '#6741D9', cats: ['treffpunkt', 'beratung'] },
+  { id: 'gesundheit', label: 'Gesundheit', short: 'Gesundheit', icon: 'cross', color: '#E03131', cats: ['apotheke', 'kinderarzt', 'klinik', 'babyklappe'] },
+  { id: 'zentren', label: 'Treffpunkte & Beratung', short: 'Treffpunkte', icon: 'people', color: '#6741D9', cats: ['treffpunkt', 'beratung'] },
   { id: 'hund', label: 'Hundeauslauf', short: 'Hundeauslauf', icon: 'paw', color: '#8D6E63', cats: ['hundeauslauf'] },
   { id: 'kita', label: 'Kitas', short: 'Kitas', icon: 'blocks', color: '#F59F00', cats: ['kita'] },
   { id: 'unterwegs', label: 'Aufzüge & Bahnhöfe', short: 'Aufzüge', icon: 'elevator', color: '#5C677D', cats: ['aufzug', 'bahnhof'] },
 ];
-const ROW_GROUPS = ['spielplatz', 'essen', 'wickeln', 'einkauf', 'drinnen', 'natur', 'baden'];
+const ROW_GROUPS = ['tipps', 'spielplatz', 'essen', 'wickeln', 'kurse', 'einkauf', 'drinnen', 'natur', 'baden'];
 const GROUP = Object.fromEntries(GROUPS.map(g => [g.id, g]));
 const CAT_LABEL = {
   spielplatz: 'Spielplatz', indoor: 'Drinnen spielen', spielhaus: 'Spielhaus', freizeit: 'Freizeit', cafe: 'Café',
@@ -69,13 +73,14 @@ const CAT_LABEL = {
   kultur: 'Kultur', ausflug: 'Ausflugsziel', buecherei: 'Bücherhalle', baden: 'Baden', park: 'Park', picknick: 'Picknickplatz',
   grillplatz: 'Grillplatz', trinkwasser: 'Trinkwasser', hundeauslauf: 'Hundeauslaufzone', treffpunkt: 'Familienzentrum / Treffpunkt',
   beratung: 'Beratung', kita: 'Kita', aufzug: 'Aufzug', bahnhof: 'Bahnhof',
+  kurs: 'Elternschule / Familienzentrum', geburtshaus: 'Geburtshaus', abenteuer: 'Abenteuer- / Bauspielplatz',
 };
 const GROUP_OF = {};
 for (const g of GROUPS) for (const c of g.cats) GROUP_OF[c] = g;
 
 // ---------- Attributes (the filters Google does not have) ----------
 const truthy = v => /^(yes|designated|room|true|ja|1|limited|partial)$/i.test(v) ? (v === 'limited' || v === 'partial' ? 'limited' : 'yes') : /^(no|false|nein|0)$/i.test(v) ? 'no' : null;
-const INDOOR = ['essen', 'einkauf', 'wickeln', 'gesundheit', 'kultur', 'baden', 'drinnen', 'zentren', 'unterwegs'];
+const INDOOR = ['essen', 'einkauf', 'wickeln', 'gesundheit', 'kultur', 'baden', 'drinnen', 'zentren', 'unterwegs', 'kurse'];
 const ATTRS = [
   { id: 'wickeltisch', label: 'Wickeltisch', keys: ['changing_table'], groups: INDOOR, q: 'Gibt es hier einen Wickeltisch?' },
   { id: 'stillen', label: 'Stillmöglichkeit', keys: ['baby_feeding'], groups: INDOOR, q: 'Kann man hier in Ruhe stillen?' },
@@ -92,7 +97,7 @@ const ATTRS = [
   { id: 'toilette', label: 'Toilette', keys: ['toilets'], groups: ['essen', 'kultur', 'baden', 'drinnen', 'natur', 'einkauf'], q: 'Gibt es eine Toilette?' },
   { id: 'drinnen', label: 'Drinnen', keys: ['indoor'], groups: ['spielplatz', 'drinnen', 'kultur', 'baden', 'zentren'], q: 'Ist es drinnen oder überdacht?' },
   { id: 'hund', label: 'Hunde erlaubt', keys: ['dog'], q: 'Sind Hunde erlaubt?' },
-  { id: 'kostenlos', label: 'Kostenlos', keys: ['fee'], invert: true, groups: ['spielplatz', 'drinnen', 'kultur', 'baden', 'wickeln', 'zentren', 'natur'], q: 'Ist es kostenlos?' },
+  { id: 'kostenlos', label: 'Kostenlos', keys: ['fee'], invert: true, groups: ['spielplatz', 'drinnen', 'kultur', 'baden', 'wickeln', 'zentren', 'natur', 'kurse'], q: 'Ist es kostenlos?' },
 ];
 const ATTR = Object.fromEntries(ATTRS.map(a => [a.id, a]));
 function normValue(attr, v) {
@@ -124,6 +129,8 @@ const GROUP_FILTERS = {
   kultur: ['jetzt', 'kostenlos', 'wickeltisch', 'kinderwagen'],
   gesundheit: ['jetzt', 'sonntag', 'kinderwagen'],
   zentren: ['jetzt', 'kostenlos'],
+  kurse: ['kostenlos', 'kinderwagen', 'wickeltisch'],
+  tipps: ['jetzt', 'kostenlos', 'wickeltisch'],
   unterwegs: ['kinderwagen'],
   _: ['jetzt', 'wickeltisch', 'kinderwagen', 'hund'],
 };
@@ -131,6 +138,8 @@ const AGES = [{ id: '0-2', label: '0–2 Jahre' }, { id: '3-6', label: '3–6 Ja
 const PRESETS = [
   { id: 'windeln-jetzt', label: 'Jetzt Windeln kaufen', icon: 'bag', groups: ['einkauf'], cats: ['apotheke'], filters: ['jetzt'] },
   { id: 'windeln-sonntag', label: 'Windeln am Sonntag', icon: 'bag', groups: ['einkauf'], cats: ['apotheke'], filters: ['sonntag'] },
+  { id: 'tipps', label: 'Djuu-Tipps: was Eltern lieben', icon: 'star', groups: ['tipps'], filters: [] },
+  { id: 'kurse', label: 'Krabbelgruppen & Kurse', icon: 'group', groups: ['kurse'], filters: [] },
   { id: 'wickeln', label: 'Wickeln unterwegs', icon: 'baby', groups: [], filters: ['wickeltisch'] },
   { id: 'regen', label: 'Es regnet', icon: 'house', groups: ['drinnen', 'kultur', 'baden'], filters: [] },
   { id: 'kleinkind', label: 'Spielplatz für die Kleinen', icon: 'playground', groups: ['spielplatz'], filters: ['kleinkind'] },
@@ -304,13 +313,11 @@ function addUserPlaces() {
 
 // ---------- Map ----------
 const map = L.map('map', { zoomControl: false, minZoom: 10, maxZoom: 19, maxBounds: [[53.25, 9.55], [53.85, 10.45]] }).setView([53.5600, 9.9800], 13);
-// Simplified, Google-like vector basemap from OpenFreeMap (free, no key): Liberty by day, Dark in dark mode.
-const STYLE_URL = { light: 'https://tiles.openfreemap.org/styles/liberty', dark: 'https://tiles.openfreemap.org/styles/dark' };
-const darkMQ = window.matchMedia('(prefers-color-scheme: dark)');
-const styleUrl = () => darkMQ.matches ? STYLE_URL.dark : STYLE_URL.light;
+// Simplified, Google-like vector basemap from OpenFreeMap (free, no key). Always the light style (dark was too dark).
+const STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty';
+const styleUrl = () => STYLE_URL;
 const baseOpts = { attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · <a href="https://openfreemap.org">OpenFreeMap</a> · Quellen je Ort' };
-const baseLayer = L.maplibreGL({ style: styleUrl(), ...baseOpts }).addTo(map);
-darkMQ.addEventListener?.('change', () => baseLayer.getMaplibreMap().setStyle(styleUrl()));
+L.maplibreGL({ style: styleUrl(), ...baseOpts }).addTo(map);
 const cluster = L.markerClusterGroup({
   chunkedLoading: true, showCoverageOnHover: false, maxClusterRadius: 50, disableClusteringAtZoom: 17,
   iconCreateFunction: c => {
@@ -321,8 +328,8 @@ const cluster = L.markerClusterGroup({
 map.addLayer(cluster);
 const iconCache = {};
 function iconFor(p, unknown) {
-  const g = groupOf(p), k = g.id + (unknown ? 'u' : '') + (p.mine ? 'm' : '');
-  return iconCache[k] || (iconCache[k] = L.divIcon({ className: '', iconSize: [30, 30], html: `<div class="mk${unknown ? ' unk' : ''}${p.mine ? ' mine' : ''}" style="--c:${g.color}"><svg viewBox="0 0 24 24">${ICON[g.icon]}</svg></div>` }));
+  const g = groupOf(p), tip = !!p.f.tipp, k = g.id + (unknown ? 'u' : '') + (p.mine ? 'm' : '') + (tip ? 't' : '');
+  return iconCache[k] || (iconCache[k] = L.divIcon({ className: '', iconSize: [30, 30], html: `<div class="mk${unknown ? ' unk' : ''}${p.mine ? ' mine' : ''}${tip ? ' tip' : ''}" style="--c:${g.color}"><svg viewBox="0 0 24 24">${ICON[g.icon]}</svg>${tip ? `<span class="star">${svg('star', '')}</span>` : ''}</div>` }));
 }
 function markerFor(p, unknown) {
   if (!p.marker) { p.marker = L.marker([p.lat, p.lon]); p.marker.on('click', () => showPlace(p.id, true)); }
@@ -336,7 +343,7 @@ map.on('moveend', () => { if (view().type === 'list') renderPanel(); });
 // ---------- Filtering ----------
 function inSelection(p) {
   if (!state.groups.size && !state.cats.size) return true;
-  return state.groups.has(groupOf(p).id) || state.cats.has(p.cat);
+  return state.groups.has(groupOf(p).id) || state.cats.has(p.cat) || (state.groups.has('tipps') && !!p.f.tipp);
 }
 function compute() {
   const q = state.q.trim().toLowerCase();
@@ -433,7 +440,7 @@ function itemHtml(p, d) {
   const yes = relevantAttrs(p).filter(a => attrVal(p, a.id).v === 'yes').slice(0, 3).map(a => `<span>${esc(a.label)}</span>`).join('');
   const ot = openText(p);
   return `<li><button type="button" class="item" data-id="${p.id}">${badge(p)}
-    <span><h3>${esc(p.name)}</h3><span class="meta">${esc(CAT_LABEL[p.cat] || '')}${ot ? ' · ' + ot : ''}</span>${yes ? `<span class="mini">${yes}</span>` : ''}</span>
+    <span><h3>${esc(p.name)}${p.f.tipp ? ` <span class="tipdot" title="Djuu-Tipp">${svg('star', '')}</span>` : ''}</h3><span class="meta">${esc(CAT_LABEL[p.cat] || '')}${ot ? ' · ' + ot : ''}</span>${yes ? `<span class="mini">${yes}</span>` : ''}</span>
     <span class="dist">${fmtDist(d)}</span></button></li>`;
 }
 
@@ -488,6 +495,8 @@ async function detailView(id) {
       <button type="button" class="act" data-share="${id}">${svg('share')}Teilen</button>
       <button type="button" class="act" data-addinfo="${id}">${svg('edit')}Ergänzen</button>
     </div>
+    ${f.tipp ? `<div class="tipbanner">${svg('star')}<div><b>Djuu-Tipp</b>${esc(f.tipp[0])}</div></div>` : ''}
+    ${groupOf(p).id === 'kurse' ? `<p class="note">Kurse und Gruppenzeiten (z. B. Krabbelgruppen) zeigen wir bald direkt hier. Bis dahin stehen sie auf der Webseite.</p>` : ''}
     ${photos ? `<div class="photos" style="margin-top:12px">${photos}</div>` : ''}
     <div class="sec"><h4>Auf einen Blick</h4>
       ${known.length || p.gear || ages.length ? `<div class="facts">${known.map(factChip).join('')}

@@ -286,3 +286,15 @@ textarea { min-height: 80px; resize: vertical; }
   .addhint { left: calc(var(--col) + 16px); right: 16px; top: 80px; }
   .toast { left: calc(var(--col) / 2); bottom: 84px; }
 }
+
+/* v0.5: Djuu-Tipps */
+.mk { position: relative; }
+.mk.tip { border-color: #E0A100; box-shadow: 0 0 0 3px #FFD45C, 0 1px 5px rgba(0,0,0,.3); }
+.mk .star { position: absolute; top: -7px; right: -7px; width: 16px; height: 16px; border-radius: 50%; background: #E0A100; display: grid; place-items: center; }
+.mk .star svg { width: 10px; height: 10px; fill: #fff; stroke: #fff; stroke-width: 1.5; }
+.tipdot { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: #E0A100; vertical-align: -2px; margin-left: 2px; }
+.tipdot svg { width: 11px; height: 11px; fill: #fff; stroke: #fff; stroke-width: 1.5; }
+.tipbanner { display: flex; gap: 12px; align-items: flex-start; margin-top: 14px; padding: 14px; border-radius: 18px; background: color-mix(in srgb, #FFD45C 34%, var(--surface)); color: var(--ink); }
+.tipbanner svg.i { width: 24px; height: 24px; fill: #E0A100; stroke: #E0A100; flex: none; }
+.tipbanner b { display: block; font: 800 15px var(--font-display); }
+.cat[data-group="tipps"] .ic svg { fill: currentColor; }

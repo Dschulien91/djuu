@@ -44,7 +44,8 @@ out center tags;
 def categorize(t):
     g = t.get
     if 'paediatrics' in (g('healthcare:speciality') or ''): return 'kinderarzt'
-    if g('healthcare') in ('midwife', 'birthing_centre'): return 'hebamme'
+    if g('healthcare') == 'birthing_centre': return 'geburtshaus'
+    if g('healthcare') == 'midwife': return 'hebamme'
     if g('amenity') == 'baby_hatch': return 'babyklappe'
     lei = g('leisure')
     if lei == 'playground':

@@ -9,9 +9,11 @@ Format (compact arrays to keep the file small):
 """
 import json
 import math
+import re
 from collections import defaultdict
 
 from common import ROOT, connect, now
+from tipps import auto_reason, editorial_match
 
 SKIP_CATS = {'spielplatz_privat', 'geraet'}
 KEYS = ['changing_table', 'changing_table_location', 'highchair', 'kids_area', 'kids_menu', 'dog', 'dog_rule', 'wheelchair',
@@ -20,6 +22,26 @@ KEYS = ['changing_table', 'changing_table_location', 'highchair', 'kids_area', '
         'description', 'image', 'age_groups', 'type', 'operator', 'water_status', 'water_quality_eu', 'season', 'services',
         'maternity', 'emergency', 'rating', 'review_text', 'drinking_water', 'cuisine', 'care_types', 'transit']
 WC_NEAR_M = 300
+
+# Category refinement: official sources and clear names beat the generic OSM category.
+SOURCE_CAT = {'hh_ekiz': 'kurs', 'hh_elternschule': 'kurs', 'hh_familienbildung_konf': 'kurs',
+              'hh_spielhaus': 'spielhaus', 'hh_bauspielplatz': 'abenteuer', 'hh_kindertreff': 'spielhaus'}
+NAME_CAT = [(r'geburtshaus|haus für geburt', 'geburtshaus'),
+            (r'bauspielplatz|abenteuerspielplatz|aktivspielplatz', 'abenteuer'),
+            (r'^spielhaus|spielhaus ', 'spielhaus'),
+            (r'familienbildung|familien-bildung|elternschule|eltern-kind-zentrum|ekiz|haus der familie|kinder- und familienzentrum|familienzentrum|kifaz', 'kurs')]
+NAME_CAT_FROM = {'treffpunkt', 'beratung', 'hebamme', 'kita', 'spielplatz', 'park', 'familienfreundlich', 'kultur'}
+
+
+def refine(cat, name, srcs):
+    for s in srcs:
+        if s in SOURCE_CAT and not (SOURCE_CAT[s] == 'kurs' and cat == 'kita'):
+            return SOURCE_CAT[s]
+    if cat in NAME_CAT_FROM and name:
+        for rx, c in NAME_CAT:
+            if re.search(rx, name, re.I) and not (c == 'kurs' and cat == 'kita'):
+                return c
+    return cat
 
 
 def run():
@@ -44,12 +66,12 @@ def run():
         for v in value.replace(';', ',').split(','):
             if v.strip(): gear[pid].add(v.strip())
     # names of all sources per place
-    srcs = defaultdict(set)
+    srcs, srcnames = defaultdict(set), defaultdict(set)
     for pid, src in con.execute('SELECT place_id, source_id FROM source_records WHERE place_id IS NOT NULL'):
-        srcs[pid].add(sidx[src])
+        srcs[pid].add(sidx[src]); srcnames[pid].add(src)
 
     rows = con.execute('SELECT id, name, category, lat, lon, district FROM places WHERE district IS NOT NULL').fetchall()
-    rows = [r for r in rows if r[2] not in SKIP_CATS]
+    rows = [(pid, name, refine(cat, name, srcnames[pid]), lat, lon, d) for pid, name, cat, lat, lon, d in rows if cat not in SKIP_CATS]
     wcs = [(r[3], r[4]) for r in rows if r[2] == 'wc' or facts[r[0]].get('toilets', [None])[0] == 'yes']
 
     places = []
@@ -59,11 +81,17 @@ def run():
         if cat == 'spielplatz' and wcs:
             d = min(dist(lat, lon, a, b) for a, b in wcs if abs(a - lat) < 0.004 and abs(b - lon) < 0.007) if any(abs(a - lat) < 0.004 and abs(b - lon) < 0.007 for a, b in wcs) else None
             if d is not None and d <= WC_NEAR_M: f['wc_near'] = [str(round(d)), sidx['osm'], 'computed']
+        tip = editorial_match(name, district)
+        if tip: f['tipp'] = [tip, -1, 'redaktion']
+        elif (r := auto_reason(cat, f)): f['tipp'] = [r, -1, 'auto']
         places.append([pid, name or '', cat, round(lat, 6), round(lon, 6), district, f, sorted(srcs[pid])])
     out = {'version': 2, 'generated': now(), 'sources': sources, 'places': places}
     path = ROOT / 'data' / 'places.json'
     path.write_text(json.dumps(out, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
+    from collections import Counter
     print(f'{len(places)} places, {path.stat().st_size / 1e6:.1f} MB -> {path}')
+    print('categories:', dict(Counter(p[2] for p in places).most_common()))
+    print('tipps:', Counter(p[6]['tipp'][2] for p in places if 'tipp' in p[6]))
 
 
 def dist(la1, lo1, la2, lo2):
