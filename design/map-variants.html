@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Djuu Kartenstile</title>
+<link rel="stylesheet" href="../vendor/leaflet.css">
+<link rel="stylesheet" href="../vendor/maplibre-gl.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,800&family=Figtree:wght@500;700&display=swap">
+<style>
+  body { margin: 0; padding: 20px; background: #F3F6F4; color: #13302B; font: 15px/1.4 "Figtree", system-ui, sans-serif; }
+  h1 { font: 800 26px "Bricolage Grotesque", system-ui, sans-serif; margin: 0 0 4px; }
+  p { margin: 0 0 16px; color: #61756F; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+  figure { margin: 0; background: #fff; border-radius: 18px; overflow: hidden; box-shadow: 0 2px 10px rgba(16,48,42,.12); }
+  figure.pick { outline: 3px solid #FFC83D; }
+  .map { height: 420px; }
+  figcaption { padding: 12px 14px; }
+  figcaption b { font: 800 18px "Bricolage Grotesque", system-ui, sans-serif; margin-right: 6px; }
+  .tag { font-size: 12px; font-weight: 700; background: #FFC83D; color: #3A2A00; border-radius: 6px; padding: 1px 6px; }
+  .mk { width: 30px; height: 30px; border-radius: 50%; background: #fff; color: var(--c); display: grid; place-items: center; box-shadow: 0 1px 5px rgba(0,0,0,.3); border: 2px solid var(--c); }
+  .mk svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.1; stroke-linecap: round; stroke-linejoin: round; }
+</style>
+</head>
+<body>
+<h1>Kartenstile zur Auswahl</h1>
+<p>Gleicher Ausschnitt (Planten un Blomen / Schanze), mit Djuu-Symbolen. Kartendaten: OpenFreeMap (kostenlos, ohne Schlüssel). Bitte per Buchstabe auswählen.</p>
+<div class="grid">
+  <figure class="pick"><div class="map" id="A"></div><figcaption><b>A</b> Liberty: am nächsten an Google Maps, Parks grün, Wasser blau <span class="tag">Vorschlag</span></figcaption></figure>
+  <figure><div class="map" id="B"></div><figcaption><b>B</b> Positron: sehr reduziert, fast grau, Symbole stechen am stärksten heraus</figcaption></figure>
+  <figure><div class="map" id="C"></div><figcaption><b>C</b> Bright: kräftiger, mehr Farbe und Details</figcaption></figure>
+  <figure><div class="map" id="D"></div><figcaption><b>D</b> Dark: für den Dunkelmodus</figcaption></figure>
+</div>
+<script src="../vendor/leaflet.js"></script>
+<script src="../vendor/maplibre-gl.js"></script>
+<script src="../vendor/leaflet-maplibre-gl.js"></script>
+<script>
+const OFM = 'https://tiles.openfreemap.org/styles/';
+const STYLES = { A: OFM + 'liberty', B: OFM + 'positron', C: OFM + 'bright', D: OFM + 'dark' };
+const ICON = {
+  playground: '<path d="M4 21L8 3h8l4 18"/><path d="M10 3v10M14 3v10M8.5 13h3M12.5 13h3"/>',
+  cup: '<path d="M4 9h12v4a6 6 0 0 1-12 0V9z"/><path d="M16 10h1.5a2.5 2.5 0 0 1 0 5H16"/><path d="M8 3v3M12 3v3"/>',
+  baby: '<circle cx="12" cy="12.5" r="8.5"/><path d="M9.2 11.5h.01M14.8 11.5h.01M9.8 15.2a3.2 3.2 0 0 0 4.4 0"/>',
+  bag: '<path d="M5 8h14l-1.2 12H6.2L5 8z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/>',
+};
+const PINS = [
+  [53.5605, 9.9820, 'playground', '#E8590C'], [53.5590, 9.9765, 'cup', '#9C36B5'], [53.5625, 9.9705, 'cup', '#9C36B5'],
+  [53.5580, 9.9860, 'baby', '#0C8599'], [53.5640, 9.9790, 'bag', '#1971C2'], [53.5615, 9.9905, 'playground', '#E8590C'],
+];
+for (const [id, url] of Object.entries(STYLES)) {
+  const m = L.map(id, { zoomControl: false }).setView([53.5608, 9.9800], 15);
+  L.maplibreGL({ style: url, attribution: '© OpenStreetMap · OpenFreeMap' }).addTo(m);
+  for (const [la, lo, ic, c] of PINS) L.marker([la, lo], { icon: L.divIcon({ className: '', iconSize: [30, 30], html: `<div class="mk" style="--c:${c}"><svg viewBox="0 0 24 24">${ICON[ic]}</svg></div>` }) }).addTo(m);
+}
+</script>
+</body>
+</html>

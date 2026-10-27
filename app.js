@@ -1,11 +1,11 @@
-/* Djuu v0.3 – family map for Hamburg.
+/* Djuu v0.4 – family map for Hamburg.
    Map first: search + category row on top, one panel (bottom sheet on phones, left column on desktop)
    for list, place details, filters, urgent help, events, saved places and the add-place wizard.
    Data: data/places.json (db/export.py); every value carries its source.
    User input is stored on this device only until the server exists (server-ready shape, see STORE). */
 'use strict';
 
-const VERSION = '0.3';
+const VERSION = '0.4';
 
 // ---------- Icons (24px line icons) ----------
 const ICON = {
@@ -303,10 +303,14 @@ function addUserPlaces() {
 }
 
 // ---------- Map ----------
-const map = L.map('map', { zoomControl: false, minZoom: 10, maxBounds: [[53.25, 9.55], [53.85, 10.45]] }).setView([53.5600, 9.9800], 13);
-L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  maxZoom: 19, attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · Quellen je Ort',
-}).addTo(map);
+const map = L.map('map', { zoomControl: false, minZoom: 10, maxZoom: 19, maxBounds: [[53.25, 9.55], [53.85, 10.45]] }).setView([53.5600, 9.9800], 13);
+// Simplified, Google-like vector basemap from OpenFreeMap (free, no key): Liberty by day, Dark in dark mode.
+const STYLE_URL = { light: 'https://tiles.openfreemap.org/styles/liberty', dark: 'https://tiles.openfreemap.org/styles/dark' };
+const darkMQ = window.matchMedia('(prefers-color-scheme: dark)');
+const styleUrl = () => darkMQ.matches ? STYLE_URL.dark : STYLE_URL.light;
+const baseOpts = { attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · <a href="https://openfreemap.org">OpenFreeMap</a> · Quellen je Ort' };
+const baseLayer = L.maplibreGL({ style: styleUrl(), ...baseOpts }).addTo(map);
+darkMQ.addEventListener?.('change', () => baseLayer.getMaplibreMap().setStyle(styleUrl()));
 const cluster = L.markerClusterGroup({
   chunkedLoading: true, showCoverageOnHover: false, maxClusterRadius: 50, disableClusteringAtZoom: 17,
   iconCreateFunction: c => {
@@ -403,7 +407,6 @@ async function renderPanel() {
   else if (v.type === 'sos') body.innerHTML = sosView(v.kind);
   else if (v.type === 'events') body.innerHTML = eventsView();
   else if (v.type === 'saved') body.innerHTML = savedView();
-  else if (v.type === 'ask') body.innerHTML = askView(v);
   else if (v.type === 'rate') { body.innerHTML = rateView(v.id); bindRate(v.id); }
   else if (v.type === 'wizard') { renderWizard(); return; }
   else if (v.type === 'thanks') body.innerHTML = v.html;
@@ -421,8 +424,7 @@ function listView() {
   const sub = state.filters.size
     ? `${nf.format(last.match.length)} passen sicher${u ? ` · ${nf.format(u)} ohne Angabe <button type="button" data-unk="1">${state.showUnknown ? 'ausblenden' : 'auch zeigen'}</button>` : ''}`
     : `${nf.format(shown.length)} Orte · ${state.me ? 'von dir aus' : 'ab Kartenmitte'}`;
-  const near = nearbyCard();
-  return `<div class="ph" data-expand="1"><h2>${title}<span class="sub">${sub}</span></h2></div>${near}
+  return `<div class="ph" data-expand="1"><h2>${title}<span class="sub">${sub}</span></h2></div>
     ${sorted.length ? `<ol class="list">${sorted.slice(0, state.listLimit).map(([d, p]) => itemHtml(p, d)).join('')}</ol>
     ${sorted.length > state.listLimit ? '<button type="button" class="more" data-more="1">Mehr anzeigen</button>' : ''}`
     : `<div class="empty"><b>Hier ist nichts dabei.</b>Probier weniger Filter oder zoom raus.</div>`}`;
@@ -453,8 +455,8 @@ async function detailView(id) {
   const p = byId.get(id), f = p.f;
   const d = dist(origin(), [p.lat, p.lon]);
   const fav = store.favorites.includes(id);
-  const known = [], open = [];
-  for (const a of relevantAttrs(p)) { const r = attrVal(p, a.id); (r.v ? known : open).push([a, r]); }
+  const known = [];
+  for (const a of relevantAttrs(p)) { const r = attrVal(p, a.id); if (r.v) known.push([a, r]); }
   for (const a of ATTRS) if (!relevantAttrs(p).includes(a) && attrVal(p, a.id).v) known.push([a, attrVal(p, a.id)]);
   const reviews = store.reviews.filter(r => r.placeId === id && !store.reports.some(x => x.targetId === r.id));
   const avg = reviews.filter(r => r.stars).length ? (reviews.reduce((s, r) => s + (r.stars || 0), 0) / reviews.filter(r => r.stars).length).toFixed(1).replace('.', ',') : null;
@@ -492,8 +494,6 @@ async function detailView(id) {
         ${p.gear ? GEAR.filter(g => p.gear.has(g.id)).map(g => `<span class="fact neutral">${esc(g.label)}</span>`).join('') : ''}
         ${ages.map(a => `<span class="fact neutral">${esc(AGES.find(x => x.id === a)?.label || a)}</span>`).join('')}</div>`
       : '<p class="muted text">Zu diesem Ort wissen wir noch wenig.</p>'}
-      ${open.length ? `<div class="askcard"><div><b>Kennst du den Ort?</b><span>${open.length} kurze ${open.length === 1 ? 'Frage' : 'Fragen'}, z. B. ${esc(open[0][0].label)}</span></div>
-        <button type="button" class="btn sun" data-ask="${id}">Los</button></div>` : ''}
     </div>
     ${extra.length ? `<div class="sec">${extra.map(x => `<p class="text">${x}</p>`).join('')}</div>` : ''}
     ${addr || web || f.phone ? `<div class="sec"><h4>Kontakt</h4>${addr ? `<p class="text">${esc(addr)}</p>` : ''}
@@ -515,19 +515,6 @@ async function detailView(id) {
     <p class="note" style="margin-top:16px">Prototyp: Deine Angaben werden bisher nur auf diesem Gerät gespeichert.</p>`;
 }
 function bindDetail(id) { /* actions handled by the global click handler */ }
-
-// one question at a time
-function askQuestions(p) { return relevantAttrs(p).filter(a => attrVal(p, a.id).v === null); }
-function askView(v) {
-  const p = byId.get(v.id), qs = v.qs;
-  if (v.i >= qs.length) return `${head('Danke!')}<div class="thanks">${svg('check', 'i')}<p>Deine Antworten helfen anderen Familien.</p>
-    <button type="button" class="btn primary" data-back="1">Zurück zum Ort</button></div>`;
-  const a = ATTR[qs[v.i]];
-  return `${head(esc(p.name), `Frage ${v.i + 1} von ${qs.length}`)}
-    <div class="qflow"><p class="q">${esc(a.q)}</p>
-      <div class="bigbtns"><button type="button" class="yes" data-qa="yes">Ja</button><button type="button" class="no" data-qa="no">Nein</button>
-      <button type="button" class="idk" data-qa="skip">Weiß ich nicht</button></div></div>`;
-}
 
 // rating
 function rateView(id) {
@@ -648,31 +635,6 @@ function savedView() {
     : `<div class="empty"><b>Noch nichts gemerkt.</b>Tippe bei einem Ort auf „Merken“, dann findest du ihn hier wieder.</div>`}`;
 }
 
-// nearby one-tap confirmation (shown on top of the list)
-let nearbyAsk = null;
-function nearbyCard() {
-  nearbyAsk = null;
-  if (!state.me) return '';
-  const now = Date.now(), MONTH = 30 * 864e5;
-  let best = null;
-  for (const p of places) {
-    if (Math.abs(p.lat - state.me[0]) > 0.0015 || Math.abs(p.lon - state.me[1]) > 0.0025) continue;
-    const m = dist(state.me, [p.lat, p.lon]); if (m > 120) continue;
-    for (const a of ATTRS) {
-      if (attrVal(p, a.id).v !== 'yes') continue;
-      const key = p.id + ':' + a.id;
-      if (store.prompted[key] && now - store.prompted[key] < MONTH) continue;
-      if (!best || m < best.m) best = { m, p, a, key };
-      break;
-    }
-  }
-  if (!best) return '';
-  nearbyAsk = best;
-  const n = userAnswers(best.p.id, best.a.id);
-  return `<div class="nearby"><div>Du bist bei <b>${esc(best.p.name)}</b>. ${esc(best.a.label)}: gibt es das noch?${n.length ? `<br><span class="muted">Bestätigt ${n.length}×, zuletzt ${fmtDate(n[0].at)}</span>` : ''}</div>
-    <span class="yn"><button type="button" data-near="yes">Ja</button><button type="button" data-near="no">Nein</button><button type="button" data-near="skip" aria-label="Später">${svg('close')}</button></span></div>`;
-}
-
 // ---------- Add-place wizard (3 steps, one-handed) ----------
 const WIZ_TYPES = [
   { id: 'spielplatz', label: 'Spielplatz', cat: 'spielplatz', icon: 'playground', attrs: ['kleinkind', 'eingezaeunt', 'schatten', 'wc_nahe', 'wasser'] },
@@ -769,8 +731,8 @@ function renderWizard() {
 function bindWizard() {
   const d = wiz.data;
   if (wiz.step === 1 && d.isNew) {
-    wiz.map = L.map('wizMap', { zoomControl: false, attributionControl: false }).setView([d.lat, d.lon], 17);
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(wiz.map);
+    wiz.map = L.map('wizMap', { zoomControl: false, attributionControl: false, maxZoom: 19 }).setView([d.lat, d.lon], 17);
+    L.maplibreGL({ style: styleUrl(), attribution: '' }).addTo(wiz.map);
     wiz.pin = L.marker([d.lat, d.lon], { draggable: true, icon: L.divIcon({ className: '', iconSize: [30, 30], html: `<div class="mk" style="--c:#E8590C;background:#FFC83D;color:#3A2A00">${svg('plus', '')}</div>` }) }).addTo(wiz.map);
     wiz.pin.on('dragend', () => { const ll = wiz.pin.getLatLng(); d.lat = ll.lat; d.lon = ll.lng; d.locating = false; });
     wiz.map.on('click', e => { wiz.pin.setLatLng(e.latlng); d.lat = e.latlng.lat; d.lon = e.latlng.lng; d.locating = false; });
@@ -898,20 +860,9 @@ document.addEventListener('click', async e => {
   }
   else if (ds.addinfo) startWizard({ place: byId.get(ds.addinfo) });
   else if (ds.addevent) startWizard({ type: 'event' });
-  else if (ds.ask) { const p = byId.get(ds.ask); go({ type: 'ask', id: p.id, i: 0, qs: askQuestions(p).map(a => a.id) }); }
-  else if (ds.qa) {
-    const v = view(), a = v.qs[v.i];
-    if (ds.qa !== 'skip') { store.confirmations.push({ placeId: v.id, attr: a, answer: ds.qa, at: Date.now() }); save(); }
-    v.i++; renderPanel(); if (v.i >= v.qs.length) refresh();
-  }
   else if (ds.rate) go({ type: 'rate', id: ds.rate });
   else if (ds.report) { store.reports.push({ targetType: 'review', targetId: ds.report, at: Date.now() }); save(); toast('Gemeldet und ausgeblendet. Mit dem Server geht die Meldung später an das Djuu-Team.'); renderPanel(); }
   else if (ds.sos) go({ type: 'sos', kind: ds.sos });
-  else if (ds.near && nearbyAsk) {
-    store.prompted[nearbyAsk.key] = Date.now();
-    if (ds.near !== 'skip') { store.confirmations.push({ placeId: nearbyAsk.p.id, attr: nearbyAsk.a.id, answer: ds.near, at: Date.now() }); toast('Danke! Das hilft anderen Familien.'); }
-    save(); refresh(); renderPanel();
-  }
 });
 $('#sos').innerHTML = svg('bolt') + '<span>Dringend</span>';
 $('#sos').onclick = () => { stack = [{ type: 'list' }]; go({ type: 'sos' }, 'full'); locate(false); };

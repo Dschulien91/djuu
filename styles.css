@@ -1,4 +1,4 @@
-/* Djuu v0.3 – map first. Phone: floating search + category row on top, draggable sheet at the bottom,
+/* Djuu v0.4 – map first. Phone: floating search + category row on top, draggable sheet at the bottom,
    tabs below. Desktop (>= 900px): the same sheet becomes a fixed left column, map on the right. */
 :root {
   --bg: #F3F6F4;
@@ -50,8 +50,6 @@ svg.i { width: 20px; height: 20px; flex: none; fill: none; stroke: currentColor;
 
 #app { position: fixed; inset: 0; }
 #map { position: absolute; inset: 0 0 var(--tabs-h) 0; background: var(--bg); }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .leaflet-tile-pane { filter: brightness(.7) contrast(1.1) saturate(.75); } }
-:root[data-theme="dark"] .leaflet-tile-pane { filter: brightness(.7) contrast(1.1) saturate(.75); }
 .leaflet-container { font-family: var(--font-body); }
 .leaflet-control-attribution { font-size: 10px; background: color-mix(in srgb, var(--surface) 75%, transparent) !important; color: var(--muted); }
 .leaflet-control-attribution a { color: var(--muted); }
