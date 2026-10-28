@@ -298,3 +298,17 @@ textarea { min-height: 80px; resize: vertical; }
 .tipbanner svg.i { width: 24px; height: 24px; fill: #E0A100; stroke: #E0A100; flex: none; }
 .tipbanner b { display: block; font: 800 15px var(--font-display); }
 .cat[data-group="tipps"] .ic svg { fill: currentColor; }
+
+/* v0.6: offers, family settings */
+.item.offer { text-decoration: none; color: inherit; grid-template-columns: 58px 1fr auto; }
+.datebox { width: 58px; min-height: 48px; border-radius: 14px; background: var(--surface-2); display: grid; place-items: center; align-content: center; text-align: center; padding: 4px 2px; font-variant-numeric: tabular-nums; }
+.datebox b { font: 800 13px/1.1 var(--font-display); }
+.datebox span { font-size: 12px; color: var(--muted); }
+.mini span { background: var(--surface-2); color: var(--ink); }
+.mini .fitchip { background: color-mix(in srgb, var(--yes) 14%, transparent); color: var(--yes); }
+.kidrow { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; margin-bottom: 8px; }
+.kidrow input { min-width: 0; border: 1px solid var(--line); border-radius: 12px; padding: 10px; background: var(--surface); font-size: 15px; }
+.stepper { display: inline-flex; align-items: center; gap: 14px; }
+.stepper button { width: 44px; height: 44px; border-radius: 50%; border: 0; background: var(--surface-2); font-size: 22px; font-weight: 700; }
+.stepper b { font: 800 22px var(--font-display); min-width: 20px; text-align: center; }
+.askcard svg.i { flex: none; }

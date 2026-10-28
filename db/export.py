@@ -92,6 +92,44 @@ def run():
     print(f'{len(places)} places, {path.stat().st_size / 1e6:.1f} MB -> {path}')
     print('categories:', dict(Counter(p[2] for p in places).most_common()))
     print('tipps:', Counter(p[6]['tipp'][2] for p in places if 'tipp' in p[6]))
+    export_offers(con, places, sidx)
+
+
+OFFER_COLS = ['id', 'title', 'kind', 'topic', 'age_min_m', 'age_max_m', 'for_parents', 'weekday', 'time_from', 'time_to',
+              'start_date', 'end_date', 'sessions', 'schedule', 'price', 'free', 'registration', 'venue', 'address',
+              'lat', 'lon', 'place_id', 'url', 'provider', 'source_id']
+
+
+def export_offers(con, places, sidx):
+    """Write data/offers.json: courses, groups and events, each linked to the nearest matching Djuu place."""
+    from offers import ensure, topic_of
+    from merge import similar
+    ensure(con)
+    today = now()[:10]
+    rows = con.execute(f"SELECT {','.join(OFFER_COLS)} FROM offers WHERE COALESCE(end_date, start_date, '9999') >= ?", (today,)).fetchall()
+    grid = defaultdict(list)
+    for p in places:
+        grid[(int(p[3] / 0.002), int(p[4] / 0.0034))].append(p)
+    out = []
+    for r in rows:
+        o = dict(zip(OFFER_COLS, r))
+        if o['lat'] and not o['place_id']:
+            best, bd = None, 150
+            gi, gj = int(o['lat'] / 0.002), int(o['lon'] / 0.0034)
+            for i in (-1, 0, 1):
+                for j in (-1, 0, 1):
+                    for p in grid.get((gi + i, gj + j), ()):
+                        d = dist(o['lat'], o['lon'], p[3], p[4])
+                        if d < bd and (d < 40 or similar(o['venue'], p[1])):
+                            best, bd = p, d
+            if best: o['place_id'] = best[0]
+        if o['topic'] in (None, 'sonstiges'): o['topic'] = topic_of(o['title'])
+        o['source_id'] = sidx.get(o['source_id'], -1)
+        out.append([o[c] for c in OFFER_COLS])
+    path = ROOT / 'data' / 'offers.json'
+    path.write_text(json.dumps({'version': 1, 'generated': now(), 'cols': OFFER_COLS, 'offers': out}, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
+    linked = sum(1 for o in out if o[OFFER_COLS.index('place_id')])
+    print(f'{len(out)} offers ({linked} linked to places) -> {path}')
 
 
 def dist(la1, lo1, la2, lo2):

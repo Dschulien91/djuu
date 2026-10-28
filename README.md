@@ -1,4 +1,4 @@
-# Djuu – Prototyp v0.5
+# Djuu – Prototyp v0.6
 
 Karte mit allen familienrelevanten Orten in Hamburg (ca. 16.400 Orte aus 34 offenen Quellen, jede Angabe mit Quelle) mit Filtern.
 Installierbare Web-App (PWA): läuft auf Android, iPhone und Desktop aus demselben Code.
@@ -17,10 +17,14 @@ Dann http://localhost:8765 im Browser öffnen.
 sh tools/download-osm.sh
 cd db
 python import_osm.py; python import_spieli.py; python import_mangrove.py; python import_hamburg.py; python import_wikidata.py
-python merge.py; python import_websites.py; python merge.py; python export.py; python stats.py
+python merge.py; python import_websites.py; python merge.py
+python import_offers_elbkinder.py; python import_offers_kathfbs.py; python import_offers_elternschulen.py
+python import_offers_buecherhallen.py; python import_offers_flohmaerkte.py
+python export.py; python stats.py
 ```
 
-Die Datenbank (`data/djuu.db`) bleibt lokal, die App liest `data/places.json`.
+Die Datenbank (`data/djuu.db`) bleibt lokal, die App liest `data/places.json` (Orte) und `data/offers.json` (Kurse, Gruppen, Termine).
+`import_offers_elbphilharmonie.py` ist abgeschaltet: elbphilharmonie.de schließt ClaudeBot aus.
 
 ## Was der Prototyp kann
 

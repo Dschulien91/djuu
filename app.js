@@ -1,11 +1,11 @@
-/* Djuu v0.5 – family map for Hamburg.
+/* Djuu v0.6 – family map for Hamburg.
    Map first: search + category row on top, one panel (bottom sheet on phones, left column on desktop)
    for list, place details, filters, urgent help, events, saved places and the add-place wizard.
    Data: data/places.json (db/export.py); every value carries its source.
    User input is stored on this device only until the server exists (server-ready shape, see STORE). */
 'use strict';
 
-const VERSION = '0.5';
+const VERSION = '0.6';
 
 // ---------- Icons (24px line icons) ----------
 const ICON = {
@@ -41,6 +41,7 @@ const ICON = {
   toilet: '<path d="M6 3h5v8H6z"/><path d="M4 11h16c0 3.5-2.8 6-6 6h-1l.8 4H8.5l.8-4.3C6.2 16 4 13.8 4 11z"/>',
   star: '<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>',
   group: '<circle cx="12" cy="7" r="2.6"/><circle cx="5.5" cy="10" r="2.1"/><circle cx="18.5" cy="10" r="2.1"/><path d="M7.5 20c0-2.8 2-5 4.5-5s4.5 2.2 4.5 5"/><path d="M2 19c0-2.2 1.6-4 3.5-4M22 19c0-2.2-1.6-4-3.5-4"/>',
+  user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/>',
   pill: '<rect x="3" y="8.5" width="18" height="7" rx="3.5" transform="rotate(-45 12 12)"/><path d="M9.5 9.5l5 5"/>',
 };
 const svg = (name, cls = 'i') => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON[name] || ''}</svg>`;
@@ -214,9 +215,10 @@ function openText(p) {
 
 // ---------- Local store (server-ready shape) ----------
 const STORE_KEY = 'djuu.v2';
-let store = { contributions: [], confirmations: [], reviews: [], reports: [], events: [], prompted: {}, favorites: [] };
+let store = { contributions: [], confirmations: [], reviews: [], reports: [], events: [], prompted: {}, favorites: [], profile: { kids: [], expecting: '', dogs: 0 } };
 try { Object.assign(store, JSON.parse(localStorage.getItem(STORE_KEY) || '{}')); } catch (e) { /* storage blocked */ }
 store.favorites = store.favorites || [];
+store.profile = Object.assign({ kids: [], expecting: '', dogs: 0 }, store.profile || {});
 function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(store)); } catch (e) { toast('Speicher voll. Bitte weniger Fotos verwenden.'); } }
 const uid = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
@@ -311,6 +313,79 @@ function addUserPlaces() {
   }
 }
 
+// ---------- Offers: courses, groups, events (data/offers.json) ----------
+let OFFERS = [];
+const offersByPlace = new Map();
+const TOPIC_LABEL = {
+  geburtsvorbereitung: 'Geburtsvorbereitung', rueckbildung: 'Rückbildung', pekip: 'PEKiP & Bewegung', babymassage: 'Babymassage',
+  schwimmen: 'Babyschwimmen', musik: 'Musik', krabbelgruppe: 'Krabbel- & Spielgruppe', eltern_cafe: 'Eltern-Café', beratung: 'Beratung',
+  erste_hilfe: 'Erste Hilfe am Kind', kreativ: 'Basteln', lesen: 'Vorlesen', sonstiges: 'Angebot',
+};
+const WD = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+function loadOffers(data) {
+  const cols = data.cols;
+  OFFERS = data.offers.map(r => Object.fromEntries(cols.map((c, i) => [c, r[i]])));
+  for (const o of OFFERS) if (o.place_id) (offersByPlace.get(o.place_id) || offersByPlace.set(o.place_id, []).get(o.place_id)).push(o);
+}
+const today0 = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
+const ymd = d => d.toISOString().slice(0, 10);
+// Next date this offer takes place (today included), or null.
+function nextDate(o) {
+  const t = today0();
+  const start = o.start_date ? new Date(o.start_date + 'T00:00') : null;
+  const end = o.end_date ? new Date(o.end_date + 'T00:00') : null;
+  if (o.kind === 'termin') return start && start >= t ? start : null;
+  if (o.weekday != null) {
+    const from = start && start > t ? start : t;
+    const d = new Date(from); d.setDate(d.getDate() + ((o.weekday - dayIdx(d) + 7) % 7));
+    return end && d > end ? null : d;
+  }
+  if (start && start >= t) return start;
+  return end && end >= t ? t : null;
+}
+function ageLabel(min, max) {
+  if (min == null && max == null) return '';
+  const f = m => m < 24 ? `${m} Mon.` : `${Math.floor(m / 12)} J.`;
+  if (max == null) return `ab ${f(min)}`;
+  if (!min) return `bis ${f(max - 1)}`;
+  return min < 24 && max <= 25 ? `${min}–${max - 1} Mon.` : `${f(min)}–${f(max - 1)}`;
+}
+// Ages of the user's children in months (from birth month); negative = expected baby.
+function familyAges() {
+  const now = new Date(), out = [];
+  for (const k of store.profile.kids) {
+    if (!k.ym) continue;
+    const [y, m] = k.ym.split('-').map(Number);
+    out.push({ name: k.name || 'Kind', months: (now.getFullYear() - y) * 12 + (now.getMonth() + 1 - m) });
+  }
+  return out;
+}
+function kidLabel(m) { return m < 0 ? 'unterwegs' : m < 24 ? `${m} Monate` : `${Math.floor(m / 12)} Jahre`; }
+const hasFamily = () => store.profile.kids.some(k => k.ym) || !!store.profile.expecting;
+// true = fits one of the children (or the pregnancy), false = fits none, null = no profile / no age info
+function offerFits(o) {
+  if (!hasFamily()) return null;
+  if (o.for_parents) return !!store.profile.expecting || familyAges().some(a => a.months < 3);
+  if (o.age_min_m == null && o.age_max_m == null) return null;
+  return familyAges().some(a => a.months >= (o.age_min_m ?? 0) && a.months < (o.age_max_m ?? 999));
+}
+const fmtDay = d => {
+  const t = today0(), diff = Math.round((d - t) / 864e5);
+  return diff === 0 ? 'Heute' : diff === 1 ? 'Morgen' : `${WD[dayIdx(d)]} ${d.getDate()}.${d.getMonth() + 1}.`;
+};
+function offerItem(o, nd) {
+  const place = o.place_id && byId.get(o.place_id);
+  const d = (o.lat && o.lon) || place ? dist(origin(), place ? [place.lat, place.lon] : [o.lat, o.lon]) : null;
+  const fits = offerFits(o);
+  const tags = [ageLabel(o.age_min_m, o.age_max_m), o.free ? 'kostenlos' : o.price, o.kind === 'gruppe' ? 'offene Gruppe' : o.kind === 'kurs' ? (o.sessions ? `Kurs, ${o.sessions}×` : 'Kurs') : '']
+    .filter(Boolean).map(t => `<span>${esc(t)}</span>`).join('');
+  const inner = `<span class="datebox"><b>${nd ? esc(fmtDay(nd)) : '–'}</b><span>${esc(o.time_from || '')}</span></span>
+    <span><h3>${esc(o.title)}</h3><span class="meta">${esc(TOPIC_LABEL[o.topic] || '')}${o.venue ? ' · ' + esc(o.venue) : ''}${d != null ? ' · ' + fmtDist(d) : ''}</span>
+    <span class="mini${fits === true ? ' fit' : ''}">${fits === true ? '<span class="fitchip">passt zu euch</span>' : ''}${tags}</span></span><span></span>`;
+  return place ? `<li><button type="button" class="item offer" data-id="${place.id}">${inner}</button></li>`
+    : `<li><a class="item offer" href="${esc(o.url)}" target="_blank" rel="noopener">${inner}</a></li>`;
+}
+
 // ---------- Map ----------
 const map = L.map('map', { zoomControl: false, minZoom: 10, maxZoom: 19, maxBounds: [[53.25, 9.55], [53.85, 10.45]] }).setView([53.5600, 9.9800], 13);
 // Simplified, Google-like vector basemap from OpenFreeMap (free, no key). Always the light style (dark was too dark).
@@ -382,7 +457,7 @@ function renderTop() {
     `<button type="button" class="cat" data-open="groups" style="--c:var(--muted)"><span class="ic">${svg('more', '')}</span>Mehr</button>`;
   const first = [...state.groups][0];
   const rel = GROUP_FILTERS[first] || GROUP_FILTERS._;
-  const ids = [...new Set(rel.concat([...state.filters]))];
+  const ids = [...new Set((store.profile.dogs > 0 ? ['hund'] : []).concat(rel, [...state.filters]))];
   $('#ctx').innerHTML =
     (state.q ? `<button type="button" class="chip on" data-clearq="1">„${esc(state.q)}“ ${svg('close')}</button>` : '') +
     `<button type="button" class="chip" data-open="filters">${svg('filter')}Filter${state.filters.size ? ' · ' + state.filters.size : ''}</button>` +
@@ -413,7 +488,7 @@ async function renderPanel() {
   else if (v.type === 'search') body.innerHTML = searchView();
   else if (v.type === 'sos') body.innerHTML = sosView(v.kind);
   else if (v.type === 'events') body.innerHTML = eventsView();
-  else if (v.type === 'saved') body.innerHTML = savedView();
+  else if (v.type === 'me') body.innerHTML = savedView();
   else if (v.type === 'rate') { body.innerHTML = rateView(v.id); bindRate(v.id); }
   else if (v.type === 'wizard') { renderWizard(); return; }
   else if (v.type === 'thanks') body.innerHTML = v.html;
@@ -431,7 +506,9 @@ function listView() {
   const sub = state.filters.size
     ? `${nf.format(last.match.length)} passen sicher${u ? ` · ${nf.format(u)} ohne Angabe <button type="button" data-unk="1">${state.showUnknown ? 'ausblenden' : 'auch zeigen'}</button>` : ''}`
     : `${nf.format(shown.length)} Orte · ${state.me ? 'von dir aus' : 'ab Kartenmitte'}`;
-  return `<div class="ph" data-expand="1"><h2>${title}<span class="sub">${sub}</span></h2></div>
+  const todayFits = hasFamily() ? OFFERS.filter(o => { const d = nextDate(o); return d && +d === +today0() && offerFits(o) === true; }).length : 0;
+  const famCard = todayFits && !state.groups.size && !state.filters.size ? `<button type="button" class="askcard" data-tab="events" style="width:100%;border:0;text-align:left;margin:0 0 8px"><div><b>Heute: ${todayFits} passende ${todayFits === 1 ? 'Gruppe' : 'Gruppen und Kurse'}</b><span>für ${esc(familyAges().map(k => k.name).join(', ') || 'euch')}</span></div>${svg('cal')}</button>` : '';
+  return `<div class="ph" data-expand="1"><h2>${title}<span class="sub">${sub}</span></h2></div>${famCard}
     ${sorted.length ? `<ol class="list">${sorted.slice(0, state.listLimit).map(([d, p]) => itemHtml(p, d)).join('')}</ol>
     ${sorted.length > state.listLimit ? '<button type="button" class="more" data-more="1">Mehr anzeigen</button>' : ''}`
     : `<div class="empty"><b>Hier ist nichts dabei.</b>Probier weniger Filter oder zoom raus.</div>`}`;
@@ -496,7 +573,7 @@ async function detailView(id) {
       <button type="button" class="act" data-addinfo="${id}">${svg('edit')}Ergänzen</button>
     </div>
     ${f.tipp ? `<div class="tipbanner">${svg('star')}<div><b>Djuu-Tipp</b>${esc(f.tipp[0])}</div></div>` : ''}
-    ${groupOf(p).id === 'kurse' ? `<p class="note">Kurse und Gruppenzeiten (z. B. Krabbelgruppen) zeigen wir bald direkt hier. Bis dahin stehen sie auf der Webseite.</p>` : ''}
+    ${groupOf(p).id === 'kurse' && !offersByPlace.has(id) ? `<p class="note">Für diesen Ort haben wir noch keine Kurszeiten. Schau auf die Webseite.</p>` : ''}
     ${photos ? `<div class="photos" style="margin-top:12px">${photos}</div>` : ''}
     <div class="sec"><h4>Auf einen Blick</h4>
       ${known.length || p.gear || ages.length ? `<div class="facts">${known.map(factChip).join('')}
@@ -504,6 +581,7 @@ async function detailView(id) {
         ${ages.map(a => `<span class="fact neutral">${esc(AGES.find(x => x.id === a)?.label || a)}</span>`).join('')}</div>`
       : '<p class="muted text">Zu diesem Ort wissen wir noch wenig.</p>'}
     </div>
+    ${placeOffersHtml(id)}
     ${extra.length ? `<div class="sec">${extra.map(x => `<p class="text">${x}</p>`).join('')}</div>` : ''}
     ${addr || web || f.phone ? `<div class="sec"><h4>Kontakt</h4>${addr ? `<p class="text">${esc(addr)}</p>` : ''}
       ${f.phone ? `<p class="text">Telefon: <span style="user-select:all">${esc(f.phone[0])}</span></p>` : ''}
@@ -522,6 +600,13 @@ async function detailView(id) {
         ${r.evidence ? `<q>${esc(r.evidence)}</q>` : ''}</div>`).join('')}
       <p class="note">Datensätze: ${p.srcs.map(i => esc(SOURCES[i]?.[1]) + ' (' + esc(SOURCES[i]?.[2]) + ')').join(' · ') || 'von dir eingetragen'}</p></div></details>
     <p class="note" style="margin-top:16px">Prototyp: Deine Angaben werden bisher nur auf diesem Gerät gespeichert.</p>`;
+}
+function placeOffersHtml(id) {
+  const list = (offersByPlace.get(id) || []).map(o => [nextDate(o), o]).filter(([d]) => d).sort((a, b) => a[0] - b[0]);
+  if (!list.length) return '';
+  const fitsFirst = list.sort((a, b) => (offerFits(b[1]) === true) - (offerFits(a[1]) === true) || a[0] - b[0]);
+  return `<div class="sec"><h4>Gruppen & Kurse</h4><ol class="list">${fitsFirst.slice(0, 8).map(([d, o]) => offerItem(o, d).replace('class="item offer" data-id', `class="item offer" data-offerurl="${esc(o.url)}" data-x`)).join('')}</ol>
+    ${list.length > 8 ? `<p class="note">und ${list.length - 8} weitere</p>` : ''}<p class="note">Anmeldung und aktuelle Infos beim Anbieter.</p></div>`;
 }
 function bindDetail(id) { /* actions handled by the global click handler */ }
 
@@ -627,21 +712,58 @@ const EXAMPLE_EVENTS = [
   { d: nextDow(6, 1), time: '09:00–14:00', title: 'Kinderkleiderbasar Herbst/Winter', where: 'Winterhude', kind: 'Flohmarkt' },
 ];
 function eventsView() {
-  const fmtD = new Intl.DateTimeFormat('de-DE', { weekday: 'short' });
-  const own = store.events.map(e => ({ d: new Date(e.date + 'T00:00'), time: e.time, title: e.title, where: nearestDistrict(e.lat, e.lon) || 'Hamburg', kind: 'Von dir', mine: true }));
-  const all = own.concat(EXAMPLE_EVENTS).filter(e => e.d >= new Date(new Date().toDateString())).sort((a, b) => a.d - b.d);
-  return `${head('Events', 'Was machen wir am Wochenende?', false)}
-    <div class="banner"><b>Noch Beispiele.</b> Echte Termine kommen bald von Bücherhallen, Familienzentren und Flohmarkt-Veranstaltern.</div>
-    ${all.map(e => `<article class="event"><div class="date"><span>${fmtD.format(e.d)}</span><b>${e.d.getDate()}.</b><span>${e.d.toLocaleDateString('de-DE', { month: 'short' })}</span></div>
-      <div><h3>${esc(e.title)}<span class="tagb">${e.mine ? 'Von dir' : 'Beispiel'}</span></h3><div class="muted">${esc(e.time || '')} · ${esc(e.where)} · ${esc(e.kind)}</div></div></article>`).join('')}
-    <button type="button" class="btn" data-addevent="1" style="margin-top:14px">${svg('plus')}Veranstaltung eintragen</button>`;
+  const v = view(), f = v.f || 'alle', fam = v.fam ?? hasFamily();
+  const t = today0(), sat = new Date(t); sat.setDate(t.getDate() + ((5 - dayIdx(t) + 7) % 7)); const sun = new Date(sat); sun.setDate(sat.getDate() + 1);
+  const own = store.events.map(e => ({ title: e.title, kind: 'termin', start_date: e.date, time_from: e.time, lat: e.lat, lon: e.lon, venue: 'von dir eingetragen', url: '#', topic: 'sonstiges' }));
+  let list = OFFERS.concat(own).map(o => [nextDate(o), o]).filter(([d]) => d && d - t < 56 * 864e5);
+  if (f === 'heute') list = list.filter(([d]) => +d === +t);
+  if (f === 'wochenende') list = list.filter(([d]) => +d === +sat || +d === +sun);
+  if (f === 'gruppen') list = list.filter(([, o]) => o.kind === 'gruppe');
+  if (f === 'kurse') list = list.filter(([, o]) => o.kind === 'kurs');
+  if (f === 'termine') list = list.filter(([, o]) => o.kind === 'termin');
+  if (fam && hasFamily()) list = list.filter(([, o]) => offerFits(o) !== false);
+  const o0 = origin();
+  const near = o => { const pl = o.place_id && byId.get(o.place_id); return pl ? dist(o0, [pl.lat, pl.lon]) : o.lat ? dist(o0, [o.lat, o.lon]) : 9e9; };
+  list.sort((a, b) => a[0] - b[0] || near(a[1]) - near(b[1]));
+  const chips = [['alle', 'Alle'], ['heute', 'Heute'], ['wochenende', 'Wochenende'], ['gruppen', 'Offene Gruppen'], ['kurse', 'Kurse'], ['termine', 'Veranstaltungen']]
+    .map(([id, l]) => `<button type="button" class="chip${f === id ? ' on' : ''}" data-ef="${id}">${l}</button>`).join('');
+  const kids = familyAges();
+  return `${head('Termine', 'Gruppen, Kurse und Veranstaltungen in den nächsten 8 Wochen', false)}
+    <div class="row" style="padding:0 0 10px;margin:0 -2px">${chips}</div>
+    ${hasFamily() ? `<label class="switch" for="famSwitch" style="margin:0 0 10px">Nur passend für ${esc(kids.map(k => `${k.name} (${kidLabel(k.months)})`).join(', ') || 'unser Baby')} <input type="checkbox" id="famSwitch" ${fam ? 'checked' : ''}></label>`
+      : `<button type="button" class="askcard" data-tab="me" style="width:100%;border:0;text-align:left"><div><b>Alter deiner Kinder eintragen</b><span>Dann zeigen wir nur Gruppen und Kurse, die passen.</span></div>${svg('back')}</button>`}
+    ${list.length ? `<ol class="list">${list.slice(0, v.limit || 60).map(([d, o]) => offerItem(o, d)).join('')}</ol>${list.length > (v.limit || 60) ? '<button type="button" class="more" data-emore="1">Mehr anzeigen</button>' : ''}`
+      : `<div class="empty"><b>${OFFERS.length ? 'Nichts gefunden.' : 'Noch keine Termine geladen.'}</b>${OFFERS.length ? 'Probier einen anderen Filter.' : ''}</div>`}
+    <button type="button" class="btn" data-addevent="1" style="margin-top:14px">${svg('plus')}Veranstaltung eintragen</button>
+    <p class="note">Quellen: Eltern-Kind-Zentren, Elternschulen, Familienbildung, Bücherhallen, Bäderland u. a. Anmeldung immer beim Anbieter.</p>`;
 }
 function savedView() {
   const o = origin();
   const ps = store.favorites.map(id => byId.get(id)).filter(Boolean);
-  return `${head('Gemerkt', ps.length ? `${ps.length} ${ps.length === 1 ? 'Ort' : 'Orte'}` : '', false)}
+  const pr = store.profile, now = new Date();
+  const maxYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  return `${head('Meins', 'Nur auf diesem Gerät gespeichert', false)}
+    <div class="sec"><h4>Unsere Familie</h4>
+      <p class="muted text">Mit dem Alter deiner Kinder zeigt Djuu passende Gruppen, Kurse und Orte. Wir fragen nur Monat und Jahr, nicht den genauen Geburtstag.</p>
+      <div id="kids">${pr.kids.map((k, i) => `<div class="kidrow">
+        <input id="kidName${i}" data-kid="${i}" data-k="name" value="${esc(k.name || '')}" placeholder="Name (optional)" maxlength="20" aria-label="Name von Kind ${i + 1}">
+        <input id="kidYm${i}" data-kid="${i}" data-k="ym" type="month" value="${esc(k.ym || '')}" max="${maxYm}" aria-label="Geburtsmonat von Kind ${i + 1}">
+        <button type="button" class="round" data-delkid="${i}" aria-label="Kind entfernen">${svg('close')}</button></div>`).join('')}</div>
+      <button type="button" class="btn" data-addkid="1">${svg('plus')}Kind hinzufügen</button>
+      <div class="field"><label for="expecting">Baby unterwegs? Errechneter Monat (optional)</label><input id="expecting" type="month" value="${esc(pr.expecting || '')}" min="${maxYm}"></div>
+      <div class="field"><label for="dogs">Hunde in der Familie</label>
+        <div class="stepper"><button type="button" data-dogs="-1" aria-label="Weniger">–</button><b id="dogsN">${pr.dogs || 0}</b><button type="button" data-dogs="1" aria-label="Mehr">+</button></div></div>
+      <p class="note">Wenn ihr einen Hund habt, zeigt Djuu „Hunde erlaubt“ immer direkt mit an.</p>
+    </div>
+    <div class="sec"><h4>Gemerkt</h4>
     ${ps.length ? `<ol class="list">${ps.map(p => itemHtml(p, dist(o, [p.lat, p.lon]))).join('')}</ol>`
-    : `<div class="empty"><b>Noch nichts gemerkt.</b>Tippe bei einem Ort auf „Merken“, dann findest du ihn hier wieder.</div>`}`;
+    : `<p class="muted text">Noch nichts gemerkt. Tippe bei einem Ort auf „Merken“.</p>`}</div>`;
+}
+function saveProfileField(el) {
+  const pr = store.profile;
+  if (el.dataset.kid != null) pr.kids[+el.dataset.kid][el.dataset.k] = el.value.trim();
+  if (el.id === 'expecting') pr.expecting = el.value;
+  save(); renderTop();
 }
 
 // ---------- Add-place wizard (3 steps, one-handed) ----------
@@ -827,9 +949,9 @@ function nearestDistrict(la, lo) {
 // ---------- Tabs ----------
 const TABS = [
   { id: 'map', label: 'Karte', icon: 'map' },
-  { id: 'events', label: 'Events', icon: 'cal' },
+  { id: 'events', label: 'Termine', icon: 'cal' },
   { id: 'add', label: 'Eintragen', icon: 'plus', cls: 'add' },
-  { id: 'saved', label: 'Gemerkt', icon: 'heart' },
+  { id: 'me', label: 'Meins', icon: 'user' },
 ];
 function setTab(id) {
   state.tab = id;
@@ -861,7 +983,7 @@ document.addEventListener('click', async e => {
     else if (ds.tab === 'add') startWizard();
     else { stack = [{ type: 'list' }]; go({ type: ds.tab }, 'full'); setTab(ds.tab); }
   }
-  else if (ds.fav) { const i = store.favorites.indexOf(ds.fav); i >= 0 ? store.favorites.splice(i, 1) : store.favorites.push(ds.fav); save(); toast(i >= 0 ? 'Nicht mehr gemerkt.' : 'Gemerkt. Du findest den Ort unter „Gemerkt“.'); renderPanel(); }
+  else if (ds.fav) { const i = store.favorites.indexOf(ds.fav); i >= 0 ? store.favorites.splice(i, 1) : store.favorites.push(ds.fav); save(); toast(i >= 0 ? 'Nicht mehr gemerkt.' : 'Gemerkt. Du findest den Ort unter „Meins“.'); renderPanel(); }
   else if (ds.share) {
     const p = byId.get(ds.share), url = location.origin + location.pathname + '#' + p.id;
     if (navigator.share) navigator.share({ title: p.name, text: p.name + ' auf Djuu', url }).catch(() => {});
@@ -870,8 +992,18 @@ document.addEventListener('click', async e => {
   else if (ds.addinfo) startWizard({ place: byId.get(ds.addinfo) });
   else if (ds.addevent) startWizard({ type: 'event' });
   else if (ds.rate) go({ type: 'rate', id: ds.rate });
+  else if (ds.ef) { view().f = ds.ef; view().limit = 60; renderPanel(); }
+  else if (ds.emore) { view().limit = (view().limit || 60) + 60; renderPanel(); }
+  else if (ds.offerurl) window.open(ds.offerurl, '_blank', 'noopener');
+  else if (ds.addkid) { store.profile.kids.push({ name: '', ym: '' }); save(); renderPanel(); setTimeout(() => $('#kidYm' + (store.profile.kids.length - 1))?.focus(), 50); }
+  else if (ds.delkid) { store.profile.kids.splice(+ds.delkid, 1); save(); renderPanel(); }
+  else if (ds.dogs) { store.profile.dogs = Math.max(0, Math.min(9, (store.profile.dogs || 0) + +ds.dogs)); save(); $('#dogsN').textContent = store.profile.dogs; renderTop(); }
   else if (ds.report) { store.reports.push({ targetType: 'review', targetId: ds.report, at: Date.now() }); save(); toast('Gemeldet und ausgeblendet. Mit dem Server geht die Meldung später an das Djuu-Team.'); renderPanel(); }
   else if (ds.sos) go({ type: 'sos', kind: ds.sos });
+});
+document.addEventListener('change', e => {
+  if (e.target.matches('[data-kid], #expecting')) saveProfileField(e.target);
+  if (e.target.id === 'famSwitch') { view().fam = e.target.checked; renderPanel(); }
 });
 $('#sos').innerHTML = svg('bolt') + '<span>Dringend</span>';
 $('#sos').onclick = () => { stack = [{ type: 'list' }]; go({ type: 'sos' }, 'full'); locate(false); };
@@ -928,6 +1060,7 @@ $('#panelBody').innerHTML = '<div class="ph"><h2>Lade Orte …</h2></div>';
     SOURCES = data.sources;
     for (const row of data.places) { const p = buildPlace(row); places.push(p); byId.set(p.id, p); }
     addUserPlaces();
+    try { const ro = await fetch('data/offers.json'); if (ro.ok) loadOffers(await ro.json()); } catch (e) { /* offers optional */ }
     refresh();
     renderPanel();
     const hash = location.hash.slice(1);
