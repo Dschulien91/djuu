@@ -1,11 +1,13 @@
-/* Djuu v0.6 – family map for Hamburg.
+/* Djuu v0.7 – family map for Hamburg.
+   Navigation: two modes (Erleben / Service), each with sub-categories; every sub-category has tags
+   (e.g. Gastro: Café, Vegan …) and Erleben has a Drinnen / Draußen switch.
    Map first: search + category row on top, one panel (bottom sheet on phones, left column on desktop)
    for list, place details, filters, urgent help, events, saved places and the add-place wizard.
    Data: data/places.json (db/export.py); every value carries its source.
    User input is stored on this device only until the server exists (server-ready shape, see STORE). */
 'use strict';
 
-const VERSION = '0.6';
+const VERSION = '0.7';
 
 // ---------- Icons (24px line icons) ----------
 const ICON = {
@@ -46,26 +48,53 @@ const ICON = {
 };
 const svg = (name, cls = 'i') => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON[name] || ''}</svg>`;
 
-// ---------- Category groups and categories ----------
+// ---------- Modes, sub-categories (groups) and categories ----------
+// A place has one home group (icon, colour); it can also be a member of other groups (Sanitär: changing tables in cafés;
+// Kurse & Gruppen / Events: places with matching offers).
+const MODES = [{ id: 'erleben', label: 'Erleben' }, { id: 'service', label: 'Service' }];
 const GROUPS = [
-  { id: 'tipps', label: 'Djuu-Tipps', short: 'Djuu-Tipps', icon: 'star', color: '#E0A100', cats: [], virtual: true },
-  { id: 'spielplatz', label: 'Spielplätze', short: 'Spielplätze', icon: 'playground', color: '#E8590C', cats: ['spielplatz', 'abenteuer'] },
-  { id: 'essen', label: 'Essen & Café', short: 'Essen & Café', icon: 'cup', color: '#9C36B5', cats: ['cafe', 'restaurant', 'imbiss', 'eis'] },
-  { id: 'wickeln', label: 'Wickeln, Stillen, WC', short: 'Wickeln & WC', icon: 'baby', color: '#0C8599', cats: ['wc', 'wickel', 'familienfreundlich'] },
-  { id: 'einkauf', label: 'Windeln & Einkauf', short: 'Windeln', icon: 'bag', color: '#1971C2', cats: ['windeln', 'laden'] },
-  { id: 'kurse', label: 'Kurse & Gruppen', short: 'Kurse & Gruppen', icon: 'group', color: '#C2255C', cats: ['kurs', 'geburtshaus', 'hebamme'] },
-  { id: 'drinnen', label: 'Drinnen spielen', short: 'Drinnen', icon: 'house', color: '#D6336C', cats: ['indoor', 'spielhaus', 'freizeit'] },
-  { id: 'natur', label: 'Parks & Natur', short: 'Draußen', icon: 'tree', color: '#2F9E44', cats: ['park', 'picknick', 'grillplatz', 'trinkwasser'] },
-  { id: 'baden', label: 'Baden', short: 'Baden', icon: 'waves', color: '#1098AD', cats: ['baden'] },
-  { id: 'kultur', label: 'Kultur & Ausflüge', short: 'Ausflüge', icon: 'museum', color: '#E67700', cats: ['museum', 'kultur', 'ausflug', 'buecherei'] },
-  { id: 'gesundheit', label: 'Gesundheit', short: 'Gesundheit', icon: 'cross', color: '#E03131', cats: ['apotheke', 'kinderarzt', 'klinik', 'babyklappe'] },
-  { id: 'zentren', label: 'Treffpunkte & Beratung', short: 'Treffpunkte', icon: 'people', color: '#6741D9', cats: ['treffpunkt', 'beratung'] },
-  { id: 'hund', label: 'Hundeauslauf', short: 'Hundeauslauf', icon: 'paw', color: '#8D6E63', cats: ['hundeauslauf'] },
-  { id: 'kita', label: 'Kitas', short: 'Kitas', icon: 'blocks', color: '#F59F00', cats: ['kita'] },
-  { id: 'unterwegs', label: 'Aufzüge & Bahnhöfe', short: 'Aufzüge', icon: 'elevator', color: '#5C677D', cats: ['aufzug', 'bahnhof'] },
+  { id: 'tipps', mode: 'erleben', label: 'Djuu-Tipps', short: 'Djuu-Tipps', icon: 'star', color: '#E0A100', cats: [], virtual: true },
+  { id: 'spielen', mode: 'erleben', label: 'Spielen & Toben', short: 'Spielen & Toben', icon: 'playground', color: '#E8590C', cats: ['spielplatz', 'abenteuer', 'indoor', 'spielhaus', 'freizeit'] },
+  { id: 'gastro', mode: 'erleben', label: 'Gastro', short: 'Gastro', icon: 'cup', color: '#9C36B5', cats: ['cafe', 'restaurant', 'imbiss', 'eis'] },
+  { id: 'entdecken', mode: 'erleben', label: 'Entdecken', short: 'Entdecken', icon: 'tree', color: '#2F9E44', cats: ['park', 'picknick', 'grillplatz', 'hundeauslauf', 'baden', 'museum', 'kultur', 'ausflug', 'buecherei'] },
+  { id: 'kurse', mode: 'erleben', label: 'Kurse & Gruppen', short: 'Kurse & Gruppen', icon: 'group', color: '#C2255C', cats: [], offers: ['kurs', 'gruppe'] },
+  { id: 'events', mode: 'erleben', label: 'Events', short: 'Events', icon: 'cal', color: '#D9480F', cats: [], offers: ['termin'] },
+  { id: 'gesundheit', mode: 'service', label: 'Notfall & Gesundheit', short: 'Notfall & Gesundheit', icon: 'cross', color: '#E03131', cats: ['kinderarzt', 'klinik', 'apotheke', 'babyklappe', 'hebamme', 'geburtshaus'] },
+  { id: 'sanitaer', mode: 'service', label: 'Sanitär', short: 'Sanitär', icon: 'baby', color: '#0C8599', cats: ['wc', 'wickel', 'familienfreundlich', 'trinkwasser'], extra: p => p.tags.has('wickeln') || p.tags.has('stillen') },
+  { id: 'laeden', mode: 'service', label: 'Läden', short: 'Läden', icon: 'bag', color: '#1971C2', cats: ['windeln', 'laden'] },
+  { id: 'familie', mode: 'service', label: 'Familie & Beratung', short: 'Familie & Beratung', icon: 'people', color: '#6741D9', cats: ['treffpunkt', 'beratung', 'kita', 'kurs'] },
+  { id: 'mobil', mode: 'service', label: 'Mobilität', short: 'Mobilität', icon: 'elevator', color: '#5C677D', cats: ['aufzug', 'bahnhof'] },
 ];
-const ROW_GROUPS = ['tipps', 'spielplatz', 'essen', 'wickeln', 'kurse', 'einkauf', 'drinnen', 'natur', 'baden'];
 const GROUP = Object.fromEntries(GROUPS.map(g => [g.id, g]));
+// Tags inside a sub-category. Plain tags are alternatives (Café or Restaurant); p: 1 marks a property that must hold
+// in addition (Café and vegan). Offer tags 'aud:*' (who takes part) form their own dimension.
+const T = (id, label, p) => ({ id, label, p: p ? 1 : 0 });
+const TAGS = {
+  spielen: [T('spielplatz', 'Spielplatz'), T('abenteuer', 'Abenteuerspielplatz'), T('indoorspielplatz', 'Indoor-Spielplatz'), T('klettern', 'Klettern & Bouldern'),
+    T('trampolin', 'Trampolin'), T('spielhaus', 'Spielhaus'), T('minigolf', 'Minigolf'), T('skaten', 'Skaten'), T('eislaufen', 'Eislaufen'),
+    T('bewegung', 'Sport & Bewegung'), T('wasserspiel', 'Wasserspiel', 1)],
+  gastro: [T('cafe', 'Café'), T('restaurant', 'Restaurant'), T('imbiss', 'Imbiss'), T('eis', 'Eis'), T('kindercafe', 'Kindercafé', 1),
+    T('fruehstueck', 'Frühstück', 1), T('kuchen', 'Kuchen', 1), T('vegan', 'Vegan', 1), T('vegetarisch', 'Vegetarisch', 1), T('terrasse', 'Draußen sitzen', 1),
+    T('italienisch', 'Pizza & Pasta', 1), T('asiatisch', 'Asiatisch', 1), T('burger', 'Burger', 1)],
+  entdecken: [T('natur', 'Natur'), T('kultur', 'Kultur'), T('tiere', 'Tiere'), T('baden', 'Baden'), T('museum', 'Museen'), T('theater', 'Theater & Kino'),
+    T('buecherei', 'Bücherhallen'), T('picknick', 'Picknick & Grillen'), T('hundeauslauf', 'Hundeauslauf'), T('aussicht', 'Aussicht'), T('ausflugsziel', 'Ausflugsziele')],
+  gesundheit: [T('kinderarzt', 'Kinderarzt'), T('apotheke', 'Apotheke'), T('klinik', 'Klinik'), T('hebamme', 'Hebamme'), T('geburtshaus', 'Geburtshaus'), T('babyklappe', 'Babyklappe')],
+  sanitaer: [T('wc', 'Toilette'), T('wickeln', 'Wickelplatz'), T('stillen', 'Stillen'), T('trinkwasser', 'Trinkwasser')],
+  laeden: [T('drogerie', 'Drogerie'), T('supermarkt', 'Supermarkt'), T('spaeti', 'Späti & Kiosk'), T('tankstelle', 'Tankstelle'), T('baby', 'Babyausstattung'),
+    T('kinderkleidung', 'Kinderkleidung'), T('spielzeug', 'Spielzeug'), T('buecher', 'Bücher'), T('secondhand', 'Secondhand')],
+  familie: [T('familienzentrum', 'Familienzentren'), T('elternschule', 'Elternschulen'), T('beratung', 'Beratung'), T('kita', 'Kitas')],
+  mobil: [T('aufzug', 'Aufzüge'), T('bahnhof', 'Bahnhöfe')],
+  kurse: [T('aud:kinder', 'Für Kinder'), T('aud:erwachsene', 'Für Erwachsene'), T('krabbelgruppe', 'Krabbel- & Spielgruppe'), T('pekip', 'PEKiP & Bewegung'),
+    T('musik', 'Musik'), T('schwimmen', 'Babyschwimmen'), T('babymassage', 'Babymassage'), T('kreativ', 'Kreativ'), T('spiele', 'Spielen & Medien'),
+    T('eltern_cafe', 'Eltern-Café'), T('geburtsvorbereitung', 'Geburtsvorbereitung'), T('rueckbildung', 'Rückbildung'), T('erste_hilfe', 'Erste Hilfe'), T('beratung', 'Beratung')],
+  events: [T('aud:kinder', 'Für Kinder'), T('aud:erwachsene', 'Für Erwachsene'), T('lesen', 'Vorlesen'), T('kreativ', 'Basteln'), T('spiele', 'Spielen & Medien'),
+    T('theater', 'Theater, Kino & Zirkus'), T('musik', 'Musik'), T('flohmarkt', 'Flohmarkt & Basar')],
+};
+const TAG_LABEL = {};
+for (const list of Object.values(TAGS)) for (const t of list) TAG_LABEL[t.id] = TAG_LABEL[t.id] || t.label;
+TAG_LABEL.drinnen = 'Drinnen'; TAG_LABEL.draussen = 'Draußen'; TAG_LABEL.groessere = 'Eher für Größere';
+const IO_GROUPS = ['tipps', 'spielen', 'gastro', 'entdecken'];
+const CAT_ICON = { museum: 'museum', kultur: 'museum', buecherei: 'museum', baden: 'waves', hundeauslauf: 'paw', kita: 'blocks', wc: 'toilet', apotheke: 'pill' };
 const CAT_LABEL = {
   spielplatz: 'Spielplatz', indoor: 'Drinnen spielen', spielhaus: 'Spielhaus', freizeit: 'Freizeit', cafe: 'Café',
   restaurant: 'Restaurant', imbiss: 'Imbiss', eis: 'Eis', windeln: 'Drogerie / Supermarkt / Späti', laden: 'Laden',
@@ -81,24 +110,24 @@ for (const g of GROUPS) for (const c of g.cats) GROUP_OF[c] = g;
 
 // ---------- Attributes (the filters Google does not have) ----------
 const truthy = v => /^(yes|designated|room|true|ja|1|limited|partial)$/i.test(v) ? (v === 'limited' || v === 'partial' ? 'limited' : 'yes') : /^(no|false|nein|0)$/i.test(v) ? 'no' : null;
-const INDOOR = ['essen', 'einkauf', 'wickeln', 'gesundheit', 'kultur', 'baden', 'drinnen', 'zentren', 'unterwegs', 'kurse'];
+const INDOOR = ['gastro', 'laeden', 'sanitaer', 'gesundheit', 'entdecken', 'spielen', 'familie', 'mobil'];
 const ATTRS = [
   { id: 'wickeltisch', label: 'Wickeltisch', keys: ['changing_table'], groups: INDOOR, q: 'Gibt es hier einen Wickeltisch?' },
   { id: 'stillen', label: 'Stillmöglichkeit', keys: ['baby_feeding'], groups: INDOOR, q: 'Kann man hier in Ruhe stillen?' },
-  { id: 'hochstuhl', label: 'Hochstuhl', keys: ['highchair'], groups: ['essen'], q: 'Gibt es Hochstühle?' },
-  { id: 'spielecke', label: 'Spielecke', keys: ['kids_area'], groups: ['essen', 'einkauf', 'kultur', 'gesundheit', 'zentren'], q: 'Gibt es eine Spielecke?' },
-  { id: 'kindermenue', label: 'Kindermenü', keys: ['kids_menu'], groups: ['essen'], q: 'Gibt es ein Kindermenü?' },
-  { id: 'windeln', label: 'Windeln / Babynahrung', keys: [], groups: ['einkauf'], q: 'Gibt es hier Windeln oder Babynahrung?' },
-  { id: 'kleinkind', label: 'Für Kleinkinder', keys: ['for_baby', 'for_toddler'], groups: ['spielplatz'], q: 'Gibt es einen Bereich für Kleinkinder?' },
-  { id: 'eingezaeunt', label: 'Eingezäunt', keys: ['fenced'], groups: ['spielplatz'], q: 'Ist der Spielplatz eingezäunt?' },
-  { id: 'schatten', label: 'Schatten', keys: ['shade'], groups: ['spielplatz'], q: 'Gibt es Schatten?' },
-  { id: 'wc_nahe', label: 'WC in der Nähe', keys: ['wc_near'], groups: ['spielplatz'], q: 'Gibt es ein WC in der Nähe?' },
-  { id: 'wasser', label: 'Wasserspiel', keys: ['water_play'], groups: ['spielplatz'], q: 'Gibt es ein Wasserspiel?' },
+  { id: 'hochstuhl', label: 'Hochstuhl', keys: ['highchair'], groups: ['gastro'], q: 'Gibt es Hochstühle?' },
+  { id: 'spielecke', label: 'Spielecke', keys: ['kids_area'], groups: ['gastro', 'laeden', 'entdecken', 'gesundheit', 'familie'], q: 'Gibt es eine Spielecke?' },
+  { id: 'kindermenue', label: 'Kindermenü', keys: ['kids_menu'], groups: ['gastro'], q: 'Gibt es ein Kindermenü?' },
+  { id: 'windeln', label: 'Windeln / Babynahrung', keys: [], groups: ['laeden'], q: 'Gibt es hier Windeln oder Babynahrung?' },
+  { id: 'kleinkind', label: 'Für Kleinkinder', keys: ['for_baby', 'for_toddler'], groups: ['spielen'], q: 'Gibt es einen Bereich für Kleinkinder?' },
+  { id: 'eingezaeunt', label: 'Eingezäunt', keys: ['fenced'], groups: ['spielen'], q: 'Ist der Spielplatz eingezäunt?' },
+  { id: 'schatten', label: 'Schatten', keys: ['shade'], groups: ['spielen'], q: 'Gibt es Schatten?' },
+  { id: 'wc_nahe', label: 'WC in der Nähe', keys: ['wc_near'], groups: ['spielen'], q: 'Gibt es ein WC in der Nähe?' },
+  { id: 'wasser', label: 'Wasserspiel', keys: ['water_play'], groups: ['spielen'], q: 'Gibt es ein Wasserspiel?' },
   { id: 'kinderwagen', label: 'Kinderwagen', keys: ['stroller', 'wheelchair'], q: 'Kommt man gut mit dem Kinderwagen hin?' },
-  { id: 'toilette', label: 'Toilette', keys: ['toilets'], groups: ['essen', 'kultur', 'baden', 'drinnen', 'natur', 'einkauf'], q: 'Gibt es eine Toilette?' },
-  { id: 'drinnen', label: 'Drinnen', keys: ['indoor'], groups: ['spielplatz', 'drinnen', 'kultur', 'baden', 'zentren'], q: 'Ist es drinnen oder überdacht?' },
+  { id: 'toilette', label: 'Toilette', keys: ['toilets'], groups: ['gastro', 'entdecken', 'spielen', 'laeden'], q: 'Gibt es eine Toilette?' },
+  { id: 'drinnen', label: 'Drinnen', keys: ['indoor'], groups: ['spielen', 'entdecken', 'familie'], q: 'Ist es drinnen oder überdacht?' },
   { id: 'hund', label: 'Hunde erlaubt', keys: ['dog'], q: 'Sind Hunde erlaubt?' },
-  { id: 'kostenlos', label: 'Kostenlos', keys: ['fee'], invert: true, groups: ['spielplatz', 'drinnen', 'kultur', 'baden', 'wickeln', 'zentren', 'natur', 'kurse'], q: 'Ist es kostenlos?' },
+  { id: 'kostenlos', label: 'Kostenlos', keys: ['fee'], invert: true, groups: ['spielen', 'entdecken', 'sanitaer', 'familie'], q: 'Ist es kostenlos?' },
 ];
 const ATTR = Object.fromEntries(ATTRS.map(a => [a.id, a]));
 function normValue(attr, v) {
@@ -120,33 +149,31 @@ const GEAR = [
 const TIME_FILTERS = [{ id: 'jetzt', label: 'Jetzt offen' }, { id: 'sonntag', label: 'Sonntags offen' }];
 const FILTER_LABEL = Object.fromEntries([...TIME_FILTERS, ...ATTRS, ...GEAR].map(f => [f.id, f.label]));
 const GROUP_FILTERS = {
-  spielplatz: ['kleinkind', 'schatten', 'wasser', 'eingezaeunt', 'wc_nahe'],
-  essen: ['jetzt', 'hochstuhl', 'wickeltisch', 'spielecke', 'hund'],
-  wickeln: ['wickeltisch', 'stillen', 'kostenlos', 'jetzt'],
-  einkauf: ['jetzt', 'sonntag', 'windeln'],
-  drinnen: ['jetzt', 'kostenlos', 'wickeltisch', 'kinderwagen'],
-  natur: ['hund', 'kostenlos'],
-  baden: ['jetzt', 'kostenlos', 'wickeltisch'],
-  kultur: ['jetzt', 'kostenlos', 'wickeltisch', 'kinderwagen'],
+  spielen: ['kleinkind', 'schatten', 'eingezaeunt', 'wc_nahe', 'kostenlos'],
+  gastro: ['jetzt', 'hochstuhl', 'wickeltisch', 'spielecke', 'hund'],
+  entdecken: ['jetzt', 'kostenlos', 'kinderwagen', 'wickeltisch', 'hund'],
   gesundheit: ['jetzt', 'sonntag', 'kinderwagen'],
-  zentren: ['jetzt', 'kostenlos'],
-  kurse: ['kostenlos', 'kinderwagen', 'wickeltisch'],
+  sanitaer: ['jetzt', 'kostenlos'],
+  laeden: ['jetzt', 'sonntag', 'windeln'],
+  familie: ['jetzt', 'kostenlos'],
+  mobil: ['kinderwagen'],
   tipps: ['jetzt', 'kostenlos', 'wickeltisch'],
-  unterwegs: ['kinderwagen'],
+  kurse: [], events: [],
   _: ['jetzt', 'wickeltisch', 'kinderwagen', 'hund'],
 };
 const AGES = [{ id: '0-2', label: '0–2 Jahre' }, { id: '3-6', label: '3–6 Jahre' }, { id: '7+', label: 'ab 7 Jahre' }];
 const PRESETS = [
-  { id: 'windeln-jetzt', label: 'Jetzt Windeln kaufen', icon: 'bag', groups: ['einkauf'], cats: ['apotheke'], filters: ['jetzt'] },
-  { id: 'windeln-sonntag', label: 'Windeln am Sonntag', icon: 'bag', groups: ['einkauf'], cats: ['apotheke'], filters: ['sonntag'] },
+  { id: 'windeln-jetzt', label: 'Jetzt Windeln kaufen', icon: 'bag', groups: ['laeden'], cats: ['apotheke'], filters: ['jetzt'] },
+  { id: 'windeln-sonntag', label: 'Windeln am Sonntag', icon: 'bag', groups: ['laeden'], cats: ['apotheke'], filters: ['sonntag'] },
   { id: 'tipps', label: 'Djuu-Tipps: was Eltern lieben', icon: 'star', groups: ['tipps'], filters: [] },
   { id: 'kurse', label: 'Krabbelgruppen & Kurse', icon: 'group', groups: ['kurse'], filters: [] },
-  { id: 'wickeln', label: 'Wickeln unterwegs', icon: 'baby', groups: [], filters: ['wickeltisch'] },
-  { id: 'regen', label: 'Es regnet', icon: 'house', groups: ['drinnen', 'kultur', 'baden'], filters: [] },
-  { id: 'kleinkind', label: 'Spielplatz für die Kleinen', icon: 'playground', groups: ['spielplatz'], filters: ['kleinkind'] },
-  { id: 'wasser', label: 'Wasserspielplatz', icon: 'waves', groups: ['spielplatz'], filters: ['wasser'] },
-  { id: 'cafe-hund', label: 'Café mit Kind und Hund', icon: 'cup', groups: ['essen'], filters: ['hund'] },
-  { id: 'hund', label: 'Hund darf rennen', icon: 'paw', groups: ['hund'], filters: [] },
+  { id: 'wickeln', label: 'Wickeln unterwegs', icon: 'baby', groups: ['sanitaer'], tags: ['wickeln'], filters: [] },
+  { id: 'regen', label: 'Es regnet: drinnen spielen und entdecken', icon: 'house', groups: ['spielen', 'entdecken'], io: 'drinnen', filters: [] },
+  { id: 'kindercafe', label: 'Kindercafé', icon: 'cup', groups: ['gastro'], tags: ['kindercafe'], filters: [] },
+  { id: 'kleinkind', label: 'Spielplatz für die Kleinen', icon: 'playground', groups: ['spielen'], tags: ['spielplatz'], filters: ['kleinkind'] },
+  { id: 'wasser', label: 'Wasserspielplatz', icon: 'waves', groups: ['spielen'], tags: ['wasserspiel'], filters: [] },
+  { id: 'cafe-hund', label: 'Café mit Kind und Hund', icon: 'cup', groups: ['gastro'], tags: ['cafe'], filters: ['hund'] },
+  { id: 'hund', label: 'Hund darf rennen', icon: 'paw', groups: ['entdecken'], tags: ['hundeauslauf'], filters: [] },
 ];
 
 // ---------- Opening hours (common OSM formats; holidays ignored) ----------
@@ -242,7 +269,7 @@ async function compressPhoto(file) {
 }
 
 // ---------- State ----------
-const state = { groups: new Set(), cats: new Set(), filters: new Set(), preset: null, showUnknown: false, q: '', tab: 'map', listLimit: 40, me: null, selected: null };
+const state = { mode: 'erleben', groups: new Set(), cats: new Set(), tags: new Set(), io: null, filters: new Set(), preset: null, showUnknown: false, q: '', tab: 'map', listLimit: 40, me: null, selected: null };
 let SOURCES = [];
 const places = [];
 const byId = new Map();
@@ -261,7 +288,8 @@ function dist(a, b) {
 const fmtDist = m => m < 1000 ? Math.round(m / 10) * 10 + ' m' : (m / 1000).toFixed(1).replace('.', ',') + ' km';
 const walkMin = m => Math.max(1, Math.round(m * 1.3 / 75));
 const groupOf = p => GROUP_OF[p.cat] || GROUPS[0];
-const badge = (p, cls = 'badge') => `<span class="${cls}" style="--c:${groupOf(p).color}">${svg(groupOf(p).icon, '')}</span>`;
+const iconOf = p => CAT_ICON[p.cat] || groupOf(p).icon;
+const badge = (p, cls = 'badge') => `<span class="${cls}" style="--c:${groupOf(p).color}">${svg(iconOf(p), '')}</span>`;
 const origin = () => state.me || [map.getCenter().lat, map.getCenter().lng];
 
 function userAnswers(pid, attrId) {
@@ -295,8 +323,8 @@ const relevantAttrs = p => ATTRS.filter(a => !a.groups || a.groups.includes(grou
 
 // ---------- Data ----------
 function buildPlace(row) {
-  const [id, name, cat, lat, lon, district, f, srcs] = row;
-  const p = { id, name: name || CAT_LABEL[cat] || 'Ort', named: !!name, cat, lat, lon, district, f, srcs: srcs || [], mine: false };
+  const [id, name, cat, lat, lon, district, f, srcs, tags] = row;
+  const p = { id, name: name || CAT_LABEL[cat] || 'Ort', named: !!name, cat, lat, lon, district, f, srcs: srcs || [], tags: new Set(tags || []), mine: false };
   if (f.opening_hours) { p.hoursRaw = f.opening_hours[0]; p.oh = parseOH(p.hoursRaw); }
   if (f.gear) {
     p.gear = new Set();
@@ -307,7 +335,7 @@ function buildPlace(row) {
 }
 function addUserPlaces() {
   for (const c of store.contributions) if (c.isNew && !byId.has(c.placeId)) {
-    const p = { id: c.placeId, name: c.name, named: true, cat: c.cat, lat: c.lat, lon: c.lon, district: '', f: {}, srcs: [], mine: true };
+    const p = { id: c.placeId, name: c.name, named: true, cat: c.cat, lat: c.lat, lon: c.lon, district: '', f: {}, srcs: [], tags: new Set([c.cat]), mine: true };
     if (c.hours) { p.hoursRaw = c.hours; p.oh = parseOH(c.hours); }
     places.push(p); byId.set(p.id, p);
   }
@@ -319,7 +347,8 @@ const offersByPlace = new Map();
 const TOPIC_LABEL = {
   geburtsvorbereitung: 'Geburtsvorbereitung', rueckbildung: 'Rückbildung', pekip: 'PEKiP & Bewegung', babymassage: 'Babymassage',
   schwimmen: 'Babyschwimmen', musik: 'Musik', krabbelgruppe: 'Krabbel- & Spielgruppe', eltern_cafe: 'Eltern-Café', beratung: 'Beratung',
-  erste_hilfe: 'Erste Hilfe am Kind', kreativ: 'Basteln', lesen: 'Vorlesen', sonstiges: 'Angebot',
+  erste_hilfe: 'Erste Hilfe am Kind', kreativ: 'Basteln', lesen: 'Vorlesen', spiele: 'Spielen & Medien', theater: 'Theater, Kino & Zirkus',
+  flohmarkt: 'Flohmarkt & Basar', sonstiges: 'Angebot',
 };
 const WD = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 function loadOffers(data) {
@@ -377,7 +406,7 @@ function offerItem(o, nd) {
   const place = o.place_id && byId.get(o.place_id);
   const d = (o.lat && o.lon) || place ? dist(origin(), place ? [place.lat, place.lon] : [o.lat, o.lon]) : null;
   const fits = offerFits(o);
-  const tags = [ageLabel(o.age_min_m, o.age_max_m), o.free ? 'kostenlos' : o.price, o.kind === 'gruppe' ? 'offene Gruppe' : o.kind === 'kurs' ? (o.sessions ? `Kurs, ${o.sessions}×` : 'Kurs') : '']
+  const tags = [o.audience === 'erwachsene' ? 'für Erwachsene' : ageLabel(o.age_min_m, o.age_max_m), o.free ? 'kostenlos' : o.price, o.kind === 'gruppe' ? 'offene Gruppe' : o.kind === 'kurs' ? (o.sessions ? `Kurs, ${o.sessions}×` : 'Kurs') : '']
     .filter(Boolean).map(t => `<span>${esc(t)}</span>`).join('');
   const inner = `<span class="datebox"><b>${nd ? esc(fmtDay(nd)) : '–'}</b><span>${esc(o.time_from || '')}</span></span>
     <span><h3>${esc(o.title)}</h3><span class="meta">${esc(TOPIC_LABEL[o.topic] || '')}${o.venue ? ' · ' + esc(o.venue) : ''}${d != null ? ' · ' + fmtDist(d) : ''}</span>
@@ -402,13 +431,13 @@ const cluster = L.markerClusterGroup({
 });
 map.addLayer(cluster);
 const iconCache = {};
-function iconFor(p, unknown) {
-  const g = groupOf(p), tip = !!p.f.tipp, k = g.id + (unknown ? 'u' : '') + (p.mine ? 'm' : '') + (tip ? 't' : '');
-  return iconCache[k] || (iconCache[k] = L.divIcon({ className: '', iconSize: [30, 30], html: `<div class="mk${unknown ? ' unk' : ''}${p.mine ? ' mine' : ''}${tip ? ' tip' : ''}" style="--c:${g.color}"><svg viewBox="0 0 24 24">${ICON[g.icon]}</svg>${tip ? `<span class="star">${svg('star', '')}</span>` : ''}</div>` }));
+function iconFor(p, unknown, og) {
+  const g = og || groupOf(p), icon = og ? og.icon : iconOf(p), tip = !!p.f.tipp, k = g.id + icon + (unknown ? 'u' : '') + (p.mine ? 'm' : '') + (tip ? 't' : '');
+  return iconCache[k] || (iconCache[k] = L.divIcon({ className: '', iconSize: [30, 30], html: `<div class="mk${unknown ? ' unk' : ''}${p.mine ? ' mine' : ''}${tip ? ' tip' : ''}" style="--c:${g.color}"><svg viewBox="0 0 24 24">${ICON[icon]}</svg>${tip ? `<span class="star">${svg('star', '')}</span>` : ''}</div>` }));
 }
-function markerFor(p, unknown) {
+function markerFor(p, unknown, og) {
   if (!p.marker) { p.marker = L.marker([p.lat, p.lon]); p.marker.on('click', () => showPlace(p.id, true)); }
-  p.marker.setIcon(iconFor(p, unknown));
+  p.marker.setIcon(iconFor(p, unknown, og));
   return p.marker;
 }
 let meMarker = null;
@@ -416,11 +445,41 @@ map.on('click', () => { if (!desktop() && view().type === 'list') setSize('peek'
 map.on('moveend', () => { if (view().type === 'list') renderPanel(); });
 
 // ---------- Filtering ----------
+// the one selected sub-category (tags only apply then), or null
+const soleGroup = () => state.groups.size === 1 ? GROUP[[...state.groups][0]] : null;
+const offerGroup = () => { const g = soleGroup(); return g && g.offers ? g : null; };
+// selected tags of a group, split into alternatives (any) and properties (all), plus the audience of offers
+function tagSel(g) {
+  const list = TAGS[g.id] || [], sel = list.filter(t => state.tags.has(t.id));
+  return { any: sel.filter(t => !t.p && !t.id.startsWith('aud:')).map(t => t.id), all: sel.filter(t => t.p).map(t => t.id), aud: sel.filter(t => t.id.startsWith('aud:')).map(t => t.id.slice(4)) };
+}
+function tagsOk(tags, g) {
+  const s = tagSel(g);
+  return (!s.any.length || s.any.some(t => tags.has(t))) && s.all.every(t => tags.has(t));
+}
+// offers of an offer group (next 8 weeks) that pass the selected tags
+function groupOffers(g) {
+  const s = tagSel(g), t0 = today0();
+  return OFFERS.filter(o => g.offers.includes(o.kind) && (!s.aud.length || s.aud.includes(o.audience)) && (!s.any.length || s.any.includes(o.topic)))
+    .map(o => [nextDate(o), o]).filter(([d]) => d && d - t0 < 56 * 864e5);
+}
+let offerPlaces = new Map(); // group id -> Set of place ids with matching offers (rebuilt in compute)
+function memberOf(p, g) {
+  if (g.virtual) return !!p.f.tipp;
+  if (g.offers) return offerPlaces.get(g.id)?.has(p.id) || false;
+  return g.cats.includes(p.cat) || !!(g.extra && g.extra(p));
+}
+const ioOk = p => !state.io || !(p.tags.has('drinnen') || p.tags.has('draussen')) || p.tags.has(state.io);
 function inSelection(p) {
+  if (!ioOk(p)) return false;
   if (!state.groups.size && !state.cats.size) return true;
-  return state.groups.has(groupOf(p).id) || state.cats.has(p.cat) || (state.groups.has('tipps') && !!p.f.tipp);
+  if (state.cats.has(p.cat)) return true;
+  for (const id of state.groups) { const g = GROUP[id]; if (memberOf(p, g) && (state.groups.size > 1 || g.offers || tagsOk(p.tags, g))) return true; }
+  return false;
 }
 function compute() {
+  offerPlaces = new Map();
+  for (const id of state.groups) if (GROUP[id].offers) offerPlaces.set(id, new Set(groupOffers(GROUP[id]).map(([, o]) => o.place_id).filter(Boolean)));
   const q = state.q.trim().toLowerCase();
   const fs = [...state.filters];
   const res = { match: [], unknown: [] };
@@ -443,25 +502,46 @@ const shownList = () => state.showUnknown ? last.match.concat(last.unknown) : la
 function refresh() {
   last = compute();
   cluster.clearLayers();
-  cluster.addLayers(last.match.map(p => markerFor(p, false)).concat(state.showUnknown ? last.unknown.map(p => markerFor(p, true)) : []));
+  const og = offerGroup();
+  cluster.addLayers(last.match.map(p => markerFor(p, false, og)).concat(state.showUnknown ? last.unknown.map(p => markerFor(p, true, og)) : []));
   renderTop();
   if (['list', 'filters'].includes(view().type)) renderPanel();
 }
 
 // ---------- Top bar ----------
 function renderTop() {
-  const row = ROW_GROUPS.map(id => GROUP[id]);
-  const extra = [...state.groups].filter(id => !ROW_GROUPS.includes(id)).map(id => GROUP[id]);
-  $('#cats').innerHTML = extra.concat(row).map(g =>
-    `<button type="button" class="cat${state.groups.has(g.id) ? ' on' : ''}" data-group="${g.id}" style="--c:${g.color}"><span class="ic">${svg(g.icon, '')}</span>${esc(g.short)}</button>`).join('') +
-    `<button type="button" class="cat" data-open="groups" style="--c:var(--muted)"><span class="ic">${svg('more', '')}</span>Mehr</button>`;
-  const first = [...state.groups][0];
-  const rel = GROUP_FILTERS[first] || GROUP_FILTERS._;
-  const ids = [...new Set((store.profile.dogs > 0 ? ['hund'] : []).concat(rel, [...state.filters]))];
+  const row = GROUPS.filter(g => g.mode === state.mode);
+  const extra = [...state.groups].map(id => GROUP[id]).filter(g => g.mode !== state.mode);
+  $('#cats').innerHTML = `<span class="modes" role="tablist">${MODES.map(m => `<button type="button" role="tab" aria-selected="${state.mode === m.id}" class="${state.mode === m.id ? 'on' : ''}" data-mode="${m.id}">${m.label}</button>`).join('')}</span>` +
+    extra.concat(row).map(g =>
+      `<button type="button" class="cat${state.groups.has(g.id) ? ' on' : ''}" data-group="${g.id}" style="--c:${g.color}"><span class="ic">${svg(g.icon, '')}</span>${esc(g.short)}</button>`).join('');
+  const g = soleGroup();
+  const tagChips = g && TAGS[g.id] ? tagCounts(g).map(([t, n]) => `<button type="button" class="chip tag${state.tags.has(t.id) ? ' on' : ''}" data-tag="${t.id}" style="--c:${g.color}">${state.tags.has(t.id) ? svg('check') : ''}${esc(t.label)}</button>`).join('') : '';
+  const showIo = state.mode === 'erleben' && (!state.groups.size || [...state.groups].every(id => IO_GROUPS.includes(id)));
+  const io = showIo ? [['drinnen', 'house', 'Drinnen'], ['draussen', 'tree', 'Draußen']].map(([id, ic, l]) => `<button type="button" class="chip io${state.io === id ? ' on' : ''}" data-io="${id}">${svg(ic)}${l}</button>`).join('') : '';
+  const rel = g ? (GROUP_FILTERS[g.id] || GROUP_FILTERS._) : GROUP_FILTERS._;
+  const ids = g && g.offers ? [] : [...new Set((store.profile.dogs > 0 ? ['hund'] : []).concat(rel, [...state.filters]))];
   $('#ctx').innerHTML =
-    (state.q ? `<button type="button" class="chip on" data-clearq="1">„${esc(state.q)}“ ${svg('close')}</button>` : '') +
-    `<button type="button" class="chip" data-open="filters">${svg('filter')}Filter${state.filters.size ? ' · ' + state.filters.size : ''}</button>` +
+    (state.q ? `<button type="button" class="chip on" data-clearq="1">„${esc(state.q)}“ ${svg('close')}</button>` : '') + tagChips +
+    (tagChips && (io || ids.length) ? '<span class="sep" aria-hidden="true"></span>' : '') + io +
+    (g && g.offers ? '' : `<button type="button" class="chip" data-open="filters">${svg('filter')}Filter${state.filters.size ? ' · ' + state.filters.size : ''}</button>`) +
     ids.map(id => `<button type="button" class="chip${state.filters.has(id) ? ' on' : ''}" data-filter="${id}">${state.filters.has(id) ? svg('check') : ''}${esc(FILTER_LABEL[id])}</button>`).join('');
+}
+// tags of a group that occur at least once, in their defined order
+const tagCountCache = new Map();
+function tagCounts(g) {
+  if (g.offers) {
+    const n = {};
+    for (const o of OFFERS) if (g.offers.includes(o.kind)) { n['aud:' + o.audience] = (n['aud:' + o.audience] || 0) + 1; n[o.topic] = (n[o.topic] || 0) + 1; }
+    return TAGS[g.id].map(t => [t, n[t.id] || 0]).filter(([, c]) => c);
+  }
+  if (!tagCountCache.has(g.id)) {
+    const n = {};
+    for (const p of places) if (memberOf(p, g)) for (const t of p.tags) n[t] = (n[t] || 0) + 1;
+    if (!places.length) return [];
+    tagCountCache.set(g.id, TAGS[g.id].map(t => [t, n[t.id] || 0]).filter(([, c]) => c));
+  }
+  return tagCountCache.get(g.id);
 }
 
 // ---------- Panel: one stack of views ----------
@@ -484,7 +564,6 @@ async function renderPanel() {
   if (v.type === 'list') body.innerHTML = listView();
   else if (v.type === 'detail') { const html = await detailView(v.id); if (view() !== v) return; body.innerHTML = html; bindDetail(v.id); }
   else if (v.type === 'filters') body.innerHTML = filtersView();
-  else if (v.type === 'groups') body.innerHTML = groupsView();
   else if (v.type === 'search') body.innerHTML = searchView();
   else if (v.type === 'sos') body.innerHTML = sosView(v.kind);
   else if (v.type === 'events') body.innerHTML = eventsView();
@@ -497,12 +576,14 @@ async function renderPanel() {
 
 // list (the home view)
 function listView() {
+  if (offerGroup()) return offerListView(offerGroup());
   const o = origin();
   const shown = shownList();
   const sorted = shown.map(p => [dist(o, [p.lat, p.lon]), p]).sort((a, b) => a[0] - b[0]);
   const u = last.unknown.length;
   const title = state.preset ? esc(PRESETS.find(x => x.id === state.preset).label)
-    : state.groups.size === 1 ? esc(GROUP[[...state.groups][0]].label) : 'In der Nähe';
+    : state.groups.size === 1 ? esc(GROUP[[...state.groups][0]].label) + (state.tags.size ? ': ' + esc([...state.tags].map(t => TAG_LABEL[t] || t).join(', ')) : '')
+    : 'In der Nähe';
   const sub = state.filters.size
     ? `${nf.format(last.match.length)} passen sicher${u ? ` · ${nf.format(u)} ohne Angabe <button type="button" data-unk="1">${state.showUnknown ? 'ausblenden' : 'auch zeigen'}</button>` : ''}`
     : `${nf.format(shown.length)} Orte · ${state.me ? 'von dir aus' : 'ab Kartenmitte'}`;
@@ -513,8 +594,23 @@ function listView() {
     ${sorted.length > state.listLimit ? '<button type="button" class="more" data-more="1">Mehr anzeigen</button>' : ''}`
     : `<div class="empty"><b>Hier ist nichts dabei.</b>Probier weniger Filter oder zoom raus.</div>`}`;
 }
+// Kurse & Gruppen / Events on the map: the offers themselves, nearest first
+function offerListView(g) {
+  const o0 = origin();
+  const near = o => { const pl = o.place_id && byId.get(o.place_id); return pl ? dist(o0, [pl.lat, pl.lon]) : o.lat ? dist(o0, [o.lat, o.lon]) : 9e9; };
+  const list = groupOffers(g).filter(([, o]) => { const pl = o.place_id && byId.get(o.place_id); return !pl || inSelection(pl); })
+    .map(([d, o]) => [near(o), d, o]).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const title = esc(g.label) + (state.tags.size ? ': ' + esc([...state.tags].map(t => TAG_LABEL[t] || t).join(', ')) : '');
+  return `<div class="ph" data-expand="1"><h2>${title}<span class="sub">${nf.format(list.length)} Angebote in den nächsten 8 Wochen · ${state.me ? 'von dir aus' : 'ab Kartenmitte'}</span></h2></div>
+    ${list.length ? `<ol class="list">${list.slice(0, state.listLimit).map(([, d, o]) => offerItem(o, d)).join('')}</ol>
+    ${list.length > state.listLimit ? '<button type="button" class="more" data-more="1">Mehr anzeigen</button>' : ''}`
+    : '<div class="empty"><b>Hier ist nichts dabei.</b>Probier andere Tags.</div>'}
+    <p class="note">Anmeldung und aktuelle Infos beim Anbieter. Alle Termine nach Datum: Tab „Termine“.</p>`;
+}
+const PROP_TAGS = new Set(Object.values(TAGS).flat().filter(t => t.p).map(t => t.id).concat('groessere'));
 function itemHtml(p, d) {
-  const yes = relevantAttrs(p).filter(a => attrVal(p, a.id).v === 'yes').slice(0, 3).map(a => `<span>${esc(a.label)}</span>`).join('');
+  const yes = [...p.tags].filter(t => PROP_TAGS.has(t)).slice(0, 2).map(t => `<span>${esc(TAG_LABEL[t])}</span>`)
+    .concat(relevantAttrs(p).filter(a => attrVal(p, a.id).v === 'yes').slice(0, 2).map(a => `<span>${esc(a.label)}</span>`)).join('');
   const ot = openText(p);
   return `<li><button type="button" class="item" data-id="${p.id}">${badge(p)}
     <span><h3>${esc(p.name)}${p.f.tipp ? ` <span class="tipdot" title="Djuu-Tipp">${svg('star', '')}</span>` : ''}</h3><span class="meta">${esc(CAT_LABEL[p.cat] || '')}${ot ? ' · ' + ot : ''}</span>${yes ? `<span class="mini">${yes}</span>` : ''}</span>
@@ -573,10 +669,11 @@ async function detailView(id) {
       <button type="button" class="act" data-addinfo="${id}">${svg('edit')}Ergänzen</button>
     </div>
     ${f.tipp ? `<div class="tipbanner">${svg('star')}<div><b>Djuu-Tipp</b>${esc(f.tipp[0])}</div></div>` : ''}
-    ${groupOf(p).id === 'kurse' && !offersByPlace.has(id) ? `<p class="note">Für diesen Ort haben wir noch keine Kurszeiten. Schau auf die Webseite.</p>` : ''}
+    ${p.cat === 'kurs' && !offersByPlace.has(id) ? `<p class="note">Für diesen Ort haben wir noch keine Kurszeiten. Schau auf die Webseite.</p>` : ''}
     ${photos ? `<div class="photos" style="margin-top:12px">${photos}</div>` : ''}
     <div class="sec"><h4>Auf einen Blick</h4>
-      ${known.length || p.gear || ages.length ? `<div class="facts">${known.map(factChip).join('')}
+      ${known.length || p.gear || ages.length || p.tags.size ? `<div class="facts">${known.map(factChip).join('')}
+        ${[...p.tags].filter(t => t !== p.cat && TAG_LABEL[t]).map(t => `<span class="fact neutral">${esc(TAG_LABEL[t])}</span>`).join('')}
         ${p.gear ? GEAR.filter(g => p.gear.has(g.id)).map(g => `<span class="fact neutral">${esc(g.label)}</span>`).join('') : ''}
         ${ages.map(a => `<span class="fact neutral">${esc(AGES.find(x => x.id === a)?.label || a)}</span>`).join('')}</div>`
       : '<p class="muted text">Zu diesem Ort wissen wir noch wenig.</p>'}
@@ -650,27 +747,22 @@ function filtersView() {
     <p class="muted text">Die Zahl zeigt, wie viele Orte die Angabe sicher haben.</p>
     ${block('Öffnungszeiten', TIME_FILTERS)}
     ${block('Ausstattung', ATTRS.filter(fits))}
-    ${!state.groups.size || state.groups.has('spielplatz') ? block('Spielgeräte', GEAR) : ''}
+    ${!state.groups.size || state.groups.has('spielen') ? block('Spielgeräte', GEAR) : ''}
     <label class="switch" for="unkSwitch">Orte ohne Angabe blass zeigen <input type="checkbox" id="unkSwitch" ${state.showUnknown ? 'checked' : ''}></label>
     <div class="sticky-bar"><button type="button" class="btn" data-reset="1">Zurücksetzen</button><button type="button" class="btn big primary" data-home="half">${nf.format(total)} Orte zeigen</button></div>`;
 }
-function groupsView() {
-  return `${head('Alle Kategorien')}
-    <div class="groupgrid">${GROUPS.map(g => `<button type="button" class="cat${state.groups.has(g.id) ? ' on' : ''}" data-group="${g.id}" style="--c:${g.color}"><span class="ic">${svg(g.icon, '')}</span>${esc(g.label)}</button>`).join('')}</div>
-    <div class="sticky-bar"><button type="button" class="btn big primary" data-home="half">Fertig</button></div>`;
-}
-
 // search
 function searchView() {
   const q = $('#q').value.trim().toLowerCase();
   if (!q) return `${head('Schnelle Fragen', 'Tippe eine an oder suche oben nach Namen')}
     <ol class="list">${PRESETS.map(p => `<li><button type="button" class="item" data-preset="${p.id}"><span class="badge" style="--c:var(--brand)">${svg(p.icon, '')}</span><span><h3>${esc(p.label)}</h3></span><span></span></button></li>`).join('')}</ol>`;
   const gs = GROUPS.filter(g => g.label.toLowerCase().includes(q));
+  const ts = Object.entries(TAGS).flatMap(([gid, list]) => list.filter(t => t.label.toLowerCase().includes(q)).map(t => [gid, t])).slice(0, 8);
   const fs = ATTRS.filter(a => a.label.toLowerCase().includes(q));
   const o = origin();
   const ps = places.filter(p => p.name.toLowerCase().includes(q)).map(p => [dist(o, [p.lat, p.lon]), p]).sort((a, b) => a[0] - b[0]).slice(0, 25);
   return `${head('Suche', `„${esc(q)}“`)}
-    ${gs.length || fs.length ? `<div class="fgrid" style="margin-bottom:10px">${gs.map(g => `<button type="button" class="chip" data-group-only="${g.id}">${esc(g.label)}</button>`).join('')}${fs.map(a => `<button type="button" class="chip" data-filter-only="${a.id}">${esc(a.label)}</button>`).join('')}</div>` : ''}
+    ${gs.length || fs.length || ts.length ? `<div class="fgrid" style="margin-bottom:10px">${gs.map(g => `<button type="button" class="chip" data-group-only="${g.id}">${esc(g.label)}</button>`).join('')}${ts.map(([gid, t]) => `<button type="button" class="chip" data-gtag="${gid}|${t.id}">${esc(GROUP[gid].label)}: ${esc(t.label)}</button>`).join('')}${fs.map(a => `<button type="button" class="chip" data-filter-only="${a.id}">${esc(a.label)}</button>`).join('')}</div>` : ''}
     ${ps.length ? `<ol class="list">${ps.map(([d, p]) => itemHtml(p, d)).join('')}</ol>` : '<div class="empty"><b>Nichts gefunden.</b>Versuch einen anderen Namen.</div>'}`;
 }
 
@@ -721,11 +813,12 @@ function eventsView() {
   if (f === 'gruppen') list = list.filter(([, o]) => o.kind === 'gruppe');
   if (f === 'kurse') list = list.filter(([, o]) => o.kind === 'kurs');
   if (f === 'termine') list = list.filter(([, o]) => o.kind === 'termin');
-  if (fam && hasFamily()) list = list.filter(([, o]) => offerFits(o) !== false);
+  if (f === 'kinder' || f === 'erwachsene') list = list.filter(([, o]) => o.audience === f);
+  if (fam && hasFamily() && f !== 'erwachsene') list = list.filter(([, o]) => offerFits(o) !== false);
   const o0 = origin();
   const near = o => { const pl = o.place_id && byId.get(o.place_id); return pl ? dist(o0, [pl.lat, pl.lon]) : o.lat ? dist(o0, [o.lat, o.lon]) : 9e9; };
   list.sort((a, b) => a[0] - b[0] || near(a[1]) - near(b[1]));
-  const chips = [['alle', 'Alle'], ['heute', 'Heute'], ['wochenende', 'Wochenende'], ['gruppen', 'Offene Gruppen'], ['kurse', 'Kurse'], ['termine', 'Veranstaltungen']]
+  const chips = [['alle', 'Alle'], ['heute', 'Heute'], ['wochenende', 'Wochenende'], ['gruppen', 'Offene Gruppen'], ['kurse', 'Kurse'], ['termine', 'Veranstaltungen'], ['kinder', 'Für Kinder'], ['erwachsene', 'Für Erwachsene']]
     .map(([id, l]) => `<button type="button" class="chip${f === id ? ' on' : ''}" data-ef="${id}">${l}</button>`).join('');
   const kids = familyAges();
   return `${head('Termine', 'Gruppen, Kurse und Veranstaltungen in den nächsten 8 Wochen', false)}
@@ -768,10 +861,10 @@ function saveProfileField(el) {
 
 // ---------- Add-place wizard (3 steps, one-handed) ----------
 const WIZ_TYPES = [
-  { id: 'spielplatz', label: 'Spielplatz', cat: 'spielplatz', icon: 'playground', attrs: ['kleinkind', 'eingezaeunt', 'schatten', 'wc_nahe', 'wasser'] },
-  { id: 'essen', label: 'Café / Restaurant', cat: 'cafe', icon: 'cup', attrs: ['hochstuhl', 'wickeltisch', 'spielecke', 'kindermenue', 'kinderwagen'] },
-  { id: 'laden', label: 'Laden', cat: 'windeln', icon: 'bag', attrs: ['windeln', 'sonntag_user'] },
-  { id: 'service', label: 'Wickeln, Stillen, WC', cat: 'wickel', icon: 'baby', attrs: ['wickeltisch', 'stillen', 'toilette'] },
+  { id: 'spielplatz', group: 'spielen', label: 'Spielplatz', cat: 'spielplatz', icon: 'playground', attrs: ['kleinkind', 'eingezaeunt', 'schatten', 'wc_nahe', 'wasser'] },
+  { id: 'essen', group: 'gastro', label: 'Café / Restaurant', cat: 'cafe', icon: 'cup', attrs: ['hochstuhl', 'wickeltisch', 'spielecke', 'kindermenue', 'kinderwagen'] },
+  { id: 'laden', group: 'laeden', label: 'Laden', cat: 'windeln', icon: 'bag', attrs: ['windeln', 'sonntag_user'] },
+  { id: 'service', group: 'sanitaer', label: 'Wickeln, Stillen, WC', cat: 'wickel', icon: 'baby', attrs: ['wickeltisch', 'stillen', 'toilette'] },
   { id: 'event', label: 'Veranstaltung', cat: 'event', icon: 'cal', attrs: [] },
 ];
 const COMMON_ATTRS = ['drinnen', 'kinderwagen', 'hund', 'kostenlos'];
@@ -781,7 +874,7 @@ const wiz = { step: 1, data: null, map: null };
 
 function startWizard({ place, type } = {}) {
   clearSel();
-  const t = place ? (WIZ_TYPES.find(w => w.id === groupOf(place).id || w.cat === place.cat) || null) : null;
+  const t = place ? (WIZ_TYPES.find(w => w.group === groupOf(place).id || w.cat === place.cat) || null) : null;
   wiz.data = { placeId: place?.id || null, isNew: !place, type: type || t?.id || (place ? 'service' : null), name: place?.name || '',
                lat: place?.lat ?? map.getCenter().lat, lon: place?.lon ?? map.getCenter().lng, attrs: {}, ages: [], comment: '',
                stars: 0, hours: '', photo: null, eventDate: '', eventTime: '', locating: !place };
@@ -875,7 +968,7 @@ function bindWizard() {
       $('#wizSuggest').querySelectorAll('[data-sug]').forEach(b => b.onclick = () => {
         const p = byId.get(b.dataset.sug);
         Object.assign(d, { placeId: p.id, isNew: false, name: p.name, lat: p.lat, lon: p.lon });
-        d.type = d.type || WIZ_TYPES.find(w => w.id === groupOf(p).id)?.id || 'service';
+        d.type = d.type || WIZ_TYPES.find(w => w.group === groupOf(p).id)?.id || 'service';
         toast('Den Ort gibt es schon. Du ergänzt jetzt seine Infos.');
         renderWizard();
       });
@@ -963,16 +1056,19 @@ function toggle(set, v) { set.has(v) ? set.delete(v) : set.add(v); }
 document.addEventListener('click', async e => {
   const t = e.target.closest('button, [data-expand]'); if (!t) return;
   const ds = t.dataset;
-  if (ds.group) { toggle(state.groups, ds.group); state.preset = null; state.listLimit = 40; refresh(); if (view().type === 'groups') renderPanel(); else if (view().type !== 'list') home('half'); else setSize(desktop() ? 'full' : 'half'); }
-  else if (ds.groupOnly) { state.groups = new Set([ds.groupOnly]); state.q = ''; $('#q').value = ''; refresh(); home('half'); }
+  if (ds.mode) { if (state.mode !== ds.mode) { state.mode = ds.mode; state.groups.clear(); state.cats.clear(); state.tags.clear(); state.preset = null; if (ds.mode === 'service') state.io = null; refresh(); } }
+  else if (ds.group) { const on = state.groups.size === 1 && state.groups.has(ds.group); state.groups = on ? new Set() : new Set([ds.group]); state.cats.clear(); state.tags.clear(); state.mode = GROUP[ds.group].mode; if (!IO_GROUPS.includes(ds.group)) state.io = null; state.preset = null; state.listLimit = 40; refresh(); if (view().type !== 'list') home('half'); else setSize(desktop() ? 'full' : 'half'); }
+  else if (ds.tag) { toggle(state.tags, ds.tag); state.preset = null; state.listLimit = 40; refresh(); if (view().type !== 'list') home('half'); else setSize(desktop() ? 'full' : 'half'); }
+  else if (ds.io) { state.io = state.io === ds.io ? null : ds.io; state.preset = null; refresh(); if (view().type === 'list') setSize(desktop() ? 'full' : 'half'); }
+  else if (ds.gtag) { const [gid, tg] = ds.gtag.split('|'); state.groups = new Set([gid]); state.tags = new Set([tg]); state.cats.clear(); state.mode = GROUP[gid].mode; state.q = ''; $('#q').value = ''; refresh(); home('half'); }
+  else if (ds.groupOnly) { state.groups = new Set([ds.groupOnly]); state.tags.clear(); state.cats.clear(); state.mode = GROUP[ds.groupOnly].mode; state.q = ''; $('#q').value = ''; refresh(); home('half'); }
   else if (ds.filterOnly) { state.filters.add(ds.filterOnly); state.q = ''; $('#q').value = ''; refresh(); home('half'); }
   else if (ds.filter) { toggle(state.filters, ds.filter); state.preset = null; refresh(); if (view().type === 'list') setSize(desktop() ? 'full' : 'half'); }
-  else if (ds.preset) { const p = PRESETS.find(x => x.id === ds.preset); state.preset = p.id; state.groups = new Set(p.groups); state.cats = new Set(p.cats || []); state.filters = new Set(p.filters); state.q = ''; $('#q').value = ''; $('#q').blur(); refresh(); home('half'); }
+  else if (ds.preset) { const p = PRESETS.find(x => x.id === ds.preset); state.preset = p.id; state.groups = new Set(p.groups); state.cats = new Set(p.cats || []); state.tags = new Set(p.tags || []); state.io = p.io || null; state.filters = new Set(p.filters); if (p.groups[0]) state.mode = GROUP[p.groups[0]].mode; state.q = ''; $('#q').value = ''; $('#q').blur(); refresh(); home('half'); }
   else if (ds.open === 'filters') go({ type: 'filters' });
-  else if (ds.open === 'groups') go({ type: 'groups' });
   else if (ds.clearq) { state.q = ''; $('#q').value = ''; refresh(); }
   else if (ds.unk) { state.showUnknown = !state.showUnknown; refresh(); }
-  else if (ds.reset) { state.filters.clear(); state.groups.clear(); state.cats.clear(); state.preset = null; state.showUnknown = false; refresh(); renderPanel(); }
+  else if (ds.reset) { state.filters.clear(); state.groups.clear(); state.cats.clear(); state.tags.clear(); state.io = null; state.preset = null; state.showUnknown = false; refresh(); renderPanel(); }
   else if (ds.more) { state.listLimit += 40; renderPanel(); }
   else if (ds.expand) { if ($('#panel').dataset.size === 'peek') setSize('half'); }
   else if (ds.id) { const p = byId.get(ds.id); map.setView([p.lat, p.lon], Math.max(map.getZoom(), 16)); showPlace(p.id); }

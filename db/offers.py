@@ -47,16 +47,19 @@ CREATE INDEX IF NOT EXISTS offers_topic ON offers(topic);
 TOPICS = {  # topic id -> label, keyword regex (first match wins, order matters)
     'geburtsvorbereitung': ('Geburtsvorbereitung', r'geburtsvorbereit|schwanger|werdende'),
     'rueckbildung': ('Rückbildung', r'rückbildung|rueckbildung|beckenboden|nach der geburt'),
+    'flohmarkt': ('Flohmarkt & Basar', r'flohmarkt|basar|trödel|kleiderbörse|kaufrausch|kaufrau'),
     'pekip': ('PEKiP & Bewegung', r'pekip|delfi|pikler|first step|eltern-kind-turnen|krabbelturnen|turnfrösche|bewegung|yoga'),
     'babymassage': ('Babymassage', r'babymassage|baby-massage'),
     'schwimmen': ('Babyschwimmen', r'babyschwimm|aqua baby|wassergewöhnung|schwimm'),
     'musik': ('Musik', r'musik|singen|lieder|klang'),
+    'spiele': ('Spielen & Medien', r'brettspiel|spiele(treff|nachmittag|zimmer|universum|abend)|duplo|lego|switch|gaming|konsole|pokemon|medien|robot|coding|programmier'),
     'krabbelgruppe': ('Krabbel- & Spielgruppe', r'krabbel|spielgruppe|eltern-kind-gruppe|miniclub|spielkreis|kennenlern|treff'),
     'eltern_cafe': ('Eltern-Café & Frühstück', r'café|cafe|frühstück|fruehstueck|offener treff|elterncafé'),
     'beratung': ('Beratung', r'beratung|sprechstunde|mütterberatung|stillberatung|hebammensprechstunde'),
     'erste_hilfe': ('Erste Hilfe am Kind', r'erste hilfe|notfall'),
     'kreativ': ('Basteln & Kreatives', r'basteln|malen|kreativ|werkst'),
-    'lesen': ('Vorlesen', r'vorlese|bilderbuch|geschichte|lesen'),
+    'lesen': ('Vorlesen', r'vorlese|bilderbuch|geschichte|lesen|lese|märchen|kamishibai|gedicht|buch'),
+    'theater': ('Theater, Kino & Zirkus', r'theater|puppen|zirkus|zauber|kino|film|konzert'),
 }
 
 

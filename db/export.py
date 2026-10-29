@@ -4,8 +4,9 @@ Format (compact arrays to keep the file small):
 {
   "version": 2, "generated": "...",
   "sources": [[id, name, license, attribution, url], ...],
-  "places": [[id, name, category, lat, lon, district, {key: [value, sourceIndex, method, confidence, evidence?]}], ...]
+  "places": [[id, name, category, lat, lon, district, {key: [value, sourceIndex, method, confidence, evidence?]}, [sourceIndex], [tag]], ...]
 }
+Tags (db/tags.py) drive the sub-category chips and the indoor/outdoor switch of the app (v0.7).
 """
 import json
 import math
@@ -13,6 +14,7 @@ import re
 from collections import defaultdict
 
 from common import ROOT, connect, now
+from tags import drop, place_tags
 from tipps import auto_reason, editorial_match
 
 SKIP_CATS = {'spielplatz_privat', 'geraet'}
@@ -70,8 +72,16 @@ def run():
     for pid, src in con.execute('SELECT place_id, source_id FROM source_records WHERE place_id IS NOT NULL'):
         srcs[pid].add(sidx[src]); srcnames[pid].add(src)
 
+    # raw OSM tags of all linked OSM records (diet, cuisine, shop type, ...) for the tags
+    osm_raw = defaultdict(dict)
+    for pid, raw in con.execute("SELECT place_id, raw FROM source_records WHERE source_id = 'osm' AND place_id IS NOT NULL AND raw IS NOT NULL"):
+        for k, v in json.loads(raw).items(): osm_raw[pid].setdefault(k, v)
+
     rows = con.execute('SELECT id, name, category, lat, lon, district FROM places WHERE district IS NOT NULL').fetchall()
     rows = [(pid, name, refine(cat, name, srcnames[pid]), lat, lon, d) for pid, name, cat, lat, lon, d in rows if cat not in SKIP_CATS]
+    dropped = [r for r in rows if drop(r[2], r[1], osm_raw[r[0]])]
+    rows = [r for r in rows if not drop(r[2], r[1], osm_raw[r[0]])]
+    print(f'dropped {len(dropped)} (adult, gambling, nameless viewpoints):', sorted({r[1] for r in dropped if r[1]})[:20])
     wcs = [(r[3], r[4]) for r in rows if r[2] == 'wc' or facts[r[0]].get('toilets', [None])[0] == 'yes']
 
     places = []
@@ -84,7 +94,8 @@ def run():
         tip = editorial_match(name, district)
         if tip: f['tipp'] = [tip, -1, 'redaktion']
         elif (r := auto_reason(cat, f)): f['tipp'] = [r, -1, 'auto']
-        places.append([pid, name or '', cat, round(lat, 6), round(lon, 6), district, f, sorted(srcs[pid])])
+        tg = place_tags(cat, name, osm_raw[pid], {k: v[0] for k, v in f.items()}, gear.get(pid))
+        places.append([pid, name or '', cat, round(lat, 6), round(lon, 6), district, f, sorted(srcs[pid]), tg])
     out = {'version': 2, 'generated': now(), 'sources': sources, 'places': places}
     path = ROOT / 'data' / 'places.json'
     path.write_text(json.dumps(out, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
@@ -92,12 +103,27 @@ def run():
     print(f'{len(places)} places, {path.stat().st_size / 1e6:.1f} MB -> {path}')
     print('categories:', dict(Counter(p[2] for p in places).most_common()))
     print('tipps:', Counter(p[6]['tipp'][2] for p in places if 'tipp' in p[6]))
+    print('tags:', dict(Counter(t for p in places for t in p[8]).most_common()))
     export_offers(con, places, sidx)
 
 
 OFFER_COLS = ['id', 'title', 'kind', 'topic', 'age_min_m', 'age_max_m', 'for_parents', 'weekday', 'time_from', 'time_to',
               'start_date', 'end_date', 'sessions', 'schedule', 'price', 'free', 'registration', 'venue', 'address',
-              'lat', 'lon', 'place_id', 'url', 'provider', 'source_id']
+              'lat', 'lon', 'place_id', 'url', 'provider', 'source_id', 'audience']
+
+# Who takes part: 'kinder' (children, also together with a parent) or 'erwachsene' (adults only, not always parents).
+ADULT_TOPICS = {'geburtsvorbereitung', 'rueckbildung', 'beratung', 'erste_hilfe'}
+ADULT_TITLE = re.compile(r'schwanger|werdende|trennungseltern|alleinerziehend|sprachcaf|deutschkurs|sprachkurs|zumba|pilates|'
+                         r'fitness|elternabend|vortrag|infoabend|elternkurs|für (mütter|väter)|väterkreis|müttercaf|entspann|'
+                         r'selbstfürsorge|stillvorbereitung|säuglingspflege|nähkurs|nähcaf|bewerbung|yoga(?! für kinder)', re.I)
+
+
+def audience(o):
+    if o['for_parents'] or o['topic'] in ADULT_TOPICS: return 'erwachsene'
+    if o['age_min_m'] is not None or o['age_max_m'] is not None: return 'kinder'
+    t = o['title'] or ''
+    if re.search(r'mit (kind|kindern|baby|babys|nachwuchs)|eltern-kind|familie', t, re.I): return 'kinder'
+    return 'erwachsene' if ADULT_TITLE.search(t) else 'kinder'
 
 
 def export_offers(con, places, sidx):
@@ -106,13 +132,14 @@ def export_offers(con, places, sidx):
     from merge import similar
     ensure(con)
     today = now()[:10]
-    rows = con.execute(f"SELECT {','.join(OFFER_COLS)} FROM offers WHERE COALESCE(end_date, start_date, '9999') >= ?", (today,)).fetchall()
+    cols = OFFER_COLS[:-1]  # 'audience' is computed here
+    rows = con.execute(f"SELECT {','.join(cols)} FROM offers WHERE COALESCE(end_date, start_date, '9999') >= ?", (today,)).fetchall()
     grid = defaultdict(list)
     for p in places:
         grid[(int(p[3] / 0.002), int(p[4] / 0.0034))].append(p)
     out = []
     for r in rows:
-        o = dict(zip(OFFER_COLS, r))
+        o = dict(zip(cols, r))
         if o['lat'] and not o['place_id']:
             best, bd = None, 150
             gi, gj = int(o['lat'] / 0.002), int(o['lon'] / 0.0034)
@@ -124,12 +151,15 @@ def export_offers(con, places, sidx):
                             best, bd = p, d
             if best: o['place_id'] = best[0]
         if o['topic'] in (None, 'sonstiges'): o['topic'] = topic_of(o['title'])
+        o['audience'] = audience(o)
         o['source_id'] = sidx.get(o['source_id'], -1)
         out.append([o[c] for c in OFFER_COLS])
     path = ROOT / 'data' / 'offers.json'
     path.write_text(json.dumps({'version': 1, 'generated': now(), 'cols': OFFER_COLS, 'offers': out}, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
     linked = sum(1 for o in out if o[OFFER_COLS.index('place_id')])
     print(f'{len(out)} offers ({linked} linked to places) -> {path}')
+    from collections import Counter
+    print('audience:', Counter(o[-1] for o in out), 'topics:', dict(Counter(o[OFFER_COLS.index('topic')] for o in out).most_common()))
 
 
 def dist(la1, lo1, la2, lo2):

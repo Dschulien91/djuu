@@ -312,3 +312,11 @@ textarea { min-height: 80px; resize: vertical; }
 .stepper button { width: 44px; height: 44px; border-radius: 50%; border: 0; background: var(--surface-2); font-size: 22px; font-weight: 700; }
 .stepper b { font: 800 22px var(--font-display); min-width: 20px; text-align: center; }
 .askcard svg.i { flex: none; }
+
+/* v0.7: Erleben / Service switch, tag chips, indoor/outdoor */
+.modes { flex: none; display: inline-flex; padding: 3px; gap: 2px; height: 40px; border-radius: 999px; background: var(--surface); box-shadow: var(--shadow-sm); }
+.modes button { border: 0; background: none; border-radius: 999px; padding: 0 13px; font: 700 14px var(--font-body); color: var(--muted); }
+.modes button.on { background: var(--brand); color: var(--brand-ink); }
+.chip.tag.on { background: var(--c); border-color: var(--c); color: #fff; }
+.chip.io svg.i { width: 15px; height: 15px; }
+.ctx .sep { flex: none; width: 1px; margin: 6px 2px; background: color-mix(in srgb, var(--ink) 18%, transparent); }
