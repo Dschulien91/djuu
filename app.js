@@ -1,4 +1,4 @@
-/* Djuu v0.12 – family map for Hamburg.
+/* Djuu v0.13 – family map for Hamburg.
    The map owns the screen: one chip row floats on top, map buttons on the right, the sheet starts as a slim bar.
    The chip row drills down one level at a time: Erleben or Service, then categories, then the tags of a category.
    A tapped pin opens a small card; search and favorites live in the bottom bar. Default view: playgrounds.
@@ -7,7 +7,7 @@
    User input is stored on this device only until the server exists (server-ready shape, see STORE). */
 'use strict';
 
-const VERSION = '0.12';
+const VERSION = '0.13';
 
 // ---------- Icons (24px line icons) ----------
 const ICON = {
@@ -55,8 +55,8 @@ const svg = (name, cls = 'i') => `<svg class="${cls}" viewBox="0 0 24 24" aria-h
 // Kurse & Gruppen / Events: places with matching offers).
 const MODES = [{ id: 'erleben', label: 'Erleben' }, { id: 'service', label: 'Service' }];
 const GROUPS = [
-  { id: 'tipps', mode: 'erleben', label: 'Djuu-Tipps', short: 'Djuu-Tipps', icon: 'star', color: '#E0A100', cats: [], virtual: true },
-  { id: 'spielen', mode: 'erleben', label: 'Spielen & Toben', short: 'Spielen & Toben', icon: 'playground', color: '#E8590C', cats: ['spielplatz', 'abenteuer', 'indoor', 'spielhaus', 'freizeit', 'spielstrasse', 'bolzplatz'] },
+  { id: 'tipps', mode: 'erleben', label: 'Djuu-Tipps', short: 'Djuu-Tipps', icon: 'star', color: '#CC6A00', cats: [], virtual: true },
+  { id: 'spielen', mode: 'erleben', label: 'Spielen & Toben', short: 'Spielen & Toben', icon: 'playground', color: '#0E8F84', cats: ['spielplatz', 'abenteuer', 'indoor', 'spielhaus', 'freizeit', 'spielstrasse', 'bolzplatz'] },
   { id: 'gastro', mode: 'erleben', label: 'Gastro', short: 'Gastro', icon: 'cup', color: '#9C36B5', cats: ['cafe', 'restaurant', 'imbiss', 'eis'] },
   { id: 'entdecken', mode: 'erleben', label: 'Entdecken', short: 'Entdecken', icon: 'tree', color: '#2F9E44', cats: ['park', 'picknick', 'grillplatz', 'hundeauslauf', 'baden', 'museum', 'kultur', 'ausflug', 'buecherei'] },
   { id: 'kurse', mode: 'erleben', label: 'Kurse & Gruppen', short: 'Kurse & Gruppen', icon: 'group', color: '#C2255C', cats: [], offers: ['kurs', 'gruppe'] },
@@ -511,7 +511,25 @@ const MAP_STYLES = [
 const mapStyle = () => MAP_STYLES.find(m => m.id && m.id === store.mapStyle) || MAP_STYLES[1];
 const styleUrl = (m = mapStyle()) => m.url || ({ version: 8, sources: { r: { type: 'raster', tiles: m.raster.tiles, tileSize: 256, maxzoom: m.raster.maxzoom } }, layers: [{ id: 'r', type: 'raster', source: 'r' }] });
 const attrText = m => `${m.attr} · Quellen je Ort`;
+// Djuu colours for the default style only; the other styles keep their own look.
+function tintMap(gl) {
+  gl.on('style.load', () => {
+    if (mapStyle().id !== 'liberty') return;
+    for (const l of gl.getStyle().layers) {
+      const set = (prop, v) => gl.setPaintProperty(l.id, prop, v);
+      if (l.id === 'background') set('background-color', '#F5F1E8');
+      else if (l.id === 'landuse_residential') set('fill-color', '#F5F1E8');
+      else if (l.id === 'water') set('fill-color', '#CDE8F2');
+      else if (/^waterway/.test(l.id) && l.type === 'line') set('line-color', '#CDE8F2');
+      else if (['park', 'landcover_wood', 'landcover_grass'].includes(l.id)) set('fill-color', '#D4ECC9');
+      else if (l.id === 'park_outline') set('line-color', '#D4ECC9');
+      else if (/(road|bridge|tunnel)_(motorway|trunk_primary|secondary_tertiary)_casing$/.test(l.id)) set('line-color', '#FFFFFF');
+      else if (/(road|bridge|tunnel)_(motorway|trunk_primary|secondary_tertiary)$/.test(l.id)) set('line-color', '#FBE3A0');
+    }
+  });
+}
 const baseLayer = L.maplibreGL({ style: styleUrl() }).addTo(map);
+tintMap(baseLayer.getMaplibreMap());
 map.attributionControl.setPosition('bottomleft').setPrefix(false).addAttribution(attrText(mapStyle()));
 function setMapStyle(id) {
   const old = mapStyle();
@@ -525,7 +543,7 @@ const cluster = L.markerClusterGroup({
   maxClusterRadius: z => z <= 11 ? 40 : 28,
   iconCreateFunction: c => {
     const n = c.getChildCount(), size = n < 50 ? '' : n < 300 ? 'm' : 'l';
-    return L.divIcon({ html: `<div class="cluster ${size}">${n < 1000 ? n : Math.round(n / 100) / 10 + 'k'}</div>`, className: '', iconSize: [40, 40] });
+    return L.divIcon({ html: `<div class="mkhit"><div class="cluster ${size}">${n < 1000 ? n : Math.round(n / 100) / 10 + 'k'}</div></div>`, className: '', iconSize: [44, 44] });
   },
 });
 map.addLayer(cluster);
@@ -535,7 +553,7 @@ map.on('zoomend', zoomClass); zoomClass();
 const iconCache = {};
 function iconFor(p, unknown, og) {
   const g = og || groupOf(p), icon = og ? og.icon : iconOf(p), tip = !!p.f.tipp, k = g.id + icon + (unknown ? 'u' : '') + (p.mine ? 'm' : '') + (tip ? 't' : '');
-  return iconCache[k] || (iconCache[k] = L.divIcon({ className: '', iconSize: [30, 30], html: `<div class="mk${unknown ? ' unk' : ''}${p.mine ? ' mine' : ''}${tip ? ' tip' : ''}" style="--c:${g.color}"><svg viewBox="0 0 24 24">${ICON[icon]}</svg>${tip ? `<span class="star">${svg('star', '')}</span>` : ''}</div>` }));
+  return iconCache[k] || (iconCache[k] = L.divIcon({ className: '', iconSize: [44, 44], html: `<div class="mkhit"><div class="mk${unknown ? ' unk' : ''}${p.mine ? ' mine' : ''}${tip ? ' tip' : ''}" style="--c:${tip ? '#0E8F84' : g.color}"><svg viewBox="0 0 24 24">${ICON[icon]}</svg>${tip ? `<span class="star">${svg('star', '')}</span>` : ''}</div></div>` }));
 }
 function markerFor(p, unknown, og) {
   if (!p.marker) { p.marker = L.marker([p.lat, p.lon]); p.marker.on('click', () => showPlace(p.id, true)); }
@@ -598,10 +616,10 @@ function areaLabel(a = state.area) {
 let areaLayer = null;
 function drawArea() {
   if (areaLayer) { map.removeLayer(areaLayer); areaLayer = null; }
-  const a = state.area, style = { color: '#0E4D45', weight: 2, dashArray: '6 6', fillColor: '#0E4D45', fillOpacity: .06, interactive: false };
+  const a = state.area, style = { color: '#6B4EE6', weight: 2, dashArray: '6 6', fillColor: '#6B4EE6', fillOpacity: .06, interactive: false };
   if (state.drawing) {
     areaLayer = L.layerGroup([state.drawing.length > 2 ? L.polygon(state.drawing, style) : L.polyline(state.drawing, style)]
-      .concat(state.drawing.map(pt => L.circleMarker(pt, { radius: 5, color: '#0E4D45', fillColor: '#FFC83D', fillOpacity: 1, weight: 2, interactive: false }))));
+      .concat(state.drawing.map(pt => L.circleMarker(pt, { radius: 5, color: '#6B4EE6', fillColor: '#FFD166', fillOpacity: 1, weight: 2, interactive: false }))));
   } else if (a.type === 'radius') areaLayer = L.circle(areaCenter(a), { radius: a.r, ...style });
   else if (a.type === 'poly') areaLayer = L.polygon(a.pts, style);
   if (areaLayer) areaLayer.addTo(map);
@@ -808,7 +826,7 @@ function offerInArea(o) {
 const PROP_TAGS = new Set(Object.values(TAGS).flat().filter(t => t.p).map(t => t.id).concat('groessere'));
 function itemHtml(p, d) {
   const yes = [...p.tags].filter(t => PROP_TAGS.has(t)).slice(0, 2).map(t => `<span>${esc(TAG_LABEL[t])}</span>`)
-    .concat(relevantAttrs(p).filter(a => attrVal(p, a.id).v === 'yes').slice(0, 2).map(a => `<span>${esc(a.label)}</span>`)).join('');
+    .concat(relevantAttrs(p).filter(a => attrVal(p, a.id).v === 'yes' && ![...p.tags].some(t => PROP_TAGS.has(t) && TAG_LABEL[t] === a.label)).slice(0, 2).map(a => `<span>${esc(a.label)}</span>`)).join('');
   const ot = openText(p);
   return `<li><button type="button" class="item" data-id="${p.id}">${badge(p)}
     <span><h3>${esc(p.name)}${p.f.tipp ? ` <span class="tipdot" title="Djuu-Tipp">${svg('star', '')}</span>` : ''}</h3><span class="meta">${esc(CAT_LABEL[p.cat] || '')}${ot ? ' · ' + ot : ''}</span>${yes ? `<span class="mini">${yes}</span>` : ''}</span>
@@ -829,7 +847,7 @@ function showPlace(id, fromMap) {
 function cardView(id) {
   const p = byId.get(id), d = dist(origin(), [p.lat, p.lon]), fav = store.favorites.includes(id), ot = openText(p);
   const yes = [...p.tags].filter(t => PROP_TAGS.has(t)).slice(0, 2).map(t => `<span>${esc(TAG_LABEL[t])}</span>`)
-    .concat(relevantAttrs(p).filter(a => attrVal(p, a.id).v === 'yes').slice(0, 2).map(a => `<span>${esc(a.label)}</span>`)).join('');
+    .concat(relevantAttrs(p).filter(a => attrVal(p, a.id).v === 'yes' && ![...p.tags].some(t => PROP_TAGS.has(t) && TAG_LABEL[t] === a.label)).slice(0, 2).map(a => `<span>${esc(a.label)}</span>`)).join('');
   return `<div class="pincard"><button type="button" class="pinmain" data-detail="${id}">${badge(p)}
       <span><h3>${esc(p.name)}${p.f.tipp ? ` <span class="tipdot" title="Djuu-Tipp">${svg('star', '')}</span>` : ''}</h3>
       <span class="meta">${esc(CAT_LABEL[p.cat] || '')}${ot ? ' · ' + ot : ''} · ${fmtDist(d)}</span>${yes ? `<span class="mini">${yes}</span>` : ''}</span></button>
@@ -1287,8 +1305,8 @@ function bindWizard() {
   const d = wiz.data;
   if (wiz.step === 1 && d.isNew) {
     wiz.map = L.map('wizMap', { zoomControl: false, attributionControl: false, maxZoom: 19 }).setView([d.lat, d.lon], 17);
-    L.maplibreGL({ style: styleUrl(), attribution: '' }).addTo(wiz.map);
-    wiz.pin = L.marker([d.lat, d.lon], { draggable: true, icon: L.divIcon({ className: '', iconSize: [30, 30], html: `<div class="mk" style="--c:#E8590C;background:#FFC83D;color:#3A2A00">${svg('plus', '')}</div>` }) }).addTo(wiz.map);
+    tintMap(L.maplibreGL({ style: styleUrl(), attribution: '' }).addTo(wiz.map).getMaplibreMap());
+    wiz.pin = L.marker([d.lat, d.lon], { draggable: true, icon: L.divIcon({ className: '', iconSize: [30, 30], html: `<div class="mk" style="--c:#FFD166;background:#FFD166;color:#1F1B4D">${svg('plus', '')}</div>` }) }).addTo(wiz.map);
     wiz.pin.on('dragend', () => { const ll = wiz.pin.getLatLng(); d.lat = ll.lat; d.lon = ll.lng; d.locating = false; });
     wiz.map.on('click', e => { wiz.pin.setLatLng(e.latlng); d.lat = e.latlng.lat; d.lon = e.latlng.lng; d.locating = false; });
     setTimeout(() => wiz.map && wiz.map.invalidateSize(), 300);
@@ -1359,7 +1377,7 @@ async function saveWizard() {
   wiz.data = null;
   refresh();
   stack = [{ type: 'list' }];
-  go({ type: 'thanks', html: `<div class="thanks"><svg viewBox="0 0 24 24" width="64" height="64" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="#FFC83D"/><path d="M7 12.5l3.2 3L17 9" stroke="#3A2A00" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  go({ type: 'thanks', html: `<div class="thanks"><svg viewBox="0 0 24 24" width="64" height="64" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="#FFD166"/><path d="M7 12.5l3.2 3L17 9" stroke="#1F1B4D" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
     <h2>Danke!</h2><p>Dein Eintrag hilft Familien${area ? ' in ' + esc(area) : ' in Hamburg'}.</p>
     <p class="note">Im Prototyp ist er erst auf deinem Gerät gespeichert. Mit dem Djuu-Server sehen ihn bald alle.</p>
     <div style="display:flex;gap:8px;margin-top:10px">${p ? `<button type="button" class="btn primary" data-id="${p.id}">Ort ansehen</button>` : ''}<button type="button" class="btn" data-home="peek">Fertig</button></div></div>` }, desktop() ? 'full' : 'half');
