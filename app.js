@@ -1,13 +1,14 @@
-/* Djuu v0.7 – family map for Hamburg.
-   Navigation: two modes (Erleben / Service), each with sub-categories; every sub-category has tags
-   (e.g. Gastro: Café, Vegan …) and Erleben has a Drinnen / Draußen switch.
+/* Djuu v0.8 – family map for Hamburg.
+   Navigation: two modes (Erleben / Service), each with sub-categories; the row below shows only the tags of the
+   chosen sub-category (what). Where (Gebiet: all Hamburg, district, radius, drawn area) and how (filters incl.
+   Drinnen / Draußen) live in the panel header, so the top rows never mix the two. Default view: playgrounds.
    Map first: search + category row on top, one panel (bottom sheet on phones, left column on desktop)
    for list, place details, filters, urgent help, events, saved places and the add-place wizard.
    Data: data/places.json (db/export.py); every value carries its source.
    User input is stored on this device only until the server exists (server-ready shape, see STORE). */
 'use strict';
 
-const VERSION = '0.7';
+const VERSION = '0.8';
 
 // ---------- Icons (24px line icons) ----------
 const ICON = {
@@ -44,6 +45,8 @@ const ICON = {
   star: '<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>',
   group: '<circle cx="12" cy="7" r="2.6"/><circle cx="5.5" cy="10" r="2.1"/><circle cx="18.5" cy="10" r="2.1"/><path d="M7.5 20c0-2.8 2-5 4.5-5s4.5 2.2 4.5 5"/><path d="M2 19c0-2.2 1.6-4 3.5-4M22 19c0-2.2-1.6-4-3.5-4"/>',
   user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/>',
+  pin: '<path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/>',
+  undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/>',
   pill: '<rect x="3" y="8.5" width="18" height="7" rx="3.5" transform="rotate(-45 12 12)"/><path d="M9.5 9.5l5 5"/>',
 };
 const svg = (name, cls = 'i') => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON[name] || ''}</svg>`;
@@ -245,6 +248,8 @@ const STORE_KEY = 'djuu.v2';
 let store = { contributions: [], confirmations: [], reviews: [], reports: [], events: [], prompted: {}, favorites: [], profile: { kids: [], expecting: '', dogs: 0 } };
 try { Object.assign(store, JSON.parse(localStorage.getItem(STORE_KEY) || '{}')); } catch (e) { /* storage blocked */ }
 store.favorites = store.favorites || [];
+// v0.8: expected date is a full date now; an old 'YYYY-MM' value becomes the middle of that month
+if (store.profile && /^\d{4}-\d{2}$/.test(store.profile.expecting || '')) store.profile.expecting += '-15';
 store.profile = Object.assign({ kids: [], expecting: '', dogs: 0 }, store.profile || {});
 function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(store)); } catch (e) { toast('Speicher voll. Bitte weniger Fotos verwenden.'); } }
 const uid = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -269,7 +274,7 @@ async function compressPhoto(file) {
 }
 
 // ---------- State ----------
-const state = { mode: 'erleben', groups: new Set(), cats: new Set(), tags: new Set(), io: null, filters: new Set(), preset: null, showUnknown: false, q: '', tab: 'map', listLimit: 40, me: null, selected: null };
+const state = { mode: 'erleben', groups: new Set(['spielen']), cats: new Set(), tags: new Set(['spielplatz']), io: null, area: { type: 'all' }, picking: false, drawing: null, filters: new Set(), preset: null, showUnknown: false, q: '', tab: 'map', listLimit: 40, me: null, selected: null };
 let SOURCES = [];
 const places = [];
 const byId = new Map();
@@ -290,7 +295,7 @@ const walkMin = m => Math.max(1, Math.round(m * 1.3 / 75));
 const groupOf = p => GROUP_OF[p.cat] || GROUPS[0];
 const iconOf = p => CAT_ICON[p.cat] || groupOf(p).icon;
 const badge = (p, cls = 'badge') => `<span class="${cls}" style="--c:${groupOf(p).color}">${svg(iconOf(p), '')}</span>`;
-const origin = () => state.me || [map.getCenter().lat, map.getCenter().lng];
+const origin = () => state.area.type === 'radius' && state.area.center !== 'me' ? state.area.center : state.me || [map.getCenter().lat, map.getCenter().lng];
 
 function userAnswers(pid, attrId) {
   const out = [];
@@ -357,7 +362,7 @@ function loadOffers(data) {
   for (const o of OFFERS) if (o.place_id) (offersByPlace.get(o.place_id) || offersByPlace.set(o.place_id, []).get(o.place_id)).push(o);
 }
 const today0 = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
-const ymd = d => d.toISOString().slice(0, 10);
+const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 // Next date this offer takes place (today included), or null.
 function nextDate(o) {
   const t = today0();
@@ -385,7 +390,9 @@ function familyAges() {
   for (const k of store.profile.kids) {
     if (!k.ym) continue;
     const [y, m] = k.ym.split('-').map(Number);
-    out.push({ name: k.name || 'Kind', months: (now.getFullYear() - y) * 12 + (now.getMonth() + 1 - m) });
+    let months = (now.getFullYear() - y) * 12 + (now.getMonth() + 1 - m);
+    if (k.d && now.getDate() < +k.d) months--; // birthday this month not reached yet
+    out.push({ name: k.name || 'Kind', months });
   }
   return out;
 }
@@ -423,13 +430,18 @@ const styleUrl = () => STYLE_URL;
 const baseOpts = { attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · <a href="https://openfreemap.org">OpenFreeMap</a> · Quellen je Ort' };
 L.maplibreGL({ style: styleUrl(), ...baseOpts }).addTo(map);
 const cluster = L.markerClusterGroup({
-  chunkedLoading: true, showCoverageOnHover: false, maxClusterRadius: 50, disableClusteringAtZoom: 17,
+  // group markers only when the whole city is in view; from district level on every place is its own (smaller) dot
+  chunkedLoading: true, showCoverageOnHover: false, disableClusteringAtZoom: 13, spiderfyOnMaxZoom: false,
+  maxClusterRadius: z => z <= 11 ? 40 : 28,
   iconCreateFunction: c => {
     const n = c.getChildCount(), size = n < 50 ? '' : n < 300 ? 'm' : 'l';
     return L.divIcon({ html: `<div class="cluster ${size}">${n < 1000 ? n : Math.round(n / 100) / 10 + 'k'}</div>`, className: '', iconSize: [40, 40] });
   },
 });
 map.addLayer(cluster);
+// compact markers until street level, so single dots stay readable without clustering
+const zoomClass = () => map.getContainer().classList.toggle('zs', map.getZoom() < 15);
+map.on('zoomend', zoomClass); zoomClass();
 const iconCache = {};
 function iconFor(p, unknown, og) {
   const g = og || groupOf(p), icon = og ? og.icon : iconOf(p), tip = !!p.f.tipp, k = g.id + icon + (unknown ? 'u' : '') + (p.mine ? 'm' : '') + (tip ? 't' : '');
@@ -441,10 +453,62 @@ function markerFor(p, unknown, og) {
   return p.marker;
 }
 let meMarker = null;
-map.on('click', () => { if (!desktop() && view().type === 'list') setSize('peek'); });
+map.on('click', e => {
+  if (state.picking) { state.picking = false; setArea({ type: 'radius', r: state.area.type === 'radius' ? state.area.r : 1000, center: [e.latlng.lat, e.latlng.lng] }); stack = [{ type: 'list' }]; go({ type: 'area' }, 'half'); return; }
+  if (state.drawing) { state.drawing.push([e.latlng.lat, e.latlng.lng]); drawArea(); renderPanel(); return; }
+  if (!desktop() && view().type === 'list') setSize('peek');
+});
 map.on('moveend', () => { if (view().type === 'list') renderPanel(); });
 
 // ---------- Filtering ----------
+// ---------- Area (Gebiet): all Hamburg, district, radius around me or a point, drawn polygon ----------
+const areaCenter = a => a.center === 'me' ? (state.me || [map.getCenter().lat, map.getCenter().lng]) : a.center;
+function inPoly(pt, poly) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [yi, xi] = poly[i], [yj, xj] = poly[j];
+    if ((yi > pt[0]) !== (yj > pt[0]) && pt[1] < (xj - xi) * (pt[0] - yi) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+function areaOk(p) {
+  const a = state.area;
+  if (a.type === 'district') return p.district === a.name;
+  if (a.type === 'radius') { const c = areaCenter(a); return Math.abs(p.lat - c[0]) < a.r / 1e5 && dist(c, [p.lat, p.lon]) <= a.r; }
+  if (a.type === 'poly') return inPoly([p.lat, p.lon], a.pts);
+  return true;
+}
+const fmtR = r => r < 1000 ? r + ' m' : r / 1000 + ' km';
+function areaLabel(a = state.area) {
+  if (a.type === 'district') return a.name;
+  if (a.type === 'radius') return `${fmtR(a.r)} um ${a.center === 'me' ? 'dich' : 'Punkt'}`;
+  if (a.type === 'poly') return 'Eigenes Gebiet';
+  return 'Ganz Hamburg';
+}
+let areaLayer = null;
+function drawArea() {
+  if (areaLayer) { map.removeLayer(areaLayer); areaLayer = null; }
+  const a = state.area, style = { color: '#0E4D45', weight: 2, dashArray: '6 6', fillColor: '#0E4D45', fillOpacity: .06, interactive: false };
+  if (state.drawing) {
+    areaLayer = L.layerGroup([state.drawing.length > 2 ? L.polygon(state.drawing, style) : L.polyline(state.drawing, style)]
+      .concat(state.drawing.map(pt => L.circleMarker(pt, { radius: 5, color: '#0E4D45', fillColor: '#FFC83D', fillOpacity: 1, weight: 2, interactive: false }))));
+  } else if (a.type === 'radius') areaLayer = L.circle(areaCenter(a), { radius: a.r, ...style });
+  else if (a.type === 'poly') areaLayer = L.polygon(a.pts, style);
+  if (areaLayer) areaLayer.addTo(map);
+}
+function setArea(a, fit = true) {
+  state.area = a; store.area = a; save();
+  drawArea(); state.listLimit = 40; refresh();
+  if (!fit) return;
+  if (areaLayer && areaLayer.getBounds) map.fitBounds(areaLayer.getBounds(), { padding: [30, 30] });
+  else if (a.type === 'district') { const pts = places.filter(p => p.district === a.name).map(p => [p.lat, p.lon]); if (pts.length) map.fitBounds(pts, { padding: [30, 30], maxZoom: 15 }); }
+}
+let DISTRICTS = [];
+function districtList() {
+  if (!DISTRICTS.length) { const n = {}; for (const p of places) if (p.district) n[p.district] = (n[p.district] || 0) + 1; DISTRICTS = Object.keys(n).sort((a, b) => a.localeCompare(b, 'de')); }
+  return DISTRICTS;
+}
+
 // the one selected sub-category (tags only apply then), or null
 const soleGroup = () => state.groups.size === 1 ? GROUP[[...state.groups][0]] : null;
 const offerGroup = () => { const g = soleGroup(); return g && g.offers ? g : null; };
@@ -471,7 +535,7 @@ function memberOf(p, g) {
 }
 const ioOk = p => !state.io || !(p.tags.has('drinnen') || p.tags.has('draussen')) || p.tags.has(state.io);
 function inSelection(p) {
-  if (!ioOk(p)) return false;
+  if (!ioOk(p) || !areaOk(p)) return false;
   if (!state.groups.size && !state.cats.size) return true;
   if (state.cats.has(p.cat)) return true;
   for (const id of state.groups) { const g = GROUP[id]; if (memberOf(p, g) && (state.groups.size > 1 || g.offers || tagsOk(p.tags, g))) return true; }
@@ -516,16 +580,8 @@ function renderTop() {
     extra.concat(row).map(g =>
       `<button type="button" class="cat${state.groups.has(g.id) ? ' on' : ''}" data-group="${g.id}" style="--c:${g.color}"><span class="ic">${svg(g.icon, '')}</span>${esc(g.short)}</button>`).join('');
   const g = soleGroup();
-  const tagChips = g && TAGS[g.id] ? tagCounts(g).map(([t, n]) => `<button type="button" class="chip tag${state.tags.has(t.id) ? ' on' : ''}" data-tag="${t.id}" style="--c:${g.color}">${state.tags.has(t.id) ? svg('check') : ''}${esc(t.label)}</button>`).join('') : '';
-  const showIo = state.mode === 'erleben' && (!state.groups.size || [...state.groups].every(id => IO_GROUPS.includes(id)));
-  const io = showIo ? [['drinnen', 'house', 'Drinnen'], ['draussen', 'tree', 'Draußen']].map(([id, ic, l]) => `<button type="button" class="chip io${state.io === id ? ' on' : ''}" data-io="${id}">${svg(ic)}${l}</button>`).join('') : '';
-  const rel = g ? (GROUP_FILTERS[g.id] || GROUP_FILTERS._) : GROUP_FILTERS._;
-  const ids = g && g.offers ? [] : [...new Set((store.profile.dogs > 0 ? ['hund'] : []).concat(rel, [...state.filters]))];
-  $('#ctx').innerHTML =
-    (state.q ? `<button type="button" class="chip on" data-clearq="1">„${esc(state.q)}“ ${svg('close')}</button>` : '') + tagChips +
-    (tagChips && (io || ids.length) ? '<span class="sep" aria-hidden="true"></span>' : '') + io +
-    (g && g.offers ? '' : `<button type="button" class="chip" data-open="filters">${svg('filter')}Filter${state.filters.size ? ' · ' + state.filters.size : ''}</button>`) +
-    ids.map(id => `<button type="button" class="chip${state.filters.has(id) ? ' on' : ''}" data-filter="${id}">${state.filters.has(id) ? svg('check') : ''}${esc(FILTER_LABEL[id])}</button>`).join('');
+  const tagChips = g && TAGS[g.id] ? tagCounts(g).map(([t]) => `<button type="button" class="chip tag${state.tags.has(t.id) ? ' on' : ''}" data-tag="${t.id}" style="--c:${g.color}">${state.tags.has(t.id) ? svg('check') : ''}${esc(t.label)}</button>`).join('') : '';
+  $('#ctx').innerHTML = (state.q ? `<button type="button" class="chip on" data-clearq="1">„${esc(state.q)}“ ${svg('close')}</button>` : '') + tagChips;
 }
 // tags of a group that occur at least once, in their defined order
 const tagCountCache = new Map();
@@ -542,6 +598,17 @@ function tagCounts(g) {
     tagCountCache.set(g.id, TAGS[g.id].map(t => [t, n[t.id] || 0]).filter(([, c]) => c));
   }
   return tagCountCache.get(g.id);
+}
+
+// Panel header tools: where (Gebiet) and how (Filter), plus the active filters as removable chips.
+const ioAllowed = () => state.mode === 'erleben' && (!state.groups.size || [...state.groups].every(id => IO_GROUPS.includes(id)));
+function toolsHtml(withFilter = true) {
+  const nf_ = state.filters.size + (state.io ? 1 : 0);
+  const active = (state.io ? [`<button type="button" class="chip on" data-io="${state.io}">${esc(TAG_LABEL[state.io])} ${svg('close')}</button>`] : [])
+    .concat([...state.filters].map(id => `<button type="button" class="chip on" data-filter="${id}">${esc(FILTER_LABEL[id])} ${svg('close')}</button>`));
+  return `<div class="tools"><button type="button" class="tool${state.area.type !== 'all' ? ' on' : ''}" data-open="area">${svg('pin')}<span>${esc(areaLabel())}</span></button>
+    ${withFilter ? `<button type="button" class="tool${nf_ ? ' on' : ''}" data-open="filters">${svg('filter')}<span>Filter${nf_ ? ' · ' + nf_ : ''}</span></button>` : ''}</div>
+    ${withFilter && active.length ? `<div class="active">${active.join('')}</div>` : ''}`;
 }
 
 // ---------- Panel: one stack of views ----------
@@ -564,6 +631,8 @@ async function renderPanel() {
   if (v.type === 'list') body.innerHTML = listView();
   else if (v.type === 'detail') { const html = await detailView(v.id); if (view() !== v) return; body.innerHTML = html; bindDetail(v.id); }
   else if (v.type === 'filters') body.innerHTML = filtersView();
+  else if (v.type === 'area') body.innerHTML = areaView();
+  else if (v.type === 'draw') body.innerHTML = drawView();
   else if (v.type === 'search') body.innerHTML = searchView();
   else if (v.type === 'sos') body.innerHTML = sosView(v.kind);
   else if (v.type === 'events') body.innerHTML = eventsView();
@@ -586,26 +655,31 @@ function listView() {
     : 'In der Nähe';
   const sub = state.filters.size
     ? `${nf.format(last.match.length)} passen sicher${u ? ` · ${nf.format(u)} ohne Angabe <button type="button" data-unk="1">${state.showUnknown ? 'ausblenden' : 'auch zeigen'}</button>` : ''}`
-    : `${nf.format(shown.length)} Orte · ${state.me ? 'von dir aus' : 'ab Kartenmitte'}`;
+    : `${nf.format(shown.length)} Orte · ${state.area.type === 'radius' ? 'ab Mittelpunkt' : state.me ? 'von dir aus' : 'ab Kartenmitte'}`;
   const todayFits = hasFamily() ? OFFERS.filter(o => { const d = nextDate(o); return d && +d === +today0() && offerFits(o) === true; }).length : 0;
-  const famCard = todayFits && !state.groups.size && !state.filters.size ? `<button type="button" class="askcard" data-tab="events" style="width:100%;border:0;text-align:left;margin:0 0 8px"><div><b>Heute: ${todayFits} passende ${todayFits === 1 ? 'Gruppe' : 'Gruppen und Kurse'}</b><span>für ${esc(familyAges().map(k => k.name).join(', ') || 'euch')}</span></div>${svg('cal')}</button>` : '';
-  return `<div class="ph" data-expand="1"><h2>${title}<span class="sub">${sub}</span></h2></div>${famCard}
+  const famCard = todayFits && !state.filters.size ? `<button type="button" class="askcard" data-tab="events" style="width:100%;border:0;text-align:left;margin:0 0 8px"><div><b>Heute: ${todayFits} passende ${todayFits === 1 ? 'Gruppe' : 'Gruppen und Kurse'}</b><span>für ${esc(familyAges().map(k => k.name).join(', ') || 'euch')}</span></div>${svg('cal')}</button>` : '';
+  return `<div class="ph" data-expand="1"><h2>${title}<span class="sub">${sub}</span></h2></div>${toolsHtml()}${famCard}
     ${sorted.length ? `<ol class="list">${sorted.slice(0, state.listLimit).map(([d, p]) => itemHtml(p, d)).join('')}</ol>
     ${sorted.length > state.listLimit ? '<button type="button" class="more" data-more="1">Mehr anzeigen</button>' : ''}`
-    : `<div class="empty"><b>Hier ist nichts dabei.</b>Probier weniger Filter oder zoom raus.</div>`}`;
+    : `<div class="empty"><b>Hier ist nichts dabei.</b>${state.area.type !== 'all' ? 'Probier ein größeres Gebiet oder weniger Filter.' : 'Probier weniger Filter oder zoom raus.'}</div>`}`;
 }
 // Kurse & Gruppen / Events on the map: the offers themselves, nearest first
 function offerListView(g) {
   const o0 = origin();
   const near = o => { const pl = o.place_id && byId.get(o.place_id); return pl ? dist(o0, [pl.lat, pl.lon]) : o.lat ? dist(o0, [o.lat, o.lon]) : 9e9; };
-  const list = groupOffers(g).filter(([, o]) => { const pl = o.place_id && byId.get(o.place_id); return !pl || inSelection(pl); })
+  const list = groupOffers(g).filter(([, o]) => offerInArea(o) && (!o.place_id || !byId.get(o.place_id) || inSelection(byId.get(o.place_id))))
     .map(([d, o]) => [near(o), d, o]).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
   const title = esc(g.label) + (state.tags.size ? ': ' + esc([...state.tags].map(t => TAG_LABEL[t] || t).join(', ')) : '');
-  return `<div class="ph" data-expand="1"><h2>${title}<span class="sub">${nf.format(list.length)} Angebote in den nächsten 8 Wochen · ${state.me ? 'von dir aus' : 'ab Kartenmitte'}</span></h2></div>
+  return `<div class="ph" data-expand="1"><h2>${title}<span class="sub">${nf.format(list.length)} Angebote in den nächsten 8 Wochen · ${state.me ? 'von dir aus' : 'ab Kartenmitte'}</span></h2></div>${toolsHtml(false)}
     ${list.length ? `<ol class="list">${list.slice(0, state.listLimit).map(([, d, o]) => offerItem(o, d)).join('')}</ol>
     ${list.length > state.listLimit ? '<button type="button" class="more" data-more="1">Mehr anzeigen</button>' : ''}`
     : '<div class="empty"><b>Hier ist nichts dabei.</b>Probier andere Tags.</div>'}
     <p class="note">Anmeldung und aktuelle Infos beim Anbieter. Alle Termine nach Datum: Tab „Termine“.</p>`;
+}
+function offerInArea(o) {
+  if (state.area.type === 'all') return true;
+  const pl = o.place_id && byId.get(o.place_id);
+  return pl ? areaOk(pl) : o.lat ? areaOk({ lat: o.lat, lon: o.lon, district: null }) : false;
 }
 const PROP_TAGS = new Set(Object.values(TAGS).flat().filter(t => t.p).map(t => t.id).concat('groessere'));
 function itemHtml(p, d) {
@@ -745,12 +819,43 @@ function filtersView() {
   const total = last.match.length + (state.showUnknown ? last.unknown.length : 0);
   return `${head('Filter', state.groups.size ? 'für ' + [...state.groups].map(g => GROUP[g].label).join(', ') : 'für alle Orte')}
     <p class="muted text">Die Zahl zeigt, wie viele Orte die Angabe sicher haben.</p>
+    ${ioAllowed() ? `<div class="sec"><h4>Drinnen oder draußen</h4><div class="fgrid">${[['drinnen', 'house', 'Drinnen'], ['draussen', 'tree', 'Draußen']].map(([id, ic, l]) => `<button type="button" class="chip${state.io === id ? ' on' : ''}" data-io="${id}">${svg(ic)}${l}</button>`).join('')}</div></div>` : ''}
     ${block('Öffnungszeiten', TIME_FILTERS)}
     ${block('Ausstattung', ATTRS.filter(fits))}
     ${!state.groups.size || state.groups.has('spielen') ? block('Spielgeräte', GEAR) : ''}
     <label class="switch" for="unkSwitch">Orte ohne Angabe blass zeigen <input type="checkbox" id="unkSwitch" ${state.showUnknown ? 'checked' : ''}></label>
     <div class="sticky-bar"><button type="button" class="btn" data-reset="1">Zurücksetzen</button><button type="button" class="btn big primary" data-home="half">${nf.format(total)} Orte zeigen</button></div>`;
 }
+// area
+function areaView() {
+  const a = state.area, n = last.match.length;
+  const chip = (attrs, on, label) => `<button type="button" class="chip${on ? ' on' : ''}" ${attrs}>${label}</button>`;
+  return `${head('Gebiet', 'Wo sollen wir suchen?')}
+    <div class="fgrid">${chip('data-area="all"', a.type === 'all', 'Ganz Hamburg')}</div>
+    <div class="sec"><h4>Umkreis</h4>
+      <div class="fgrid">${[500, 1000, 2000, 5000].map(r => chip(`data-radius="${r}"`, a.type === 'radius' && a.r === r, fmtR(r))).join('')}</div>
+      <div class="fgrid" style="margin-top:8px">${chip('data-center="me"', a.type === 'radius' && a.center === 'me', svg('locate') + 'um mich')}${chip('data-center="pick"', a.type === 'radius' && a.center !== 'me', svg('pin') + 'um einen Punkt auf der Karte')}</div></div>
+    <div class="sec"><h4>Eigenes Gebiet</h4>
+      <button type="button" class="btn${a.type === 'poly' ? ' primary' : ''}" data-draw="1">${svg('edit')}${a.type === 'poly' ? 'Neu einzeichnen' : 'Auf der Karte einzeichnen'}</button></div>
+    <div class="sec"><h4>Stadtteil</h4>
+      <div class="field" style="margin-top:0"><input id="distQ" type="search" placeholder="Stadtteil suchen, z. B. Ottensen" autocomplete="off"></div>
+      <div class="fgrid" id="distList">${districtChips('')}</div></div>
+    <div class="sticky-bar"><button type="button" class="btn big primary" data-home="half">${nf.format(n)} Orte zeigen</button></div>`;
+}
+function districtChips(q) {
+  q = q.trim().toLowerCase();
+  const list = districtList().filter(d => !q || d.toLowerCase().includes(q));
+  return list.slice(0, q ? 40 : 200).map(d => `<button type="button" class="chip${state.area.type === 'district' && state.area.name === d ? ' on' : ''}" data-district="${esc(d)}">${esc(d)}</button>`).join('') || '<p class="muted text">Kein Stadtteil gefunden.</p>';
+}
+function drawView() {
+  const n = state.drawing.length;
+  return `${head('Gebiet einzeichnen', 'Tippe nacheinander auf die Ecken des Gebiets')}
+    <p class="text">${n ? `${n} ${n === 1 ? 'Ecke' : 'Ecken'} gesetzt.` : 'Noch keine Ecke gesetzt.'}${n && n < 3 ? ' Mindestens 3 nötig.' : ''}</p>
+    <div class="sticky-bar"><button type="button" class="btn" data-drawundo="1" ${n ? '' : 'disabled'}>${svg('undo')}Zurück</button>
+      <button type="button" class="btn" data-drawcancel="1">Abbrechen</button>
+      <button type="button" class="btn big primary" data-drawdone="1" ${n >= 3 ? '' : 'disabled'}>Fertig</button></div>`;
+}
+
 // search
 function searchView() {
   const q = $('#q').value.trim().toLowerCase();
@@ -804,10 +909,12 @@ const EXAMPLE_EVENTS = [
   { d: nextDow(6, 1), time: '09:00–14:00', title: 'Kinderkleiderbasar Herbst/Winter', where: 'Winterhude', kind: 'Flohmarkt' },
 ];
 function eventsView() {
-  const v = view(), f = v.f || 'alle', fam = v.fam ?? hasFamily();
+  const v = view(), f = v.f || 'alle', fam = v.fam ?? hasFamily(), day = v.date ? new Date(v.date + 'T00:00') : null;
   const t = today0(), sat = new Date(t); sat.setDate(t.getDate() + ((5 - dayIdx(t) + 7) % 7)); const sun = new Date(sat); sun.setDate(sat.getDate() + 1);
   const own = store.events.map(e => ({ title: e.title, kind: 'termin', start_date: e.date, time_from: e.time, lat: e.lat, lon: e.lon, venue: 'von dir eingetragen', url: '#', topic: 'sonstiges' }));
-  let list = OFFERS.concat(own).map(o => [nextDate(o), o]).filter(([d]) => d && d - t < 56 * 864e5);
+  let list = day ? OFFERS.concat(own).filter(o => occursOn(o, day)).map(o => [day, o])
+    : OFFERS.concat(own).map(o => [nextDate(o), o]).filter(([d]) => d && d - t < 56 * 864e5);
+  list = list.filter(([, o]) => o.venue === 'von dir eingetragen' || offerInArea(o));
   if (f === 'heute') list = list.filter(([d]) => +d === +t);
   if (f === 'wochenende') list = list.filter(([d]) => +d === +sat || +d === +sun);
   if (f === 'gruppen') list = list.filter(([, o]) => o.kind === 'gruppe');
@@ -821,7 +928,9 @@ function eventsView() {
   const chips = [['alle', 'Alle'], ['heute', 'Heute'], ['wochenende', 'Wochenende'], ['gruppen', 'Offene Gruppen'], ['kurse', 'Kurse'], ['termine', 'Veranstaltungen'], ['kinder', 'Für Kinder'], ['erwachsene', 'Für Erwachsene']]
     .map(([id, l]) => `<button type="button" class="chip${f === id ? ' on' : ''}" data-ef="${id}">${l}</button>`).join('');
   const kids = familyAges();
-  return `${head('Termine', 'Gruppen, Kurse und Veranstaltungen in den nächsten 8 Wochen', false)}
+  return `${head('Termine', day ? 'am ' + day.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' }) : 'Gruppen, Kurse und Veranstaltungen in den nächsten 8 Wochen', false)}
+    <div class="datepick"><label for="evDate">${svg('cal')}Datum</label><input id="evDate" type="date" value="${esc(v.date || '')}" min="${ymd(t)}">${v.date ? `<button type="button" class="round" data-evdateclear="1" aria-label="Datum zurücksetzen">${svg('close')}</button>` : ''}
+      <button type="button" class="tool${state.area.type !== 'all' ? ' on' : ''}" data-open="area">${svg('pin')}<span>${esc(areaLabel())}</span></button></div>
     <div class="row" style="padding:0 0 10px;margin:0 -2px">${chips}</div>
     ${hasFamily() ? `<label class="switch" for="famSwitch" style="margin:0 0 10px">Nur passend für ${esc(kids.map(k => `${k.name} (${kidLabel(k.months)})`).join(', ') || 'unser Baby')} <input type="checkbox" id="famSwitch" ${fam ? 'checked' : ''}></label>`
       : `<button type="button" class="askcard" data-tab="me" style="width:100%;border:0;text-align:left"><div><b>Alter deiner Kinder eintragen</b><span>Dann zeigen wir nur Gruppen und Kurse, die passen.</span></div>${svg('back')}</button>`}
@@ -830,6 +939,13 @@ function eventsView() {
     <button type="button" class="btn" data-addevent="1" style="margin-top:14px">${svg('plus')}Veranstaltung eintragen</button>
     <p class="note">Quellen: Eltern-Kind-Zentren, Elternschulen, Familienbildung, Bücherhallen, Bäderland u. a. Anmeldung immer beim Anbieter.</p>`;
 }
+// does the offer take place on this day? (single date, weekly group within its run, or course period)
+function occursOn(o, day) {
+  const k = ymd(day), s = o.start_date, e = o.end_date;
+  if (o.kind === 'termin') return s === k || (!!e && s <= k && k <= e);
+  if (o.weekday != null) return o.weekday === dayIdx(day) && (!s || s <= k) && (!e || k <= e);
+  return !!s && s <= k && (!e ? s === k : k <= e);
+}
 function savedView() {
   const o = origin();
   const ps = store.favorites.map(id => byId.get(id)).filter(Boolean);
@@ -837,13 +953,14 @@ function savedView() {
   const maxYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   return `${head('Meins', 'Nur auf diesem Gerät gespeichert', false)}
     <div class="sec"><h4>Unsere Familie</h4>
-      <p class="muted text">Mit dem Alter deiner Kinder zeigt Djuu passende Gruppen, Kurse und Orte. Wir fragen nur Monat und Jahr, nicht den genauen Geburtstag.</p>
+      <p class="muted text">Mit dem Alter deiner Kinder zeigt Djuu passende Gruppen, Kurse und Orte. Der Tag ist freiwillig, Monat und Jahr reichen.</p>
       <div id="kids">${pr.kids.map((k, i) => `<div class="kidrow">
         <input id="kidName${i}" data-kid="${i}" data-k="name" value="${esc(k.name || '')}" placeholder="Name (optional)" maxlength="20" aria-label="Name von Kind ${i + 1}">
+        <button type="button" class="round" data-delkid="${i}" aria-label="Kind entfernen">${svg('close')}</button>
         <input id="kidYm${i}" data-kid="${i}" data-k="ym" type="month" value="${esc(k.ym || '')}" max="${maxYm}" aria-label="Geburtsmonat von Kind ${i + 1}">
-        <button type="button" class="round" data-delkid="${i}" aria-label="Kind entfernen">${svg('close')}</button></div>`).join('')}</div>
+        <select id="kidD${i}" data-kid="${i}" data-k="d" aria-label="Geburtstag (Tag, optional) von Kind ${i + 1}"><option value="">Tag (optional)</option>${Array.from({ length: 31 }, (_, j) => `<option${+k.d === j + 1 ? ' selected' : ''}>${j + 1}</option>`).join('')}</select></div>`).join('')}</div>
       <button type="button" class="btn" data-addkid="1">${svg('plus')}Kind hinzufügen</button>
-      <div class="field"><label for="expecting">Baby unterwegs? Errechneter Monat (optional)</label><input id="expecting" type="month" value="${esc(pr.expecting || '')}" min="${maxYm}"></div>
+      <div class="field"><label for="expecting">Baby unterwegs? Errechneter Termin (optional)</label><input id="expecting" type="date" value="${esc(pr.expecting || '')}" min="${ymd(today0())}"></div>
       <div class="field"><label for="dogs">Hunde in der Familie</label>
         <div class="stepper"><button type="button" data-dogs="-1" aria-label="Weniger">–</button><b id="dogsN">${pr.dogs || 0}</b><button type="button" data-dogs="1" aria-label="Mehr">+</button></div></div>
       <p class="note">Wenn ihr einen Hund habt, zeigt Djuu „Hunde erlaubt“ immer direkt mit an.</p>
@@ -1066,9 +1183,20 @@ document.addEventListener('click', async e => {
   else if (ds.filter) { toggle(state.filters, ds.filter); state.preset = null; refresh(); if (view().type === 'list') setSize(desktop() ? 'full' : 'half'); }
   else if (ds.preset) { const p = PRESETS.find(x => x.id === ds.preset); state.preset = p.id; state.groups = new Set(p.groups); state.cats = new Set(p.cats || []); state.tags = new Set(p.tags || []); state.io = p.io || null; state.filters = new Set(p.filters); if (p.groups[0]) state.mode = GROUP[p.groups[0]].mode; state.q = ''; $('#q').value = ''; $('#q').blur(); refresh(); home('half'); }
   else if (ds.open === 'filters') go({ type: 'filters' });
+  else if (ds.open === 'area') go({ type: 'area' });
+  else if (ds.area === 'all') { setArea({ type: 'all' }, false); renderPanel(); }
+  else if (ds.radius) { const a = state.area; setArea({ type: 'radius', r: +ds.radius, center: a.type === 'radius' ? a.center : state.me ? 'me' : [map.getCenter().lat, map.getCenter().lng] }); renderPanel(); }
+  else if (ds.center === 'me') { locate(false); setArea({ type: 'radius', r: state.area.r || 1000, center: 'me' }); renderPanel(); if (!state.me) toast('Wir suchen deinen Standort …'); }
+  else if (ds.center === 'pick') { state.picking = true; setSize('peek'); toast('Tippe auf die Karte, um den Mittelpunkt zu setzen.'); }
+  else if (ds.district) { setArea({ type: 'district', name: ds.district }); renderPanel(); }
+  else if (ds.draw) { state.drawing = []; drawArea(); go({ type: 'draw' }, 'peek'); }
+  else if (ds.drawundo) { state.drawing.pop(); drawArea(); renderPanel(); }
+  else if (ds.drawcancel) { state.drawing = null; drawArea(); back(); }
+  else if (ds.drawdone) { const pts = state.drawing; state.drawing = null; setArea({ type: 'poly', pts }); stack = [{ type: 'list' }]; renderPanel(); setSize(desktop() ? 'full' : 'half'); }
+  else if (ds.evdateclear) { view().date = ''; renderPanel(); }
   else if (ds.clearq) { state.q = ''; $('#q').value = ''; refresh(); }
   else if (ds.unk) { state.showUnknown = !state.showUnknown; refresh(); }
-  else if (ds.reset) { state.filters.clear(); state.groups.clear(); state.cats.clear(); state.tags.clear(); state.io = null; state.preset = null; state.showUnknown = false; refresh(); renderPanel(); }
+  else if (ds.reset) { state.filters.clear(); state.io = null; state.preset = null; state.showUnknown = false; refresh(); renderPanel(); }
   else if (ds.more) { state.listLimit += 40; renderPanel(); }
   else if (ds.expand) { if ($('#panel').dataset.size === 'peek') setSize('half'); }
   else if (ds.id) { const p = byId.get(ds.id); map.setView([p.lat, p.lon], Math.max(map.getZoom(), 16)); showPlace(p.id); }
@@ -1097,9 +1225,11 @@ document.addEventListener('click', async e => {
   else if (ds.report) { store.reports.push({ targetType: 'review', targetId: ds.report, at: Date.now() }); save(); toast('Gemeldet und ausgeblendet. Mit dem Server geht die Meldung später an das Djuu-Team.'); renderPanel(); }
   else if (ds.sos) go({ type: 'sos', kind: ds.sos });
 });
+document.addEventListener('input', e => { if (e.target.id === 'distQ') $('#distList').innerHTML = districtChips(e.target.value); });
 document.addEventListener('change', e => {
   if (e.target.matches('[data-kid], #expecting')) saveProfileField(e.target);
   if (e.target.id === 'famSwitch') { view().fam = e.target.checked; renderPanel(); }
+  if (e.target.id === 'evDate') { view().date = e.target.value; view().limit = 60; renderPanel(); }
 });
 $('#sos').innerHTML = svg('bolt') + '<span>Dringend</span>';
 $('#sos').onclick = () => { stack = [{ type: 'list' }]; go({ type: 'sos' }, 'full'); locate(false); };
@@ -1135,6 +1265,7 @@ function locate(center) {
     if (first && center) map.setView(state.me, 16);
     if (!meMarker) meMarker = L.marker(state.me, { interactive: false, icon: L.divIcon({ className: '', iconSize: [18, 18], html: '<div class="me-dot"></div>' }) }).addTo(map);
     else meMarker.setLatLng(state.me);
+    if (state.area.type === 'radius' && state.area.center === 'me') { drawArea(); refresh(); }
     if (first || ['list', 'sos'].includes(view().type)) renderPanel();
     first = false;
   }, () => { if (center) toast('Standort nicht verfügbar. Bitte im Browser erlauben.'); }, { enableHighAccuracy: true, maximumAge: 30000 });
@@ -1156,6 +1287,7 @@ $('#panelBody').innerHTML = '<div class="ph"><h2>Lade Orte …</h2></div>';
     SOURCES = data.sources;
     for (const row of data.places) { const p = buildPlace(row); places.push(p); byId.set(p.id, p); }
     addUserPlaces();
+    if (store.area && store.area.type) { state.area = store.area; drawArea(); if (state.area.center === 'me') locate(false); }
     try { const ro = await fetch('data/offers.json'); if (ro.ok) loadOffers(await ro.json()); } catch (e) { /* offers optional */ }
     refresh();
     renderPanel();

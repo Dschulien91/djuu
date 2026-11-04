@@ -320,3 +320,23 @@ textarea { min-height: 80px; resize: vertical; }
 .chip.tag.on { background: var(--c); border-color: var(--c); color: #fff; }
 .chip.io svg.i { width: 15px; height: 15px; }
 .ctx .sep { flex: none; width: 1px; margin: 6px 2px; background: color-mix(in srgb, var(--ink) 18%, transparent); }
+
+/* v0.8: panel tools (Gebiet, Filter), active filter chips, date picker, kid row with optional day */
+.tools { display: flex; gap: 8px; margin: -4px 0 10px; }
+.tool { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-weight: 600; font-size: 13.5px; min-width: 0; color: var(--ink); }
+.tool span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tool svg.i { width: 16px; height: 16px; flex: none; }
+.tool.on { border-color: var(--brand); color: var(--brand); background: color-mix(in srgb, var(--brand) 8%, var(--surface)); }
+.active { display: flex; flex-wrap: wrap; gap: 6px; margin: -2px 0 10px; }
+.active .chip { height: 30px; font-size: 13px; padding: 0 10px; }
+.datepick { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 10px; }
+.datepick label { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; }
+.datepick input { border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; background: var(--surface); }
+.datepick .tool { margin-left: auto; }
+.kidrow { grid-template-columns: 1fr 1fr auto; }
+.kidrow input:first-child { grid-column: 1 / 3; }
+.kidrow select { min-width: 0; border: 1px solid var(--line); border-radius: 12px; padding: 10px; background: var(--surface); font-size: 15px; grid-column: 2 / 4; }
+.kidrow { padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+.zs .mk { transform: scale(.62); transition: transform .15s; }
+.zs .mk.tip { transform: scale(.8); }
+.zs .leaflet-marker-icon.sel .mk { transform: scale(1.1); }
