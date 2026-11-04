@@ -1,4 +1,4 @@
-/* Djuu v0.11 – map first. Phone: one floating chip row on top, map buttons on the right, slim draggable sheet at the bottom,
+/* Djuu v0.12 – map first. Phone: one floating chip row on top, map buttons on the right, slim draggable sheet at the bottom,
    tabs below. Desktop (>= 900px): the same sheet becomes a fixed left column, map on the right. */
 :root {
   --bg: #F3F6F4;
@@ -394,3 +394,6 @@ textarea { min-height: 80px; resize: vertical; }
 .heroimg figcaption { margin-top: 4px; font-size: 12px; }
 .heroimg a { color: var(--muted); }
 .tools { flex-wrap: wrap; }
+.askcard.ferien { width: 100%; border: 0; text-align: left; margin: 0 0 10px; }
+.askcard.ferien svg.i { color: var(--sun-ink); }
+.field select { appearance: auto; }

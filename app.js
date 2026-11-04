@@ -1,4 +1,4 @@
-/* Djuu v0.11 – family map for Hamburg.
+/* Djuu v0.12 – family map for Hamburg.
    The map owns the screen: one chip row floats on top, map buttons on the right, the sheet starts as a slim bar.
    The chip row drills down one level at a time: Erleben or Service, then categories, then the tags of a category.
    A tapped pin opens a small card; search and favorites live in the bottom bar. Default view: playgrounds.
@@ -7,7 +7,7 @@
    User input is stored on this device only until the server exists (server-ready shape, see STORE). */
 'use strict';
 
-const VERSION = '0.11';
+const VERSION = '0.12';
 
 // ---------- Icons (24px line icons) ----------
 const ICON = {
@@ -242,6 +242,31 @@ const SCHOOL_HOLIDAYS = [['2026-10-19', '2026-10-30', 'Herbstferien'], ['2026-12
   ['2027-10-11', '2027-10-22', 'Herbstferien'], ['2027-12-20', '2027-12-31', 'Weihnachtsferien'], ['2028-01-28', '2028-01-28', 'Halbjahrespause'], ['2028-03-06', '2028-03-17', 'Frühjahrsferien'], ['2028-05-22', '2028-05-26', 'Maiferien'], ['2028-07-03', '2028-08-11', 'Sommerferien'],
   ['2028-10-02', '2028-10-13', 'Herbstferien'], ['2028-12-18', '2028-12-29', 'Weihnachtsferien'], ['2029-02-02', '2029-02-02', 'Halbjahrespause'], ['2029-03-05', '2029-03-16', 'Frühjahrsferien'], ['2029-05-11', '2029-05-18', 'Maiferien'], ['2029-07-02', '2029-08-10', 'Sommerferien']];
 const schoolHoliday = date => { const k = localYmd(date); return SCHOOL_HOLIDAYS.find(([a, b]) => a <= k && k <= b)?.[2] || null; };
+// School holidays of the family's federal state: Hamburg is built in, other states come from the OpenHolidays API (only the state code is sent).
+const STATES = { 'DE-BW': 'Baden-Württemberg', 'DE-BY': 'Bayern', 'DE-BE': 'Berlin', 'DE-BB': 'Brandenburg', 'DE-HB': 'Bremen', 'DE-HH': 'Hamburg', 'DE-HE': 'Hessen', 'DE-MV': 'Mecklenburg-Vorpommern',
+  'DE-NI': 'Niedersachsen', 'DE-NW': 'Nordrhein-Westfalen', 'DE-RP': 'Rheinland-Pfalz', 'DE-SL': 'Saarland', 'DE-SN': 'Sachsen', 'DE-ST': 'Sachsen-Anhalt', 'DE-SH': 'Schleswig-Holstein', 'DE-TH': 'Thüringen' };
+let FAM_BREAKS = SCHOOL_HOLIDAYS, breaksFailed = false;
+async function loadBreaks() {
+  const st = store.profile.state || 'DE-HH';
+  breaksFailed = false;
+  if (st === 'DE-HH') { FAM_BREAKS = SCHOOL_HOLIDAYS; return; }
+  const from = localYmd(new Date()), to = localYmd(new Date(Date.now() + 500 * 864e5)), key = `djuu.breaks.${st}.${from.slice(0, 7)}`;
+  try { const c = JSON.parse(localStorage.getItem(key)); if (c) { FAM_BREAKS = c; return; } } catch (e) { /* storage blocked */ }
+  try {
+    const r = await fetch(`https://openholidaysapi.org/SchoolHolidays?countryIsoCode=DE&subdivisionCode=${st}&validFrom=${from}&validTo=${to}&languageIsoCode=DE`, { referrerPolicy: 'no-referrer', credentials: 'omit' });
+    if (!r.ok) throw new Error(r.status);
+    FAM_BREAKS = (await r.json()).map(h => [h.startDate, h.endDate, h.name[0]?.text || 'Ferien']).sort((a, b) => a[0] < b[0] ? -1 : 1);
+    try { localStorage.setItem(key, JSON.stringify(FAM_BREAKS)); } catch (e) { /* storage blocked */ }
+  } catch (e) { FAM_BREAKS = []; breaksFailed = true; }
+}
+// The running or next real break (single free days do not count).
+function nextBreak() {
+  const k = localYmd(new Date());
+  const b = FAM_BREAKS.find(([a, z]) => z >= k && (new Date(z) - new Date(a)) / 864e5 >= 2);
+  if (!b) return null;
+  const from = new Date(b[0] + 'T00:00'), to = new Date(b[1] + 'T00:00'), t = new Date(k + 'T00:00');
+  return { name: b[2], from, to, running: b[0] <= k, days: Math.round((from - t) / 864e5) };
+}
 // Opening times of a day: on a public holiday the PH rule, otherwise treated like a Sunday.
 const dayRanges = (oh, date) => holidayName(date) ? (oh.ph ?? oh.week[6]) : oh.week[dayIdx(date)];
 function isOpen(oh, date = new Date()) {
@@ -271,7 +296,7 @@ try { Object.assign(store, JSON.parse(localStorage.getItem(STORE_KEY) || '{}'));
 store.favorites = store.favorites || [];
 // v0.8: expected date is a full date now; an old 'YYYY-MM' value becomes the middle of that month
 if (store.profile && /^\d{4}-\d{2}$/.test(store.profile.expecting || '')) store.profile.expecting += '-15';
-store.profile = Object.assign({ kids: [], expecting: '', dogs: 0 }, store.profile || {});
+store.profile = Object.assign({ kids: [], expecting: '', dogs: 0, state: 'DE-HH' }, store.profile || {});
 function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(store)); } catch (e) { toast('Speicher voll. Bitte weniger Fotos verwenden.'); } }
 const uid = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
@@ -732,6 +757,7 @@ async function renderPanel() {
   else if (v.type === 'card') body.innerHTML = cardView(v.id);
   else if (v.type === 'filters') body.innerHTML = filtersView();
   else if (v.type === 'area') body.innerHTML = areaView();
+  else if (v.type === 'ferien') body.innerHTML = ferienView();
   else if (v.type === 'draw') body.innerHTML = drawView();
   else if (v.type === 'search') body.innerHTML = searchView();
   else if (v.type === 'sos') body.innerHTML = sosView(v.kind);
@@ -755,7 +781,8 @@ function listView() {
     ? `${nf.format(last.match.length)} passen sicher${u ? ` · ${nf.format(u)} ohne Angabe <button type="button" data-unk="1">${state.showUnknown ? 'ausblenden' : 'auch zeigen'}</button>` : ''}`
     : `Nächste zuerst, ${state.area.type === 'radius' ? 'ab Mittelpunkt' : state.me ? 'von dir aus' : 'ab Kartenmitte'}`;
   const todayFits = hasFamily() ? OFFERS.filter(o => { const d = nextDate(o); return d && +d === +today0() && offerFits(o) === true; }).length : 0;
-  const famCard = todayFits && !state.filters.size ? `<button type="button" class="askcard" data-tab="events" style="width:100%;border:0;text-align:left;margin:0 0 8px"><div><b>Heute: ${todayFits} passende ${todayFits === 1 ? 'Gruppe' : 'Gruppen und Kurse'}</b><span>für ${esc(familyAges().map(k => k.name).join(', ') || 'euch')}</span></div>${svg('cal')}</button>` : '';
+  const breakCard = ferienCard(21);
+  const famCard = breakCard || todayFits && !state.filters.size ? breakCard + (!todayFits || state.filters.size ? '' : `<button type="button" class="askcard" data-tab="events" style="width:100%;border:0;text-align:left;margin:0 0 8px"><div><b>Heute: ${todayFits} passende ${todayFits === 1 ? 'Gruppe' : 'Gruppen und Kurse'}</b><span>für ${esc(familyAges().map(k => k.name).join(', ') || 'euch')}</span></div>${svg('cal')}</button>`) : '';
   return `<div class="ph" data-expand="1"><h2>${nf.format(shown.length)} ${shown.length === 1 ? 'Ort' : 'Orte'} · ${esc(topTitle())}<span class="sub">${sub}</span></h2></div>${toolsHtml()}${famCard}
     ${sorted.length ? `<ol class="list">${sorted.slice(0, state.listLimit).map(([d, p]) => itemHtml(p, d)).join('')}</ol>
     ${sorted.length > state.listLimit ? '<button type="button" class="more" data-more="1">Mehr anzeigen</button>' : ''}`
@@ -1068,6 +1095,7 @@ function eventsView() {
   return `${head('Termine', day ? 'am ' + day.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' }) : 'Gruppen, Kurse und Veranstaltungen in den nächsten 8 Wochen', false)}
     <div class="datepick"><label for="evDate">${svg('cal')}Datum</label><input id="evDate" type="date" value="${esc(v.date || '')}" min="${ymd(t)}">${v.date ? `<button type="button" class="round" data-evdateclear="1" aria-label="Datum zurücksetzen">${svg('close')}</button>` : ''}
       <button type="button" class="tool${state.area.type !== 'all' ? ' on' : ''}" data-open="area">${svg('pin')}<span>${esc(areaLabel())}</span></button></div>
+    ${ferienCard(56)}
     ${schoolHoliday(day || t) ? `<p class="note" style="margin:0 0 10px">${esc(schoolHoliday(day || t))}: Viele Kurse pausieren, bitte beim Anbieter nachsehen.</p>` : ''}
     <div class="row" style="padding:0 0 10px;margin:0 -2px">${chips}</div>
     ${hasFamily() ? `<label class="switch" for="famSwitch" style="margin:0 0 10px">Nur passend für ${esc(kids.map(k => `${k.name} (${kidLabel(k.months)})`).join(', ') || 'unser Baby')} <input type="checkbox" id="famSwitch" ${fam ? 'checked' : ''}></label>`
@@ -1091,6 +1119,45 @@ function favsView() {
     ${ps.length ? `<ol class="list">${ps.map(p => itemHtml(p, dist(o, [p.lat, p.lon]))).join('')}</ol>`
     : `<p class="muted text">Noch keine Favoriten. Tippe bei einem Ort auf das Herz.</p>`}`;
 }
+// ---------- Holiday ideas: what fits the next school break, the season and the children's ages ----------
+const fmtD = d => d.toLocaleDateString('de-DE', { day: 'numeric', month: 'long' });
+const kidNames = () => familyAges().filter(k => k.months >= 0).map(k => `${k.name} (${kidLabel(k.months)})`);
+function ferienCard(within) {
+  const b = nextBreak();
+  if (!b || (!b.running && b.days > within)) return '';
+  // on the map only families with school children see it; Kita children are not bound to the dates
+  if (within < 30 && !familyAges().some(k => k.months >= 72)) return '';
+  const when = b.running ? `Noch bis ${fmtD(b.to)}` : b.days === 1 ? 'Ab morgen' : `In ${b.days} Tagen, ab ${fmtD(b.from)}`;
+  return `<button type="button" class="askcard ferien" data-open="ferien"><div><b>${esc(b.name)}: ${esc(when)}</b><span>${kidNames().length ? 'Ideen für ' + esc(familyAges().filter(k => k.months >= 0).map(k => k.name).join(', ')) : 'Ideen für die freien Tage'}</span></div>${svg('star')}</button>`;
+}
+const SEASON_IDEAS = m => m >= 5 && m <= 7 ? [['Baden und Wasser', ['entdecken', 'baden'], ['spielen', 'wasserspiel']], ['Toben und Bauen', ['spielen', 'abenteuer']], ['Tiere und Natur', ['entdecken', 'tiere']], ['Falls es regnet', ['spielen', 'indoorspielplatz'], ['entdecken', 'museum']]]
+  : m >= 8 && m <= 10 ? [['Wenn es nass und kalt wird', ['spielen', 'indoorspielplatz'], ['spielen', 'spielhaus']], ['Museen und Kultur', ['entdecken', 'museum'], ['entdecken', 'theater']], ['Tiere und Natur', ['entdecken', 'tiere']], ['Toben und Bauen', ['spielen', 'abenteuer']]]
+  : m === 11 || m <= 1 ? [['Drinnen toben', ['spielen', 'indoorspielplatz'], ['spielen', 'spielhaus'], ['spielen', 'klettern']], ['Museen und Kultur', ['entdecken', 'museum'], ['entdecken', 'theater']], ['Eislaufen', ['spielen', 'eislaufen']], ['Tiere', ['entdecken', 'tiere']]]
+  : [['Toben und Bauen', ['spielen', 'abenteuer']], ['Tiere und Natur', ['entdecken', 'tiere']], ['Museen und Kultur', ['entdecken', 'museum']], ['Falls es regnet', ['spielen', 'indoorspielplatz']]];
+// Nearby ideas for a list of [group, tag] pairs: fits the children's ages, Djuu-Tipps first.
+function ideaPlaces(pairs, kids) {
+  const o = origin(), young = kids.length && kids.every(k => k.months < 72);
+  const fits = p => { if (young && p.tags.has('groessere')) return false; const s = agesOf(p); return !kids.length || !s || kids.some(k => s.some(([a, z]) => k.months >= a && k.months < z)); };
+  return places.filter(p => pairs.some(([g, t]) => p.tags.has(t) && memberOf(p, GROUP[g])) && p.named && fits(p) && areaOk(p))
+    .map(p => [dist(o, [p.lat, p.lon]), p]).sort((a, b) => (!!b[1].f.tipp - !!a[1].f.tipp) || a[0] - b[0]).slice(0, 4);
+}
+function ferienView() {
+  const b = nextBreak();
+  if (!b) return `${head('Ferien')}<div class="empty"><b>${breaksFailed ? 'Die Ferientermine ließen sich gerade nicht laden.' : 'Keine Ferientermine bekannt.'}</b></div>`;
+  const kids = familyAges().filter(k => k.months >= 0), school = kids.filter(k => k.months >= 72), small = kids.filter(k => k.months < 72);
+  const state = STATES[store.profile.state || 'DE-HH'];
+  const range = `${fmtD(b.from)} bis ${fmtD(b.to)}`;
+  const offers = OFFERS.filter(o => (o.kind === 'termin' || o.kind === 'kurs') && o.audience !== 'erwachsene' && offerFits(o) !== false && offerInArea(o)).map(o => {
+    for (let d = new Date(Math.max(b.from, today0())); d <= b.to; d.setDate(d.getDate() + 1)) if (occursOn(o, d)) return [new Date(d), o];
+    return null;
+  }).filter(Boolean).sort((x, y) => x[0] - y[0]);
+  const sections = SEASON_IDEAS(b.from.getMonth()).map(([title, ...pairs]) => [title, ideaPlaces(pairs, kids)]).filter(([, l]) => l.length);
+  return `${head(esc(b.name), `${esc(range)} · ${esc(state)}`)}
+    ${school.length ? `<p class="text">Schulfrei für ${esc(school.map(k => k.name).join(', '))}.${small.length ? ` ${esc(small.map(k => k.name).join(', '))} ${small.length === 1 ? 'ist' : 'sind'} noch nicht in der Schule: Prüft die Schließzeiten eurer Kita.` : ''}</p>` : small.length ? `<p class="text">Noch kein Schulkind dabei, aber Ausflugsziele werden voller und viele Kurse pausieren. Prüft die Schließzeiten eurer Kita.</p>` : ''}
+    <div class="sec"><h4>Termine in dieser Zeit</h4>${offers.length ? `<ol class="list">${offers.slice(0, 6).map(([d, o]) => offerItem(o, d)).join('')}</ol>${offers.length > 6 ? `<p class="note">und ${nf.format(offers.length - 6)} weitere</p>` : ''}` : '<p class="muted text">Noch keine Termine bekannt. Viele Anbieter veröffentlichen ihr Ferienprogramm erst kurz vorher.</p>'}</div>
+    ${sections.map(([title, list]) => `<div class="sec"><h4>${esc(title)}</h4><ol class="list">${list.map(([d, p]) => itemHtml(p, d)).join('')}</ol></div>`).join('')}
+    <p class="note">${state === 'Hamburg' ? '' : 'Die Ferien gelten für euer Bundesland, die Orte liegen in Hamburg. '}Sortiert nach Djuu-Tipps und Entfernung${kids.length ? ', passend zum Alter, soweit bekannt' : ''}.</p>`;
+}
 function savedView() {
   const pr = store.profile, now = new Date();
   const maxYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -1104,13 +1171,15 @@ function savedView() {
         <select id="kidD${i}" data-kid="${i}" data-k="d" aria-label="Geburtstag (Tag, optional) von Kind ${i + 1}"><option value="">Tag (optional)</option>${Array.from({ length: 31 }, (_, j) => `<option${+k.d === j + 1 ? ' selected' : ''}>${j + 1}</option>`).join('')}</select></div>`).join('')}</div>
       <button type="button" class="btn" data-addkid="1">${svg('plus')}Kind hinzufügen</button>
       <div class="field"><label for="expecting">Baby unterwegs? Errechneter Termin (optional)</label><input id="expecting" type="date" value="${esc(pr.expecting || '')}" min="${ymd(today0())}"></div>
+      <div class="field"><label for="fedState">Bundesland (für eure Schulferien)</label><select id="fedState">${Object.entries(STATES).map(([c, n]) => `<option value="${c}"${(pr.state || 'DE-HH') === c ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select></div>
+      ${ferienCard(9999)}
       <div class="field"><label for="dogs">Hunde in der Familie</label>
         <div class="stepper"><button type="button" data-dogs="-1" aria-label="Weniger">–</button><b id="dogsN">${pr.dogs || 0}</b><button type="button" data-dogs="1" aria-label="Mehr">+</button></div></div>
       <p class="note">Wenn ihr einen Hund habt, steht „Hunde erlaubt“ im Filter gleich oben.</p>
     </div>
     <div class="sec"><h4>Kartenstil</h4>
       ${MAP_STYLES.map(m => m.sec ? `<p class="stylesec">${esc(m.sec)}</p>` : `<button type="button" class="stylecard${mapStyle().id === m.id ? ' on' : ''}" data-mapstyle="${m.id}"><img src="icons/maps/${m.id}.jpg" alt="" loading="lazy" width="150" height="100"><span>${esc(m.label)}</span></button>`).join('')}
-      <p class="note">Alle Kartenstile sind kostenlos und brauchen kein Konto. Die Wetteranzeige stammt vom Deutschen Wetterdienst über Bright Sky.</p>
+      <p class="note">Alle Kartenstile sind kostenlos und brauchen kein Konto. Die Wetteranzeige stammt vom Deutschen Wetterdienst über Bright Sky. Schulferien: Ferienordnung Hamburg, andere Bundesländer über OpenHolidays (ODbL).</p>
     </div>
 `;
 }
@@ -1334,6 +1403,7 @@ document.addEventListener('click', async e => {
   else if (ds.preset) { const p = PRESETS.find(x => x.id === ds.preset); state.preset = p.id; state.groups = new Set(p.groups); state.cats = new Set(p.cats || []); state.tags = new Set(p.tags || []); state.io = p.io || null; state.filters = new Set(p.filters); if (p.groups[0]) state.mode = GROUP[p.groups[0]].mode; state.level = 2; state.q = ''; state.sq = ''; refresh(); home('peek'); }
   else if (ds.open === 'filters') go({ type: 'filters' });
   else if (ds.open === 'area') go({ type: 'area' });
+  else if (ds.open === 'ferien') go({ type: 'ferien' });
   else if (ds.area === 'all') { setArea({ type: 'all' }, false); renderPanel(); }
   else if (ds.radius) { const a = state.area; setArea({ type: 'radius', r: +ds.radius, center: a.type === 'radius' ? a.center : state.me ? 'me' : [map.getCenter().lat, map.getCenter().lng] }); renderPanel(); }
   else if (ds.center === 'me') { locate(false); setArea({ type: 'radius', r: state.area.r || 1000, center: 'me' }); renderPanel(); if (!state.me) toast('Wir suchen deinen Standort …'); }
@@ -1380,6 +1450,7 @@ document.addEventListener('click', async e => {
 document.addEventListener('input', e => { if (e.target.id === 'distQ') $('#distList').innerHTML = districtChips(e.target.value); });
 document.addEventListener('change', e => {
   if (e.target.matches('[data-kid], #expecting')) saveProfileField(e.target);
+  if (e.target.id === 'fedState') { store.profile.state = e.target.value; save(); loadBreaks().then(renderPanel); }
   if (e.target.id === 'famSwitch') { view().fam = e.target.checked; renderPanel(); }
   if (e.target.id === 'evDate') { view().date = e.target.value; view().limit = 60; renderPanel(); }
 });
@@ -1435,6 +1506,7 @@ window.addEventListener('resize', () => setSize($('#panel').dataset.size));
 setTab('map');
 setSize(desktop() ? 'full' : 'peek');
 loadWeather();
+loadBreaks().then(() => { if (['list', 'me', 'events'].includes(view().type)) renderPanel(); });
 renderTop();
 $('#panelBody').innerHTML = '<div class="ph"><h2>Lade Orte …</h2></div>';
 (async () => {
