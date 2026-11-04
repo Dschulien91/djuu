@@ -1,6 +1,6 @@
-# Djuu – Prototyp v0.10
+# Djuu – Prototyp v0.11
 
-Karte mit allen familienrelevanten Orten in Hamburg (ca. 16.400 Orte aus 34 offenen Quellen, jede Angabe mit Quelle) mit Filtern.
+Karte mit allen familienrelevanten Orten in Hamburg (ca. 19.700 Orte aus über 40 offenen Quellen, jede Angabe mit Quelle) mit Filtern.
 Installierbare Web-App (PWA): läuft auf Android, iPhone und Desktop aus demselben Code.
 
 ## Starten (lokal)
@@ -17,9 +17,11 @@ Dann http://localhost:8765 im Browser öffnen.
 sh tools/download-osm.sh
 cd db
 python import_osm.py; python import_spieli.py; python import_mangrove.py; python import_hamburg.py; python import_wikidata.py
+python import_gtfs.py
 python merge.py; python import_websites.py; python merge.py
 python import_offers_elbkinder.py; python import_offers_kathfbs.py; python import_offers_elternschulen.py
 python import_offers_buecherhallen.py; python import_offers_flohmaerkte.py
+python import_offers_planetarium.py; python import_offers_allee.py; python import_offers_hamburgde.py; python import_offers_vhs.py; python import_offers_klick.py
 python export.py; python stats.py
 ```
 

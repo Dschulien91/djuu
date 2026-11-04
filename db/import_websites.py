@@ -66,9 +66,13 @@ def scan(text):
     return facts
 
 
+NO_SCAN_HOSTS = ('hagenbeck.de',)  # terms forbid any use of content without written permission
+
+
 def visit(place):
     pid, name, url = place
     if not url.startswith('http'): url = 'https://' + url
+    if any(h in url for h in NO_SCAN_HOSTS): return pid, url, None, 'terms forbid use'
     pages, texts = [url], []
     try:
         r = fetch(url, check_robots=True, timeout=25, retries=2, backoff=5)

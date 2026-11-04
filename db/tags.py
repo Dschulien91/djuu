@@ -39,6 +39,7 @@ def place_tags(cat, name, raw, facts, gear):
         t.add('spielplatz')
         if gear and re.search(r'water|splash|pump|archimedes', ','.join(gear)) or re.search(r'wasserspiel', n): t.add('wasserspiel')
     if cat == 'abenteuer': t.add('abenteuer')
+    if cat in ('spielstrasse', 'bolzplatz', 'wochenmarkt', 'schule'): t.add(cat)
     if cat == 'spielhaus': t.add('spielhaus')
     if cat == 'indoor':
         if re.search(r'climb|boulder', g('sport') or '') or re.search(r'boulder|kletter|apes|bloc', n): t.add('klettern')
@@ -78,7 +79,8 @@ def place_tags(cat, name, raw, facts, gear):
     if cat == 'ausflug' and not t & {'tiere', 'aussicht'}: t.add('ausflugsziel')
     # --- Service: Notfall & Gesundheit, Sanitär, Läden, Familie & Beratung, Mobilität
     if cat in ('kinderarzt', 'apotheke', 'klinik', 'hebamme', 'geburtshaus', 'babyklappe', 'wc', 'trinkwasser', 'kita',
-               'beratung', 'aufzug', 'bahnhof'): t.add(cat)
+               'beratung', 'aufzug', 'bahnhof', 'haltestelle'): t.add(cat)
+    if cat == 'haltestelle' and re.search(r'(?<!\w)(U\d|S\d|A\d|R[BE]\d)', facts.get('transit') or ''): t.add('bahnhof')
     if cat == 'wc' or (cat in ('wickel', 'familienfreundlich') and _yes(facts.get('toilets'))): t.add('wc')
     if _yes(facts.get('changing_table')): t.add('wickeln')
     if facts.get('baby_feeding') and facts.get('baby_feeding') != 'no': t.add('stillen')
@@ -94,7 +96,7 @@ def place_tags(cat, name, raw, facts, gear):
     return sorted(t)
 
 
-OUT_CATS = {'spielplatz', 'abenteuer', 'park', 'picknick', 'grillplatz', 'hundeauslauf', 'trinkwasser', 'ausflug'}
+OUT_CATS = {'spielstrasse', 'bolzplatz', 'spielplatz', 'abenteuer', 'park', 'picknick', 'grillplatz', 'hundeauslauf', 'trinkwasser', 'ausflug'}
 IN_CATS = {'indoor', 'spielhaus', 'museum', 'kultur', 'buecherei', 'cafe', 'restaurant', 'kurs', 'treffpunkt'}
 
 

@@ -18,11 +18,16 @@ from tags import drop, place_tags
 from tipps import auto_reason, editorial_match
 
 SKIP_CATS = {'spielplatz_privat', 'geraet'}
+STOP_NEAR_M = 400
+# Places where the nearest stop helps: everything parents travel to, not the stops themselves.
+STOP_CATS = {'spielplatz', 'abenteuer', 'indoor', 'spielhaus', 'freizeit', 'cafe', 'restaurant', 'eis', 'park', 'baden', 'museum', 'kultur', 'ausflug',
+             'buecherei', 'kurs', 'treffpunkt', 'geburtshaus', 'klinik', 'kinderarzt', 'hundeauslauf', 'bolzplatz', 'wochenmarkt', 'schule'}
 KEYS = ['changing_table', 'changing_table_location', 'highchair', 'kids_area', 'kids_menu', 'dog', 'dog_rule', 'wheelchair',
         'stroller', 'toilets', 'baby_feeding', 'babyccino', 'indoor', 'fee', 'opening_hours', 'website', 'phone', 'address',
         'street', 'housenumber', 'for_baby', 'for_toddler', 'fenced', 'shade', 'water_play', 'device_count', 'bench_count',
         'description', 'image', 'age_groups', 'type', 'operator', 'water_status', 'water_quality_eu', 'season', 'services',
-        'maternity', 'emergency', 'rating', 'review_text', 'drinking_water', 'cuisine', 'care_types', 'transit']
+        'maternity', 'emergency', 'rating', 'review_text', 'drinking_water', 'cuisine', 'care_types', 'transit',
+        'min_age', 'max_age', 'toilets_children', 'fee_text', 'area_ha', 'unisex', 'table_tennis_count', 'picnic_count', 'soccer', 'basketball']
 WC_NEAR_M = 300
 
 # Category refinement: official sources and clear names beat the generic OSM category.
@@ -31,7 +36,7 @@ SOURCE_CAT = {'hh_ekiz': 'kurs', 'hh_elternschule': 'kurs', 'hh_familienbildung_
 NAME_CAT = [(r'geburtshaus|haus für geburt', 'geburtshaus'),
             (r'bauspielplatz|abenteuerspielplatz|aktivspielplatz', 'abenteuer'),
             (r'^spielhaus|spielhaus ', 'spielhaus'),
-            (r'familienbildung|familien-bildung|elternschule|eltern-kind-zentrum|ekiz|haus der familie|kinder- und familienzentrum|familienzentrum|kifaz', 'kurs')]
+            (r'familienbildung|familien-bildung|elternschule|eltern-kind-zentrum|(?<!\w)ekiz(?!\w)|haus der familie|kinder- und familienzentrum|familienzentrum|kifaz', 'kurs')]
 NAME_CAT_FROM = {'treffpunkt', 'beratung', 'hebamme', 'kita', 'spielplatz', 'park', 'familienfreundlich', 'kultur'}
 
 
@@ -82,6 +87,24 @@ def run():
     dropped = [r for r in rows if drop(r[2], r[1], osm_raw[r[0]])]
     rows = [r for r in rows if not drop(r[2], r[1], osm_raw[r[0]])]
     print(f'dropped {len(dropped)} (adult, gambling, nameless viewpoints):', sorted({r[1] for r in dropped if r[1]})[:20])
+    # devices of the green-space register per green area: playground size where the park register knows the area
+    area_place = {}
+    for pid, gid in con.execute("""SELECT sr.place_id, f.value FROM facts f JOIN source_records sr USING (source_id, source_ref)
+                                   WHERE f.source_id = 'hh_gruenplan' AND f.key = 'gruen_id' AND sr.place_id IS NOT NULL"""):
+        area_place[gid] = pid
+    devices = defaultdict(int)
+    for gid, n in con.execute("SELECT value, COUNT(*) FROM facts WHERE source_id = 'hh_spielgeraete' AND key = 'gruen_id' GROUP BY value"):
+        if gid in area_place: devices[area_place[gid]] += n
+    stops = defaultdict(list)
+    for r in rows:
+        if r[2] == 'haltestelle' and r[1]: stops[(int(r[3] / 0.004), int(r[4] / 0.007))].append((r[3], r[4], r[1]))
+    # the hvv feed has one record per station; OSM railway stations next to one are duplicates (often per platform)
+    def near_stop(la, lo, m):
+        gi, gj = int(la / 0.004), int(lo / 0.007)
+        return any(dist(la, lo, a, b) <= m for i in (-1, 0, 1) for j in (-1, 0, 1) for a, b, _ in stops.get((gi + i, gj + j), ()))
+    rows = [r for r in rows if not (r[2] == 'bahnhof' and near_stop(r[3], r[4], 350))]
+    for r in rows:
+        if r[2] == 'bahnhof' and r[1]: stops[(int(r[3] / 0.004), int(r[4] / 0.007))].append((r[3], r[4], r[1]))
     wcs = [(r[3], r[4]) for r in rows if r[2] == 'wc' or facts[r[0]].get('toilets', [None])[0] == 'yes']
 
     places = []
@@ -91,9 +114,16 @@ def run():
         if cat == 'spielplatz' and wcs:
             d = min(dist(lat, lon, a, b) for a, b in wcs if abs(a - lat) < 0.004 and abs(b - lon) < 0.007) if any(abs(a - lat) < 0.004 and abs(b - lon) < 0.007 for a, b in wcs) else None
             if d is not None and d <= WC_NEAR_M: f['wc_near'] = [str(round(d)), sidx['osm'], 'computed']
+        if cat in STOP_CATS and 'hvv_gtfs' in sidx:
+            gi, gj = int(lat / 0.004), int(lon / 0.007)
+            near = min(((dist(lat, lon, a, b), n) for i in (-1, 0, 1) for j in (-1, 0, 1) for a, b, n in stops.get((gi + i, gj + j), ())), default=None)
+            if near and near[0] <= STOP_NEAR_M: f['stop_near'] = [f'{round(near[0])}|{near[1]}', sidx['hvv_gtfs'], 'computed']
         tip = editorial_match(name, district)
         if tip: f['tipp'] = [tip, -1, 'redaktion']
         elif (r := auto_reason(cat, f)): f['tipp'] = [r, -1, 'auto']
+        # after the tip rules: register counts cover a whole green area, not one playground
+        if devices.get(pid) and devices[pid] > int(f.get('device_count', [0])[0] or 0) and 'hh_spielgeraete' in sidx:
+            f['device_count'] = [str(devices[pid]), sidx['hh_spielgeraete'], 'computed']
         tg = place_tags(cat, name, osm_raw[pid], {k: v[0] for k, v in f.items()}, gear.get(pid))
         places.append([pid, name or '', cat, round(lat, 6), round(lon, 6), district, f, sorted(srcs[pid]), tg])
     out = {'version': 2, 'generated': now(), 'sources': sources, 'places': places}

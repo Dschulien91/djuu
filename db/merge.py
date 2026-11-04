@@ -21,6 +21,7 @@ GROUPS = [  # categories that may describe the same real place
     {'spielplatz', 'indoor', 'park', 'spielplatz_privat', 'spielhaus'},
     {'cafe', 'restaurant', 'imbiss', 'eis', 'familienfreundlich'},
     {'baden'}, {'buecherei'}, {'museum', 'ausflug', 'kultur'}, {'wc', 'wickel'}, {'kita'},
+    {'bahnhof', 'haltestelle'}, {'schule'}, {'spielstrasse'}, {'bolzplatz'}, {'wochenmarkt'},
     {'treffpunkt', 'kultur', 'beratung', 'spielhaus'}, {'apotheke'}, {'kinderarzt', 'klinik'}, {'windeln', 'laden'}, {'hundeauslauf', 'park'},
 ]
 
@@ -31,7 +32,7 @@ def compatible(a, b):
 
 def norm(s):
     s = (s or '').lower()
-    s = re.sub(r'\b(spielplatz|hamburg|e\.?\s?v\.?|gmbh|cafe|café|restaurant)\b', ' ', s)
+    s = re.sub(r'\b(spielplatz|hamburg|e\.?\s?v\.?|gmbh|cafe|café|restaurant|[us]|a|bf|bahnhof)\b', ' ', s)
     return re.sub(r'[^a-z0-9äöüß]+', ' ', s).strip()
 
 
@@ -87,7 +88,7 @@ def run():
         p = make('osm', ref, name, cat, la, lo)
         links.append((p['id'], 'osm', ref)); grid.add(la, lo, p); osm_refs[ref] = p
 
-    for src, ref, name, cat, la, lo in con.execute("SELECT source_id, source_ref, name, category, lat, lon FROM source_records WHERE source_id NOT IN ('osm','osm_geraete') ORDER BY source_id"):
+    for src, ref, name, cat, la, lo in con.execute("SELECT source_id, source_ref, name, category, lat, lon FROM source_records WHERE source_id NOT IN ('osm','osm_geraete','hh_spielgeraete') ORDER BY source_id"):
         p = osm_refs.get(ref) if src == 'spieli' else None
         if src == 'website' and places.get(ref, {}).get('used'):
             p = places[ref]  # website scans are keyed by place id

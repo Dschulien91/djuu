@@ -1,4 +1,4 @@
-/* Djuu v0.10 – family map for Hamburg.
+/* Djuu v0.11 – family map for Hamburg.
    The map owns the screen: one chip row floats on top, map buttons on the right, the sheet starts as a slim bar.
    The chip row drills down one level at a time: Erleben or Service, then categories, then the tags of a category.
    A tapped pin opens a small card; search and favorites live in the bottom bar. Default view: playgrounds.
@@ -7,7 +7,7 @@
    User input is stored on this device only until the server exists (server-ready shape, see STORE). */
 'use strict';
 
-const VERSION = '0.10';
+const VERSION = '0.11';
 
 // ---------- Icons (24px line icons) ----------
 const ICON = {
@@ -56,16 +56,16 @@ const svg = (name, cls = 'i') => `<svg class="${cls}" viewBox="0 0 24 24" aria-h
 const MODES = [{ id: 'erleben', label: 'Erleben' }, { id: 'service', label: 'Service' }];
 const GROUPS = [
   { id: 'tipps', mode: 'erleben', label: 'Djuu-Tipps', short: 'Djuu-Tipps', icon: 'star', color: '#E0A100', cats: [], virtual: true },
-  { id: 'spielen', mode: 'erleben', label: 'Spielen & Toben', short: 'Spielen & Toben', icon: 'playground', color: '#E8590C', cats: ['spielplatz', 'abenteuer', 'indoor', 'spielhaus', 'freizeit'] },
+  { id: 'spielen', mode: 'erleben', label: 'Spielen & Toben', short: 'Spielen & Toben', icon: 'playground', color: '#E8590C', cats: ['spielplatz', 'abenteuer', 'indoor', 'spielhaus', 'freizeit', 'spielstrasse', 'bolzplatz'] },
   { id: 'gastro', mode: 'erleben', label: 'Gastro', short: 'Gastro', icon: 'cup', color: '#9C36B5', cats: ['cafe', 'restaurant', 'imbiss', 'eis'] },
   { id: 'entdecken', mode: 'erleben', label: 'Entdecken', short: 'Entdecken', icon: 'tree', color: '#2F9E44', cats: ['park', 'picknick', 'grillplatz', 'hundeauslauf', 'baden', 'museum', 'kultur', 'ausflug', 'buecherei'] },
   { id: 'kurse', mode: 'erleben', label: 'Kurse & Gruppen', short: 'Kurse & Gruppen', icon: 'group', color: '#C2255C', cats: [], offers: ['kurs', 'gruppe'] },
   { id: 'events', mode: 'erleben', label: 'Events', short: 'Events', icon: 'cal', color: '#D9480F', cats: [], offers: ['termin'] },
   { id: 'gesundheit', mode: 'service', label: 'Notfall & Gesundheit', short: 'Notfall & Gesundheit', icon: 'cross', color: '#E03131', cats: ['kinderarzt', 'klinik', 'apotheke', 'babyklappe', 'hebamme', 'geburtshaus'] },
   { id: 'sanitaer', mode: 'service', label: 'Sanitär', short: 'Sanitär', icon: 'baby', color: '#0C8599', cats: ['wc', 'wickel', 'familienfreundlich', 'trinkwasser'], extra: p => p.tags.has('wickeln') || p.tags.has('stillen') },
-  { id: 'laeden', mode: 'service', label: 'Läden', short: 'Läden', icon: 'bag', color: '#1971C2', cats: ['windeln', 'laden'] },
-  { id: 'familie', mode: 'service', label: 'Familie & Beratung', short: 'Familie & Beratung', icon: 'people', color: '#6741D9', cats: ['treffpunkt', 'beratung', 'kita', 'kurs'] },
-  { id: 'mobil', mode: 'service', label: 'Mobilität', short: 'Mobilität', icon: 'elevator', color: '#5C677D', cats: ['aufzug', 'bahnhof'] },
+  { id: 'laeden', mode: 'service', label: 'Läden', short: 'Läden', icon: 'bag', color: '#1971C2', cats: ['windeln', 'laden', 'wochenmarkt'] },
+  { id: 'familie', mode: 'service', label: 'Familie & Beratung', short: 'Familie & Beratung', icon: 'people', color: '#6741D9', cats: ['treffpunkt', 'beratung', 'kita', 'kurs', 'schule'] },
+  { id: 'mobil', mode: 'service', label: 'Mobilität', short: 'Mobilität', icon: 'elevator', color: '#5C677D', cats: ['haltestelle', 'bahnhof', 'aufzug'] },
 ];
 const GROUP = Object.fromEntries(GROUPS.map(g => [g.id, g]));
 // Tags inside a sub-category. Plain tags are alternatives (Café or Restaurant); p: 1 marks a property that must hold
@@ -73,7 +73,7 @@ const GROUP = Object.fromEntries(GROUPS.map(g => [g.id, g]));
 const T = (id, label, p) => ({ id, label, p: p ? 1 : 0 });
 const TAGS = {
   spielen: [T('spielplatz', 'Spielplatz'), T('abenteuer', 'Abenteuerspielplatz'), T('indoorspielplatz', 'Indoor-Spielplatz'), T('klettern', 'Klettern & Bouldern'),
-    T('trampolin', 'Trampolin'), T('spielhaus', 'Spielhaus'), T('minigolf', 'Minigolf'), T('skaten', 'Skaten'), T('eislaufen', 'Eislaufen'),
+    T('trampolin', 'Trampolin'), T('spielhaus', 'Spielhaus'), T('spielstrasse', 'Spielstraße'), T('bolzplatz', 'Ballspielfeld'), T('minigolf', 'Minigolf'), T('skaten', 'Skaten'), T('eislaufen', 'Eislaufen'),
     T('bewegung', 'Sport & Bewegung'), T('wasserspiel', 'Wasserspiel', 1)],
   gastro: [T('cafe', 'Café'), T('restaurant', 'Restaurant'), T('imbiss', 'Imbiss'), T('eis', 'Eis'), T('kindercafe', 'Kindercafé', 1),
     T('fruehstueck', 'Frühstück', 1), T('kuchen', 'Kuchen', 1), T('vegan', 'Vegan', 1), T('vegetarisch', 'Vegetarisch', 1), T('terrasse', 'Draußen sitzen', 1),
@@ -83,9 +83,9 @@ const TAGS = {
   gesundheit: [T('kinderarzt', 'Kinderarzt'), T('apotheke', 'Apotheke'), T('klinik', 'Klinik'), T('hebamme', 'Hebamme'), T('geburtshaus', 'Geburtshaus'), T('babyklappe', 'Babyklappe')],
   sanitaer: [T('wc', 'Toilette'), T('wickeln', 'Wickelplatz'), T('stillen', 'Stillen'), T('trinkwasser', 'Trinkwasser')],
   laeden: [T('drogerie', 'Drogerie'), T('supermarkt', 'Supermarkt'), T('spaeti', 'Späti & Kiosk'), T('tankstelle', 'Tankstelle'), T('baby', 'Babyausstattung'),
-    T('kinderkleidung', 'Kinderkleidung'), T('spielzeug', 'Spielzeug'), T('buecher', 'Bücher'), T('secondhand', 'Secondhand')],
-  familie: [T('familienzentrum', 'Familienzentren'), T('elternschule', 'Elternschulen'), T('beratung', 'Beratung'), T('kita', 'Kitas')],
-  mobil: [T('aufzug', 'Aufzüge'), T('bahnhof', 'Bahnhöfe')],
+    T('wochenmarkt', 'Wochenmarkt'), T('kinderkleidung', 'Kinderkleidung'), T('spielzeug', 'Spielzeug'), T('buecher', 'Bücher'), T('secondhand', 'Secondhand')],
+  familie: [T('familienzentrum', 'Familienzentren'), T('elternschule', 'Elternschulen'), T('beratung', 'Beratung'), T('kita', 'Kitas'), T('schule', 'Schulen')],
+  mobil: [T('haltestelle', 'Haltestellen'), T('bahnhof', 'Bahnhöfe'), T('aufzug', 'Aufzüge')],
   kurse: [T('aud:kinder', 'Für Kinder'), T('aud:erwachsene', 'Für Erwachsene'), T('krabbelgruppe', 'Krabbel- & Spielgruppe'), T('pekip', 'PEKiP & Bewegung'),
     T('musik', 'Musik'), T('schwimmen', 'Babyschwimmen'), T('babymassage', 'Babymassage'), T('kreativ', 'Kreativ'), T('spiele', 'Spielen & Medien'),
     T('eltern_cafe', 'Eltern-Café'), T('geburtsvorbereitung', 'Geburtsvorbereitung'), T('rueckbildung', 'Rückbildung'), T('erste_hilfe', 'Erste Hilfe'), T('beratung', 'Beratung')],
@@ -96,7 +96,7 @@ const TAG_LABEL = {};
 for (const list of Object.values(TAGS)) for (const t of list) TAG_LABEL[t.id] = TAG_LABEL[t.id] || t.label;
 TAG_LABEL.drinnen = 'Drinnen'; TAG_LABEL.draussen = 'Draußen'; TAG_LABEL.groessere = 'Eher für Größere';
 const IO_GROUPS = ['tipps', 'spielen', 'gastro', 'entdecken'];
-const CAT_ICON = { museum: 'museum', kultur: 'museum', buecherei: 'museum', baden: 'waves', hundeauslauf: 'paw', kita: 'blocks', wc: 'toilet', apotheke: 'pill' };
+const CAT_ICON = { museum: 'museum', kultur: 'museum', buecherei: 'museum', baden: 'waves', hundeauslauf: 'paw', kita: 'blocks', schule: 'blocks', wc: 'toilet', apotheke: 'pill' };
 const CAT_LABEL = {
   spielplatz: 'Spielplatz', indoor: 'Drinnen spielen', spielhaus: 'Spielhaus', freizeit: 'Freizeit', cafe: 'Café',
   restaurant: 'Restaurant', imbiss: 'Imbiss', eis: 'Eis', windeln: 'Drogerie / Supermarkt / Späti', laden: 'Laden',
@@ -105,6 +105,7 @@ const CAT_LABEL = {
   kultur: 'Kultur', ausflug: 'Ausflugsziel', buecherei: 'Bücherhalle', baden: 'Baden', park: 'Park', picknick: 'Picknickplatz',
   grillplatz: 'Grillplatz', trinkwasser: 'Trinkwasser', hundeauslauf: 'Hundeauslaufzone', treffpunkt: 'Familienzentrum / Treffpunkt',
   beratung: 'Beratung', kita: 'Kita', aufzug: 'Aufzug', bahnhof: 'Bahnhof',
+  spielstrasse: 'Spielstraße (verkehrsberuhigt)', bolzplatz: 'Ballspielfeld', wochenmarkt: 'Wochenmarkt', schule: 'Schule', haltestelle: 'Haltestelle',
   kurs: 'Elternschule / Familienzentrum', geburtshaus: 'Geburtshaus', abenteuer: 'Abenteuer- / Bauspielplatz',
 };
 const GROUP_OF = {};
@@ -129,13 +130,20 @@ const ATTRS = [
   { id: 'toilette', label: 'Toilette', keys: ['toilets'], groups: ['gastro', 'entdecken', 'spielen', 'laeden'], q: 'Gibt es eine Toilette?' },
   { id: 'drinnen', label: 'Drinnen', keys: ['indoor'], groups: ['spielen', 'entdecken', 'familie'], q: 'Ist es drinnen oder überdacht?' },
   { id: 'hund', label: 'Hunde erlaubt', keys: ['dog'], q: 'Sind Hunde erlaubt?' },
+  { id: 'hst_nahe', label: 'Haltestelle in der Nähe', keys: ['stop_near'], groups: ['spielen', 'gastro', 'entdecken', 'gesundheit', 'familie'] },
+  { id: 'baenke', label: 'Sitzbänke', keys: ['bench_count'], count: 1, groups: ['spielen', 'entdecken'] },
+  { id: 'trinkwasser', label: 'Trinkwasser', keys: ['drinking_water'], groups: ['spielen', 'entdecken', 'gastro', 'sanitaer'] },
+  { id: 'babyccino', label: 'Babyccino', keys: ['babyccino'], groups: ['gastro'] },
+  { id: 'kinder_wc', label: 'Kindertoilette', keys: ['toilets_children'], groups: INDOOR },
   { id: 'kostenlos', label: 'Kostenlos', keys: ['fee'], invert: true, groups: ['spielen', 'entdecken', 'sanitaer', 'familie'], q: 'Ist es kostenlos?' },
 ];
 const ATTR = Object.fromEntries(ATTRS.map(a => [a.id, a]));
 function normValue(attr, v) {
   if (v == null || v === '') return null;
   if (attr.id === 'hund') return /yes|leashed|outside|offleash/.test(v) ? 'yes' : v === 'no' ? 'no' : null;
-  if (attr.id === 'wc_nahe') return 'yes';
+  if (attr.id === 'wc_nahe' || attr.id === 'hst_nahe') return 'yes';
+  if (attr.count) return +v > 0 ? 'yes' : null;
+  if (attr.id === 'trinkwasser') return v === 'no' ? 'no' : 'yes';
   if (attr.invert) { const t = truthy(v); return t === 'yes' ? 'no' : t === 'no' ? 'yes' : null; }
   return truthy(v);
 }
@@ -149,20 +157,8 @@ const GEAR = [
   { id: 'trampolin', label: 'Trampolin', re: /trampoline/ },
 ];
 const TIME_FILTERS = [{ id: 'jetzt', label: 'Jetzt offen' }, { id: 'sonntag', label: 'Sonntags offen' }];
-const FILTER_LABEL = Object.fromEntries([...TIME_FILTERS, ...ATTRS, ...GEAR].map(f => [f.id, f.label]));
-const GROUP_FILTERS = {
-  spielen: ['kleinkind', 'schatten', 'eingezaeunt', 'wc_nahe', 'kostenlos'],
-  gastro: ['jetzt', 'hochstuhl', 'wickeltisch', 'spielecke', 'hund'],
-  entdecken: ['jetzt', 'kostenlos', 'kinderwagen', 'wickeltisch', 'hund'],
-  gesundheit: ['jetzt', 'sonntag', 'kinderwagen'],
-  sanitaer: ['jetzt', 'kostenlos'],
-  laeden: ['jetzt', 'sonntag', 'windeln'],
-  familie: ['jetzt', 'kostenlos'],
-  mobil: ['kinderwagen'],
-  tipps: ['jetzt', 'kostenlos', 'wickeltisch'],
-  kurse: [], events: [],
-  _: ['jetzt', 'wickeltisch', 'kinderwagen', 'hund'],
-};
+const AGE_FILTERS = [{ id: 'age_fit', label: 'Passt zu unseren Kindern', family: 1 }, { id: 'age_0', label: '0–3 Jahre', from: 0, to: 36 }, { id: 'age_3', label: '3–6 Jahre', from: 36, to: 84 }, { id: 'age_6', label: 'ab 6 Jahre', from: 72, to: 216 }];
+const FILTER_LABEL = Object.fromEntries([...TIME_FILTERS, ...ATTRS, ...GEAR, ...AGE_FILTERS].map(f => [f.id, f.label]));
 const AGES = [{ id: '0-2', label: '0–2 Jahre' }, { id: '3-6', label: '3–6 Jahre' }, { id: '7+', label: 'ab 7 Jahre' }];
 const PRESETS = [
   { id: 'windeln-jetzt', label: 'Jetzt Windeln kaufen', icon: 'bag', groups: ['laeden'], cats: ['apotheke'], filters: ['jetzt'] },
@@ -174,6 +170,8 @@ const PRESETS = [
   { id: 'kindercafe', label: 'Kindercafé', icon: 'cup', groups: ['gastro'], tags: ['kindercafe'], filters: [] },
   { id: 'kleinkind', label: 'Spielplatz für die Kleinen', icon: 'playground', groups: ['spielen'], tags: ['spielplatz'], filters: ['kleinkind'] },
   { id: 'wasser', label: 'Wasserspielplatz', icon: 'waves', groups: ['spielen'], tags: ['wasserspiel'], filters: [] },
+  { id: 'hitze', label: 'Es ist heiß: Baden und Wasser', icon: 'waves', groups: ['spielen', 'entdecken'], tags: ['wasserspiel', 'baden'], filters: [] },
+  { id: 'refill', label: 'Wasserflasche auffüllen', icon: 'cup', groups: ['sanitaer'], tags: ['trinkwasser'], filters: [] },
   { id: 'cafe-hund', label: 'Café mit Kind und Hund', icon: 'cup', groups: ['gastro'], tags: ['cafe'], filters: ['hund'] },
   { id: 'hund', label: 'Hund darf rennen', icon: 'paw', groups: ['entdecken'], tags: ['hundeauslauf'], filters: [] },
 ];
@@ -187,6 +185,7 @@ function parseOH(s) {
   if (s === '24/7') return { always: true };
   const week = Array(7).fill(null);
   const spill = Array(7).fill(null).map(() => []);
+  let ph;
   const rules = s.split(/;|,\s+(?=[A-Z][a-z])/).map(r => r.trim()).filter(Boolean);
   for (const rule of rules) {
     let days, times;
@@ -195,15 +194,15 @@ function parseOH(s) {
     else if (/^\d/.test(rule) || /^(off|closed)$/.test(rule)) { days = 'Mo-Su'; times = rule; }
     else return null;
     const idx = [];
-    let onlyHolidays = true;
+    let onlyHolidays = true, hasPh = false;
     for (const part of days.split(/\s*,\s*/)) {
+      if (part === 'PH') hasPh = true;
       if (part === 'PH' || part === 'SH') continue;
       onlyHolidays = false;
       const [a, b] = part.split('-');
       const i = DAYS.indexOf(a), j = b ? DAYS.indexOf(b) : i;
       for (let k = i; ; k = (k + 1) % 7) { idx.push(k); if (k === j) break; }
     }
-    if (onlyHolidays) continue;
     let ranges = [];
     const ownSpill = [];
     if (!times || /^(off|closed)$/.test(times)) ranges = times ? [] : [[0, 1440]];
@@ -217,17 +216,39 @@ function parseOH(s) {
         ranges.push([from, to]);
       }
     }
+    if (hasPh) ph = ranges;
+    if (onlyHolidays) continue;
     for (const d of idx) { week[d] = ranges; spill[(d + 1) % 7] = ownSpill; }
   }
   for (let d = 0; d < 7; d++) if (week[d] === null) week[d] = [];
-  return { week, spill };
+  return { week, spill, ph };
 }
 const dayIdx = date => (date.getDay() + 6) % 7;
+const localYmd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+// Public holidays in Hamburg, computed per year.
+const holidayCache = {};
+function holidays(y) {
+  if (holidayCache[y]) return holidayCache[y];
+  const a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const mon = Math.floor((h + l - 7 * m + 114) / 31), day = ((h + l - 7 * m + 114) % 31) + 1;
+  const ea = n => localYmd(new Date(y, mon - 1, day + n));
+  return holidayCache[y] = { [`${y}-01-01`]: 'Neujahr', [ea(-2)]: 'Karfreitag', [ea(1)]: 'Ostermontag', [`${y}-05-01`]: 'Tag der Arbeit', [ea(39)]: 'Christi Himmelfahrt',
+    [ea(50)]: 'Pfingstmontag', [`${y}-10-03`]: 'Tag der Deutschen Einheit', [`${y}-10-31`]: 'Reformationstag', [`${y}-12-25`]: '1. Weihnachtstag', [`${y}-12-26`]: '2. Weihnachtstag' };
+}
+const holidayName = date => holidays(date.getFullYear())[localYmd(date)] || null;
+// School holidays in Hamburg, from the official Ferienordnung 2024/25 to 2029/30 (hamburg.de).
+const SCHOOL_HOLIDAYS = [['2026-10-19', '2026-10-30', 'Herbstferien'], ['2026-12-21', '2027-01-01', 'Weihnachtsferien'], ['2027-01-29', '2027-01-29', 'Halbjahrespause'], ['2027-03-01', '2027-03-12', 'Frühjahrsferien'], ['2027-05-07', '2027-05-14', 'Maiferien'], ['2027-07-01', '2027-08-11', 'Sommerferien'],
+  ['2027-10-11', '2027-10-22', 'Herbstferien'], ['2027-12-20', '2027-12-31', 'Weihnachtsferien'], ['2028-01-28', '2028-01-28', 'Halbjahrespause'], ['2028-03-06', '2028-03-17', 'Frühjahrsferien'], ['2028-05-22', '2028-05-26', 'Maiferien'], ['2028-07-03', '2028-08-11', 'Sommerferien'],
+  ['2028-10-02', '2028-10-13', 'Herbstferien'], ['2028-12-18', '2028-12-29', 'Weihnachtsferien'], ['2029-02-02', '2029-02-02', 'Halbjahrespause'], ['2029-03-05', '2029-03-16', 'Frühjahrsferien'], ['2029-05-11', '2029-05-18', 'Maiferien'], ['2029-07-02', '2029-08-10', 'Sommerferien']];
+const schoolHoliday = date => { const k = localYmd(date); return SCHOOL_HOLIDAYS.find(([a, b]) => a <= k && k <= b)?.[2] || null; };
+// Opening times of a day: on a public holiday the PH rule, otherwise treated like a Sunday.
+const dayRanges = (oh, date) => holidayName(date) ? (oh.ph ?? oh.week[6]) : oh.week[dayIdx(date)];
 function isOpen(oh, date = new Date()) {
   if (!oh) return null;
   if (oh.always) return true;
   const d = dayIdx(date), min = date.getHours() * 60 + date.getMinutes();
-  return oh.week[d].some(([a, b]) => min >= a && min < b) || oh.spill[d].some(([a, b]) => min >= a && min < b);
+  return dayRanges(oh, date).some(([a, b]) => min >= a && min < b) || oh.spill[d].some(([a, b]) => min >= a && min < b);
 }
 const opensSunday = oh => !oh ? null : oh.always ? true : oh.week[6].length > 0;
 const fmtMin = m => m === 1440 ? '24:00' : String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
@@ -236,10 +257,11 @@ function openText(p) {
   const oh = p.oh; if (!oh) return '';
   if (oh.always) return '<span class="open">24 Stunden offen</span>';
   const now = new Date(), d = dayIdx(now), min = now.getHours() * 60 + now.getMinutes();
-  const cur = oh.week[d].find(([a, b]) => min >= a && min < b) || oh.spill[d].find(([a, b]) => min >= a && min < b);
+  const today = dayRanges(oh, now), hol = holidayName(now);
+  const cur = today.find(([a, b]) => min >= a && min < b) || oh.spill[d].find(([a, b]) => min >= a && min < b);
   if (cur) return `<span class="open">Offen bis ${fmtMin(cur[1] === 1440 && oh.spill[(d + 1) % 7][0] ? oh.spill[(d + 1) % 7][0][1] : cur[1])}</span>`;
-  const next = oh.week[d].find(([a]) => a > min);
-  return next ? `<span class="closed">Öffnet um ${fmtMin(next[0])}</span>` : '<span class="closed">Heute geschlossen</span>';
+  const next = today.find(([a]) => a > min);
+  return next ? `<span class="closed">Öffnet um ${fmtMin(next[0])}</span>` : `<span class="closed">Heute geschlossen${hol ? ' (Feiertag)' : ''}</span>`;
 }
 
 // ---------- Local store (server-ready shape) ----------
@@ -317,7 +339,22 @@ function attrVal(p, id) {
   if (ua.length) return { ...base, v: ua[0].v, src: 'Nutzer', method: 'user', confirmations: ua };
   return base;
 }
+// Age span of a place in months, from the data: [[from, to], ...], or null when unknown.
+function agesOf(p) {
+  const f = p.f, out = [];
+  if (f.age_groups) for (const r of f.age_groups[0].split(',')) { const m = r.match(/(\d+)\D+(\d+)/); if (m) out.push([+m[1] * 12, +m[2] * 12]); }
+  if (f.min_age || f.max_age) out.push([(parseInt(f.min_age?.[0]) || 0) * 12, (parseInt(f.max_age?.[0]) || 18) * 12]);
+  if (f.for_baby || f.for_toddler) out.push([0, 36]);
+  return out.length ? out : null;
+}
+function ageFilter(p, id) {
+  const spans = agesOf(p); if (!spans) return null;
+  if (id === 'age_fit') { const kids = familyAges(); return kids.length ? kids.some(k => spans.some(([a, b]) => k.months >= a && k.months < b)) : null; }
+  const a = AGE_FILTERS.find(x => x.id === id);
+  return spans.some(([x, y]) => x < a.to && y > a.from);
+}
 function filterVal(p, f) {
+  if (f.startsWith('age_')) return ageFilter(p, f);
   if (f === 'jetzt') return isOpen(p.oh);
   if (f === 'sonntag') return opensSunday(p.oh);
   const v = attrVal(p, f).v;
@@ -424,11 +461,39 @@ function offerItem(o, nd) {
 // ---------- Map ----------
 const map = L.map('map', { zoomControl: false, minZoom: 10, maxZoom: 19, maxBounds: [[53.25, 9.55], [53.85, 10.45]] }).setView([53.5600, 9.9800], 13);
 // Simplified, Google-like vector basemap from OpenFreeMap (free, no key). Always the light style (dark was too dark).
-const STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty';
-const styleUrl = () => STYLE_URL;
-const baseOpts = { attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · <a href="https://openfreemap.org">OpenFreeMap</a> · Quellen je Ort' };
-L.maplibreGL({ style: styleUrl(), ...baseOpts }).addTo(map);
-map.attributionControl.setPosition('bottomleft').setPrefix(false);
+// Free basemaps without an API key. Vector styles load by URL, raster tiles through a small style object.
+const OSM_C = '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+const OFM = id => ({ url: `https://tiles.openfreemap.org/styles/${id}`, attr: `${OSM_C} · <a href="https://openfreemap.org">OpenFreeMap</a>` });
+const VT = id => ({ url: `https://tiles.versatiles.org/assets/styles/${id}/style.json`, attr: `${OSM_C} · <a href="https://versatiles.org">VersaTiles</a>` });
+const BM = id => ({ url: `https://sgx.geodatenzentrum.de/gdz_basemapde_vektor/styles/${id}.json`, attr: `© GeoBasis-DE / <a href="https://www.bkg.bund.de">BKG</a> (${new Date().getFullYear()}) <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>` });
+const RT = (tiles, maxzoom, attr) => ({ raster: { tiles, maxzoom }, attr });
+const MAP_STYLES = [
+  { sec: 'Für jeden Tag' },
+  { id: 'liberty', label: 'Standard', ...OFM('liberty') }, { id: 'bright', label: 'Kräftig', ...OFM('bright') }, { id: 'positron', label: 'Sehr ruhig', ...OFM('positron') },
+  { id: 'colorful', label: 'Bunt', ...VT('colorful') }, { id: 'natural', label: 'Natur', ...VT('natural') }, { id: 'muted', label: 'Gedämpft', ...VT('muted') }, { id: 'gray', label: 'Grau', ...VT('gray') },
+  { sec: 'Amtliche Karte' },
+  { id: 'bm_col', label: 'basemap.de Farbe', ...BM('bm_web_col') }, { id: 'bm_top', label: 'basemap.de Relief', ...BM('bm_web_top') }, { id: 'bm_gry', label: 'basemap.de Grau', ...BM('bm_web_gry') },
+  { sec: 'Klassisch und speziell' },
+  { id: 'osm', label: 'OpenStreetMap', ...RT(['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], 19, OSM_C) },
+  { id: 'hot', label: 'Humanitär', ...RT(['https://a.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', 'https://b.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png'], 19, `${OSM_C} · Stil: <a href="https://www.hotosm.org">HOT</a>`) },
+  { id: 'cyclosm', label: 'Fahrrad', ...RT(['https://a.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png', 'https://b.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png'], 19, `${OSM_C} · Stil: <a href="https://www.cyclosm.org">CyclOSM</a>`) },
+  { id: 'topo', label: 'Topografisch', ...RT(['https://a.tile.opentopomap.org/{z}/{x}/{y}.png', 'https://b.tile.opentopomap.org/{z}/{x}/{y}.png'], 17, `${OSM_C}, SRTM · Stil: © <a href="https://opentopomap.org">OpenTopoMap</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC BY-SA</a>)`) },
+  { id: 'toner', label: 'Schwarz-Weiß', ...VT('toner') },
+  { id: 'satellite', label: 'Satellit', url: 'https://tiles.versatiles.org/assets/styles/satellite/style.json', attr: `${OSM_C} · <a href="https://versatiles.org/sources/">VersaTiles-Quellen</a>` },
+  { sec: 'Dunkel' },
+  { id: 'colorful-dark', label: 'Bunt dunkel', ...VT('colorful-dark') }, { id: 'gray-dark', label: 'Grau dunkel', ...VT('gray-dark') }, { id: 'fiord', label: 'Blaugrau', ...OFM('fiord') }, { id: 'dark', label: 'Dunkel', ...OFM('dark') },
+];
+const mapStyle = () => MAP_STYLES.find(m => m.id && m.id === store.mapStyle) || MAP_STYLES[1];
+const styleUrl = (m = mapStyle()) => m.url || ({ version: 8, sources: { r: { type: 'raster', tiles: m.raster.tiles, tileSize: 256, maxzoom: m.raster.maxzoom } }, layers: [{ id: 'r', type: 'raster', source: 'r' }] });
+const attrText = m => `${m.attr} · Quellen je Ort`;
+const baseLayer = L.maplibreGL({ style: styleUrl() }).addTo(map);
+map.attributionControl.setPosition('bottomleft').setPrefix(false).addAttribution(attrText(mapStyle()));
+function setMapStyle(id) {
+  const old = mapStyle();
+  store.mapStyle = id; save();
+  map.attributionControl.removeAttribution(attrText(old)).addAttribution(attrText(mapStyle()));
+  baseLayer.getMaplibreMap().setStyle(styleUrl(), { diff: false });
+}
 const cluster = L.markerClusterGroup({
   // group markers only when the whole city is in view; from district level on every place is its own (smaller) dot
   chunkedLoading: true, showCoverageOnHover: false, disableClusteringAtZoom: 13, spiderfyOnMaxZoom: false,
@@ -451,6 +516,25 @@ function markerFor(p, unknown, og) {
   if (!p.marker) { p.marker = L.marker([p.lat, p.lon]); p.marker.on('click', () => showPlace(p.id, true)); }
   p.marker.setIcon(iconFor(p, unknown, og));
   return p.marker;
+}
+const WX_LABEL = { dry: '', fog: 'Nebel', rain: 'Regen', sleet: 'Schneeregen', snow: 'Schnee', hail: 'Hagel', thunderstorm: 'Gewitter' };
+let WX = null;
+async function loadWeather() {
+  try {
+    const r = await fetch('https://api.brightsky.dev/current_weather?lat=53.55&lon=10.0', { referrerPolicy: 'no-referrer', credentials: 'omit' });
+    if (!r.ok) return;
+    const w = (await r.json()).weather;
+    WX = { temp: Math.round(w.temperature), cond: w.condition };
+    if (view().type === 'list') renderPanel();
+  } catch (e) { /* weather is optional */ }
+}
+function wxHtml() {
+  if (!WX) return '';
+  const wet = ['rain', 'sleet', 'snow', 'hail', 'thunderstorm'].includes(WX.cond), hot = WX.temp >= 26;
+  const label = `${WX.temp}°${WX_LABEL[WX.cond] ? ' ' + WX_LABEL[WX.cond] : ''}`;
+  if (wet) return `<button type="button" class="tool wx${state.io === 'drinnen' ? ' on' : ''}" data-wx="rain"><span>${esc(label)} · Drinnen zeigen</span></button>`;
+  if (hot) return `<button type="button" class="tool wx" data-wx="hot"><span>${esc(label)} · Wasser zeigen</span></button>`;
+  return `<span class="tool wx plain"><span>${esc(label)}</span></span>`;
 }
 let meMarker = null;
 map.on('click', e => {
@@ -622,7 +706,7 @@ function toolsHtml(withFilter = true) {
   const active = (state.io ? [`<button type="button" class="chip on" data-io="${state.io}">${esc(TAG_LABEL[state.io])} ${svg('close')}</button>`] : [])
     .concat([...state.filters].map(id => `<button type="button" class="chip on" data-filter="${id}">${esc(FILTER_LABEL[id])} ${svg('close')}</button>`));
   return `<div class="tools"><button type="button" class="tool${state.area.type !== 'all' ? ' on' : ''}" data-open="area">${svg('pin')}<span>${esc(areaLabel())}</span></button>
-    ${withFilter ? `<button type="button" class="tool${nf_ ? ' on' : ''}" data-open="filters">${svg('filter')}<span>Filter${nf_ ? ' · ' + nf_ : ''}</span></button>` : ''}</div>
+    ${withFilter ? `<button type="button" class="tool${nf_ ? ' on' : ''}" data-open="filters">${svg('filter')}<span>Filter${nf_ ? ' · ' + nf_ : ''}</span></button>` : ''}${wxHtml()}</div>
     ${withFilter && active.length ? `<div class="active">${active.join('')}</div>` : ''}`;
 }
 
@@ -727,6 +811,8 @@ function cardView(id) {
       <button type="button" class="btn${fav ? ' on' : ''}" data-fav="${id}" aria-label="${fav ? 'Favorit' : 'Merken'}">${svg('heart')}</button>
       <button type="button" class="btn" data-detail="${id}">Details</button></div>`;
 }
+const CUISINE = { italian: 'Italienisch', pizza: 'Pizza', pasta: 'Pasta', asian: 'Asiatisch', german: 'Deutsch', regional: 'Regional', kebab: 'Döner', burger: 'Burger', sushi: 'Sushi', vietnamese: 'Vietnamesisch', greek: 'Griechisch', turkish: 'Türkisch', indian: 'Indisch', chinese: 'Chinesisch', japanese: 'Japanisch', korean: 'Koreanisch', thai: 'Thailändisch', coffee_shop: 'Kaffee', cake: 'Kuchen', ice_cream: 'Eis', sandwich: 'Sandwiches', fish: 'Fisch', seafood: 'Meeresfrüchte', portuguese: 'Portugiesisch', french: 'Französisch', spanish: 'Spanisch', mexican: 'Mexikanisch', international: 'International', breakfast: 'Frühstück', steak_house: 'Steak', salad: 'Salat', mediterranean: 'Mediterran', american: 'Amerikanisch', arab: 'Arabisch', persian: 'Persisch', bagel: 'Bagels', crepe: 'Crêpes', tapas: 'Tapas' };
+const cuisineText = v => (v || '').split(';').map(c => CUISINE[c.trim().toLowerCase()]).filter(Boolean).join(', ');
 async function photoTags(ids) {
   const out = [];
   for (const id of ids || []) { try { const d = await photoDB.get(id); if (d) out.push(`<img src="${d}" alt="Foto von Nutzer" loading="lazy">`); } catch (e) { /* ignore */ } }
@@ -743,7 +829,9 @@ async function detailView(id) {
   const avg = reviews.filter(r => r.stars).length ? (reviews.reduce((s, r) => s + (r.stars || 0), 0) / reviews.filter(r => r.stars).length).toFixed(1).replace('.', ',') : null;
   const ages = [...new Set(store.contributions.filter(c => c.placeId === id).flatMap(c => c.ages || []))];
   const addr = f.address?.[0] || [f.street?.[0], f.housenumber?.[0]].filter(Boolean).join(' ');
-  const web = f.website?.[0];
+  const webRaw = f.website?.[0], web = webRaw && /^(https?:\/\/|www\.)\S+$|^\S+\.[a-z]{2,}(\/\S*)?$/i.test(webRaw) ? webRaw : null;
+  const cm = (f.image?.[0] || '').match(/commons(?:\.m)?\.wikimedia\.org\/wiki\/(?:Special:FilePath\/|File:)(.+)$/i) || (f.image?.[0] || '').match(/^File:(.+)$/);
+  const stars = f.rating ? Math.round(+f.rating[0] / 2) / 10 : null;
   const photos = await photoTags(store.contributions.filter(c => c.placeId === id).flatMap(c => c.photoIds || []).concat(reviews.flatMap(r => r.photoIds || [])));
   const extra = [
     f.description && esc(f.description[0]),
@@ -752,6 +840,14 @@ async function detailView(id) {
     f.age_groups && `<b>Für Altersgruppen:</b> ${esc(f.age_groups[0])} Jahre`,
     f.care_types && `Betreuung: ${esc(f.care_types[0])}`,
     f.services && esc(f.services[0]).slice(0, 280),
+    f.transit && p.cat === 'haltestelle' && `<b>Linien:</b> ${esc(f.transit[0])}`,
+    f.stop_near && `Nächste Haltestelle: ${esc(f.stop_near[0].split('|')[1])} (${esc(f.stop_near[0].split('|')[0])} m)`,
+    f.season && `<b>Saison:</b> ${esc(f.season[0])}`,
+    f.fee_text && `<b>Preis:</b> ${esc(f.fee_text[0])}`,
+    cuisineText(f.cuisine?.[0]) && `<b>Küche:</b> ${esc(cuisineText(f.cuisine[0]))}`,
+    f.device_count && +f.device_count[0] > 1 && `${esc(f.device_count[0])} Spielgeräte`,
+    f.area_ha && +f.area_ha[0] >= 1 && `Größe: ${esc(String(Math.round(+f.area_ha[0] * 10) / 10).replace('.', ','))} Hektar`,
+    f.operator && p.cat !== 'aufzug' && `<span class="muted">Betreiber: ${esc(f.operator[0])}</span>`,
   ].filter(Boolean);
   const today = dayIdx(new Date());
   const factChip = ([a, r]) => `<span class="fact${r.v === 'no' ? ' no' : r.v === 'limited' ? ' lim' : ''}">${r.v === 'no' ? '' : svg('check')}${esc(a.label)}${r.v === 'limited' ? ' (eingeschränkt)' : ''}</span>`;
@@ -771,6 +867,8 @@ async function detailView(id) {
     </div>
     ${f.tipp ? `<div class="tipbanner">${svg('star')}<div><b>Djuu-Tipp</b>${esc(f.tipp[0])}</div></div>` : ''}
     ${p.cat === 'kurs' && !offersByPlace.has(id) ? `<p class="note">Für diesen Ort haben wir noch keine Kurszeiten. Schau auf die Webseite.</p>` : ''}
+    ${cm ? `<figure class="heroimg"><img src="https://commons.wikimedia.org/wiki/Special:FilePath/${esc(cm[1])}?width=640" alt="" loading="lazy" onerror="this.parentNode.remove()"><figcaption><a href="https://commons.wikimedia.org/wiki/File:${esc(cm[1])}" target="_blank" rel="noopener">Foto und Lizenz: Wikimedia Commons</a></figcaption></figure>` : ''}
+    ${stars ? `<div class="sec"><h4>Bewertung</h4><p class="text"><b class="stars-read">★ ${String(stars).replace('.', ',')}</b> von 5${f.review_text ? `</p><p class="text">„${esc(f.review_text[0].slice(0, 280))}“` : ''}</p><p class="note">Von Nutzern über Mangrove, einer offenen Bewertungsplattform.</p></div>` : ''}
     ${photos ? `<div class="photos" style="margin-top:12px">${photos}</div>` : ''}
     <div class="sec"><h4>Auf einen Blick</h4>
       ${known.length || p.gear || ages.length || p.tags.size ? `<div class="facts">${known.map(factChip).join('')}
@@ -785,7 +883,7 @@ async function detailView(id) {
       ${f.phone ? `<p class="text">Telefon: <span style="user-select:all">${esc(f.phone[0])}</span></p>` : ''}
       ${web ? `<p class="text"><a href="${esc(web.startsWith('http') ? web : 'https://' + web)}" target="_blank" rel="noopener">Webseite öffnen</a></p>` : ''}</div>` : ''}
     ${p.hoursRaw ? `<details class="fold"><summary>Öffnungszeiten</summary>${!p.oh ? `<p>${esc(p.hoursRaw)}</p>` : p.oh.always ? '<p>Rund um die Uhr</p>' :
-      '<table class="hours">' + p.oh.week.map((r, i) => `<tr class="${i === today ? 'today' : ''}"><td>${DAY_DE[i]}</td><td>${r.length ? r.map(([a, b]) => fmtMin(a) + '–' + fmtMin(b)).join(', ') : 'geschlossen'}</td></tr>`).join('') + '</table><p class="note">Feiertage noch nicht berücksichtigt.</p>'}</details>` : ''}
+      '<table class="hours">' + p.oh.week.map((r, i) => `<tr class="${i === today ? 'today' : ''}"><td>${DAY_DE[i]}</td><td>${r.length ? r.map(([a, b]) => fmtMin(a) + '–' + fmtMin(b)).join(', ') : 'geschlossen'}</td></tr>`).join('') + '</table>' + (p.oh.ph ? `<p class="note">An Feiertagen: ${p.oh.ph.length ? p.oh.ph.map(([a, b]) => fmtMin(a) + '–' + fmtMin(b)).join(', ') : 'geschlossen'}</p>` : '<p class="note">An Feiertagen wie sonntags, soweit nichts anderes bekannt ist.</p>')}</details>` : ''}
     <details class="fold"${reviews.length ? ' open' : ''}><summary>Bewertungen${reviews.length ? ` (${reviews.length})` : ''}</summary>
       <div style="margin-top:8px">${reviews.length ? '' : '<p class="muted text">Noch keine Bewertung.</p>'}
       ${(await Promise.all(reviews.sort((a, b) => b.at - a.at).map(async r => `<div class="review">${r.stars ? `<b class="stars-read">${'★'.repeat(r.stars)}${'☆'.repeat(5 - r.stars)}</b> ` : ''}<span class="muted">${fmtDate(r.at)}</span>
@@ -842,13 +940,15 @@ function filtersView() {
   const first = [...state.groups][0];
   const fits = a => !a.groups || !state.groups.size || [...state.groups].some(g => a.groups.includes(g));
   const count = id => { let n = 0; for (const p of places) if (inSelection(p) && filterVal(p, id) === true) n++; return n; };
-  const block = (title, items) => items.length ? `<div class="sec"><h4>${title}</h4><div class="fgrid">${items.map(x => `<button type="button" class="chip${state.filters.has(x.id) ? ' on' : ''}" data-filter="${x.id}">${esc(x.label)} <span class="n">${nf.format(count(x.id))}</span></button>`).join('')}</div></div>` : '';
+  const relevant = items => items.filter(x => state.filters.has(x.id) || count(x.id) > 0);
+  const block = (title, all, items = relevant(all)) => items.length ? `<div class="sec"><h4>${title}</h4><div class="fgrid">${items.map(x => `<button type="button" class="chip${state.filters.has(x.id) ? ' on' : ''}" data-filter="${x.id}">${esc(x.label)} <span class="n">${nf.format(count(x.id))}</span></button>`).join('')}</div></div>` : '';
   const total = last.match.length + (state.showUnknown ? last.unknown.length : 0);
   return `${head('Filter', state.groups.size ? 'für ' + [...state.groups].map(g => GROUP[g].label).join(', ') : 'für alle Orte')}
     <p class="muted text">Die Zahl zeigt, wie viele Orte die Angabe sicher haben.</p>
     ${ioAllowed() ? `<div class="sec"><h4>Drinnen oder draußen</h4><div class="fgrid">${[['drinnen', 'house', 'Drinnen'], ['draussen', 'tree', 'Draußen']].map(([id, ic, l]) => `<button type="button" class="chip${state.io === id ? ' on' : ''}" data-io="${id}">${svg(ic)}${l}</button>`).join('')}</div></div>` : ''}
     ${block('Öffnungszeiten', TIME_FILTERS)}
-    ${block('Ausstattung', ATTRS.filter(fits))}
+    ${block('Ausstattung', ATTRS.filter(fits).sort((x, y) => store.profile.dogs > 0 ? (y.id === 'hund') - (x.id === 'hund') : 0))}
+    ${!state.groups.size || ['spielen', 'entdecken', 'familie'].some(g => state.groups.has(g)) ? block('Alter', AGE_FILTERS.filter(a => !a.family || hasFamily())) : ''}
     ${!state.groups.size || state.groups.has('spielen') ? block('Spielgeräte', GEAR) : ''}
     <label class="switch" for="unkSwitch">Orte ohne Angabe blass zeigen <input type="checkbox" id="unkSwitch" ${state.showUnknown ? 'checked' : ''}></label>
     <div class="sticky-bar"><button type="button" class="btn" data-reset="1">Zurücksetzen</button><button type="button" class="btn big primary" data-home="peek">${nf.format(total)} Orte zeigen</button></div>`;
@@ -968,6 +1068,7 @@ function eventsView() {
   return `${head('Termine', day ? 'am ' + day.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' }) : 'Gruppen, Kurse und Veranstaltungen in den nächsten 8 Wochen', false)}
     <div class="datepick"><label for="evDate">${svg('cal')}Datum</label><input id="evDate" type="date" value="${esc(v.date || '')}" min="${ymd(t)}">${v.date ? `<button type="button" class="round" data-evdateclear="1" aria-label="Datum zurücksetzen">${svg('close')}</button>` : ''}
       <button type="button" class="tool${state.area.type !== 'all' ? ' on' : ''}" data-open="area">${svg('pin')}<span>${esc(areaLabel())}</span></button></div>
+    ${schoolHoliday(day || t) ? `<p class="note" style="margin:0 0 10px">${esc(schoolHoliday(day || t))}: Viele Kurse pausieren, bitte beim Anbieter nachsehen.</p>` : ''}
     <div class="row" style="padding:0 0 10px;margin:0 -2px">${chips}</div>
     ${hasFamily() ? `<label class="switch" for="famSwitch" style="margin:0 0 10px">Nur passend für ${esc(kids.map(k => `${k.name} (${kidLabel(k.months)})`).join(', ') || 'unser Baby')} <input type="checkbox" id="famSwitch" ${fam ? 'checked' : ''}></label>`
       : `<button type="button" class="askcard" data-tab="me" style="width:100%;border:0;text-align:left"><div><b>Alter deiner Kinder eintragen</b><span>Dann zeigen wir nur Gruppen und Kurse, die passen.</span></div>${svg('back')}</button>`}
@@ -1005,7 +1106,11 @@ function savedView() {
       <div class="field"><label for="expecting">Baby unterwegs? Errechneter Termin (optional)</label><input id="expecting" type="date" value="${esc(pr.expecting || '')}" min="${ymd(today0())}"></div>
       <div class="field"><label for="dogs">Hunde in der Familie</label>
         <div class="stepper"><button type="button" data-dogs="-1" aria-label="Weniger">–</button><b id="dogsN">${pr.dogs || 0}</b><button type="button" data-dogs="1" aria-label="Mehr">+</button></div></div>
-      <p class="note">Wenn ihr einen Hund habt, zeigt Djuu „Hunde erlaubt“ immer direkt mit an.</p>
+      <p class="note">Wenn ihr einen Hund habt, steht „Hunde erlaubt“ im Filter gleich oben.</p>
+    </div>
+    <div class="sec"><h4>Kartenstil</h4>
+      ${MAP_STYLES.map(m => m.sec ? `<p class="stylesec">${esc(m.sec)}</p>` : `<button type="button" class="stylecard${mapStyle().id === m.id ? ' on' : ''}" data-mapstyle="${m.id}"><img src="icons/maps/${m.id}.jpg" alt="" loading="lazy" width="150" height="100"><span>${esc(m.label)}</span></button>`).join('')}
+      <p class="note">Alle Kartenstile sind kostenlos und brauchen kein Konto. Die Wetteranzeige stammt vom Deutschen Wetterdienst über Bright Sky.</p>
     </div>
 `;
 }
@@ -1264,6 +1369,8 @@ document.addEventListener('click', async e => {
   else if (ds.ef) { view().f = ds.ef; view().limit = 60; renderPanel(); }
   else if (ds.emore) { view().limit = (view().limit || 60) + 60; renderPanel(); }
   else if (ds.offerurl) window.open(ds.offerurl, '_blank', 'noopener');
+  else if (ds.mapstyle) { setMapStyle(ds.mapstyle); renderPanel(); toast(`Kartenstil: ${mapStyle().label}`); }
+  else if (ds.wx) { if (ds.wx === 'rain') { state.io = state.io === 'drinnen' ? null : 'drinnen'; state.preset = null; refresh(); } else { const pr = PRESETS.find(x => x.id === 'hitze'); state.preset = pr.id; state.groups = new Set(pr.groups); state.tags = new Set(pr.tags); state.cats.clear(); state.level = 1; refresh(); home(desktop() ? 'full' : 'peek'); } }
   else if (ds.addkid) { store.profile.kids.push({ name: '', ym: '' }); save(); renderPanel(); setTimeout(() => $('#kidYm' + (store.profile.kids.length - 1))?.focus(), 50); }
   else if (ds.delkid) { store.profile.kids.splice(+ds.delkid, 1); save(); renderPanel(); }
   else if (ds.dogs) { store.profile.dogs = Math.max(0, Math.min(9, (store.profile.dogs || 0) + +ds.dogs)); save(); $('#dogsN').textContent = store.profile.dogs; renderTop(); }
@@ -1327,6 +1434,7 @@ window.addEventListener('resize', () => setSize($('#panel').dataset.size));
 // ---------- Boot ----------
 setTab('map');
 setSize(desktop() ? 'full' : 'peek');
+loadWeather();
 renderTop();
 $('#panelBody').innerHTML = '<div class="ph"><h2>Lade Orte …</h2></div>';
 (async () => {
