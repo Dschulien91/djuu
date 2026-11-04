@@ -1,14 +1,16 @@
-/* Djuu v0.8 – family map for Hamburg.
-   Navigation: two modes (Erleben / Service), each with sub-categories; the row below shows only the tags of the
-   chosen sub-category (what). Where (Gebiet: all Hamburg, district, radius, drawn area) and how (filters incl.
-   Drinnen / Draußen) live in the panel header, so the top rows never mix the two. Default view: playgrounds.
-   Map first: search + category row on top, one panel (bottom sheet on phones, left column on desktop)
+/* Djuu v0.9 – family map for Hamburg.
+   The map owns the screen: one summary pill and one chip row float on top, the sheet starts as a slim bar.
+   The chip row shows one level at a time: categories, or the tags of the chosen category.
+   A tapped pin opens a small card; search lives in the bottom bar and in the pill. Default view: playgrounds.
+   Layout variants for comparison: ?ux=a (default), ?ux=b (controls at the bottom), ?ux=c (pill only).
    for list, place details, filters, urgent help, events, saved places and the add-place wizard.
    Data: data/places.json (db/export.py); every value carries its source.
    User input is stored on this device only until the server exists (server-ready shape, see STORE). */
 'use strict';
 
-const VERSION = '0.8';
+const VERSION = '0.9';
+const UX = ['a', 'b', 'c'].includes(new URLSearchParams(location.search).get('ux')) ? new URLSearchParams(location.search).get('ux') : 'a';
+document.documentElement.dataset.ux = UX;
 
 // ---------- Icons (24px line icons) ----------
 const ICON = {
@@ -274,7 +276,7 @@ async function compressPhoto(file) {
 }
 
 // ---------- State ----------
-const state = { mode: 'erleben', groups: new Set(['spielen']), cats: new Set(), tags: new Set(['spielplatz']), io: null, area: { type: 'all' }, picking: false, drawing: null, filters: new Set(), preset: null, showUnknown: false, q: '', tab: 'map', listLimit: 40, me: null, selected: null };
+const state = { mode: 'erleben', groups: new Set(['spielen']), cats: new Set(), tags: new Set(['spielplatz']), io: null, area: { type: 'all' }, picking: false, drawing: null, browsing: false, sq: '', filters: new Set(), preset: null, showUnknown: false, q: '', tab: 'map', listLimit: 40, me: null, selected: null };
 let SOURCES = [];
 const places = [];
 const byId = new Map();
@@ -429,6 +431,7 @@ const STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty';
 const styleUrl = () => STYLE_URL;
 const baseOpts = { attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · <a href="https://openfreemap.org">OpenFreeMap</a> · Quellen je Ort' };
 L.maplibreGL({ style: styleUrl(), ...baseOpts }).addTo(map);
+map.attributionControl.setPosition('bottomleft').setPrefix(false);
 const cluster = L.markerClusterGroup({
   // group markers only when the whole city is in view; from district level on every place is its own (smaller) dot
   chunkedLoading: true, showCoverageOnHover: false, disableClusteringAtZoom: 13, spiderfyOnMaxZoom: false,
@@ -456,6 +459,7 @@ let meMarker = null;
 map.on('click', e => {
   if (state.picking) { state.picking = false; setArea({ type: 'radius', r: state.area.type === 'radius' ? state.area.r : 1000, center: [e.latlng.lat, e.latlng.lng] }); stack = [{ type: 'list' }]; go({ type: 'area' }, 'half'); return; }
   if (state.drawing) { state.drawing.push([e.latlng.lat, e.latlng.lng]); drawArea(); renderPanel(); return; }
+  if (view().type === 'card') return home('peek');
   if (!desktop() && view().type === 'list') setSize('peek');
 });
 map.on('moveend', () => { if (view().type === 'list') renderPanel(); });
@@ -573,15 +577,30 @@ function refresh() {
 }
 
 // ---------- Top bar ----------
-function renderTop() {
-  const row = GROUPS.filter(g => g.mode === state.mode);
-  const extra = [...state.groups].map(id => GROUP[id]).filter(g => g.mode !== state.mode);
-  $('#cats').innerHTML = `<span class="modes" role="tablist">${MODES.map(m => `<button type="button" role="tab" aria-selected="${state.mode === m.id}" class="${state.mode === m.id ? 'on' : ''}" data-mode="${m.id}">${m.label}</button>`).join('')}</span>` +
-    extra.concat(row).map(g =>
-      `<button type="button" class="cat${state.groups.has(g.id) ? ' on' : ''}" data-group="${g.id}" style="--c:${g.color}"><span class="ic">${svg(g.icon, '')}</span>${esc(g.short)}</button>`).join('');
+function topTitle() {
+  if (state.q) return `„${state.q}“`;
+  if (state.preset) return PRESETS.find(x => x.id === state.preset).label;
   const g = soleGroup();
-  const tagChips = g && TAGS[g.id] ? tagCounts(g).map(([t]) => `<button type="button" class="chip tag${state.tags.has(t.id) ? ' on' : ''}" data-tag="${t.id}" style="--c:${g.color}">${state.tags.has(t.id) ? svg('check') : ''}${esc(t.label)}</button>`).join('') : '';
-  $('#ctx').innerHTML = (state.q ? `<button type="button" class="chip on" data-clearq="1">„${esc(state.q)}“ ${svg('close')}</button>` : '') + tagChips;
+  if (g) return state.tags.size ? [...state.tags].map(t => TAG_LABEL[t] || t).join(', ') : g.label;
+  return state.groups.size ? 'Mehrere Kategorien' : 'Alle Orte';
+}
+// One level at a time: the categories of a mode, or the tags of the chosen category.
+function rowHtml() {
+  const g = soleGroup();
+  const q = state.q ? `<button type="button" class="chip on" data-clearq="1">„${esc(state.q)}“ ${svg('close')}</button>` : '';
+  if (g && !state.browsing && TAGS[g.id]) return q + `<button type="button" class="chip up" data-browse="1" style="--c:${g.color}" aria-label="Andere Kategorie wählen">${svg('back')}<span class="ic">${svg(g.icon, '')}</span>${esc(g.short)}</button>` +
+    tagCounts(g).map(([t]) => `<button type="button" class="chip tag${state.tags.has(t.id) ? ' on' : ''}" data-tag="${t.id}">${esc(t.label)}</button>`).join('');
+  const other = MODES.find(m => m.id !== state.mode);
+  return q + GROUPS.filter(x => x.mode === state.mode).map(x => `<button type="button" class="chip kat${state.groups.has(x.id) ? ' on' : ''}" data-group="${x.id}" style="--c:${x.color}"><span class="ic">${svg(x.icon, '')}</span>${esc(x.short)}</button>`).join('') +
+    `<button type="button" class="chip" data-mode="${other.id}">${other.label} ›</button>`;
+}
+function renderTop() {
+  const g = soleGroup(), nf_ = state.filters.size + (state.io ? 1 : 0), n = last.match.length;
+  $('#pill').innerHTML = `<span class="brand" aria-hidden="true">dj</span><span class="ptext"><b>${esc(topTitle())}</b><small>${esc(areaLabel())} · ${nf.format(n)} ${n === 1 ? 'Ort' : 'Orte'}</small></span>${svg('search')}`;
+  $('#filterBtn').innerHTML = svg('filter') + (nf_ ? `<span class="count">${nf_}</span>` : '');
+  $('#filterBtn').hidden = !!(g && g.offers);
+  $('#filterBtn').classList.toggle('on', nf_ > 0);
+  $('#ctx').innerHTML = UX === 'c' ? '' : rowHtml();
 }
 // tags of a group that occur at least once, in their defined order
 const tagCountCache = new Map();
@@ -600,14 +619,12 @@ function tagCounts(g) {
   return tagCountCache.get(g.id);
 }
 
-// Panel header tools: where (Gebiet) and how (Filter), plus the active filters as removable chips.
+// Panel header: where (Gebiet), plus the active filters as removable chips.
 const ioAllowed = () => state.mode === 'erleben' && (!state.groups.size || [...state.groups].every(id => IO_GROUPS.includes(id)));
 function toolsHtml(withFilter = true) {
-  const nf_ = state.filters.size + (state.io ? 1 : 0);
   const active = (state.io ? [`<button type="button" class="chip on" data-io="${state.io}">${esc(TAG_LABEL[state.io])} ${svg('close')}</button>`] : [])
     .concat([...state.filters].map(id => `<button type="button" class="chip on" data-filter="${id}">${esc(FILTER_LABEL[id])} ${svg('close')}</button>`));
-  return `<div class="tools"><button type="button" class="tool${state.area.type !== 'all' ? ' on' : ''}" data-open="area">${svg('pin')}<span>${esc(areaLabel())}</span></button>
-    ${withFilter ? `<button type="button" class="tool${nf_ ? ' on' : ''}" data-open="filters">${svg('filter')}<span>Filter${nf_ ? ' · ' + nf_ : ''}</span></button>` : ''}</div>
+  return `${UX === 'c' ? `<div class="row inlist">${rowHtml()}</div>` : ''}<div class="tools"><button type="button" class="tool${state.area.type !== 'all' ? ' on' : ''}" data-open="area">${svg('pin')}<span>${esc(areaLabel())}</span></button></div>
     ${withFilter && active.length ? `<div class="active">${active.join('')}</div>` : ''}`;
 }
 
@@ -615,7 +632,7 @@ function toolsHtml(withFilter = true) {
 let stack = [{ type: 'list' }];
 const view = () => stack[stack.length - 1];
 function go(v, size) { if (view().type === v.type && v.type !== 'detail') stack.pop(); stack.push(v); renderPanel(); setSize(size || 'full'); }
-function back() { stack.pop(); if (!stack.length) stack = [{ type: 'list' }]; clearSel(); renderPanel(); if (view().type === 'list') setSize(desktop() ? 'full' : 'half'); }
+function back() { stack.pop(); if (!stack.length) stack = [{ type: 'list' }]; clearSel(); renderPanel(); if (view().type === 'list') setSize(desktop() ? 'full' : 'half'); else if (view().type === 'card') setSize('card'); }
 function home(size = 'peek') { stack = [{ type: 'list' }]; clearSel(); renderPanel(); setSize(size); setTab('map'); }
 function setSize(s) {
   if (desktop()) s = 'full';
@@ -630,6 +647,7 @@ async function renderPanel() {
   if (v.type !== 'wizard' && wiz.map) { wiz.map.remove(); wiz.map = null; }
   if (v.type === 'list') body.innerHTML = listView();
   else if (v.type === 'detail') { const html = await detailView(v.id); if (view() !== v) return; body.innerHTML = html; bindDetail(v.id); }
+  else if (v.type === 'card') body.innerHTML = cardView(v.id);
   else if (v.type === 'filters') body.innerHTML = filtersView();
   else if (v.type === 'area') body.innerHTML = areaView();
   else if (v.type === 'draw') body.innerHTML = drawView();
@@ -650,15 +668,12 @@ function listView() {
   const shown = shownList();
   const sorted = shown.map(p => [dist(o, [p.lat, p.lon]), p]).sort((a, b) => a[0] - b[0]);
   const u = last.unknown.length;
-  const title = state.preset ? esc(PRESETS.find(x => x.id === state.preset).label)
-    : state.groups.size === 1 ? esc(GROUP[[...state.groups][0]].label) + (state.tags.size ? ': ' + esc([...state.tags].map(t => TAG_LABEL[t] || t).join(', ')) : '')
-    : 'In der Nähe';
   const sub = state.filters.size
     ? `${nf.format(last.match.length)} passen sicher${u ? ` · ${nf.format(u)} ohne Angabe <button type="button" data-unk="1">${state.showUnknown ? 'ausblenden' : 'auch zeigen'}</button>` : ''}`
-    : `${nf.format(shown.length)} Orte · ${state.area.type === 'radius' ? 'ab Mittelpunkt' : state.me ? 'von dir aus' : 'ab Kartenmitte'}`;
+    : `Nächste zuerst, ${state.area.type === 'radius' ? 'ab Mittelpunkt' : state.me ? 'von dir aus' : 'ab Kartenmitte'}`;
   const todayFits = hasFamily() ? OFFERS.filter(o => { const d = nextDate(o); return d && +d === +today0() && offerFits(o) === true; }).length : 0;
   const famCard = todayFits && !state.filters.size ? `<button type="button" class="askcard" data-tab="events" style="width:100%;border:0;text-align:left;margin:0 0 8px"><div><b>Heute: ${todayFits} passende ${todayFits === 1 ? 'Gruppe' : 'Gruppen und Kurse'}</b><span>für ${esc(familyAges().map(k => k.name).join(', ') || 'euch')}</span></div>${svg('cal')}</button>` : '';
-  return `<div class="ph" data-expand="1"><h2>${title}<span class="sub">${sub}</span></h2></div>${toolsHtml()}${famCard}
+  return `<div class="ph" data-expand="1"><h2>${nf.format(shown.length)} ${shown.length === 1 ? 'Ort' : 'Orte'}<span class="sub">${sub}</span></h2></div>${toolsHtml()}${famCard}
     ${sorted.length ? `<ol class="list">${sorted.slice(0, state.listLimit).map(([d, p]) => itemHtml(p, d)).join('')}</ol>
     ${sorted.length > state.listLimit ? '<button type="button" class="more" data-more="1">Mehr anzeigen</button>' : ''}`
     : `<div class="empty"><b>Hier ist nichts dabei.</b>${state.area.type !== 'all' ? 'Probier ein größeres Gebiet oder weniger Filter.' : 'Probier weniger Filter oder zoom raus.'}</div>`}`;
@@ -669,8 +684,7 @@ function offerListView(g) {
   const near = o => { const pl = o.place_id && byId.get(o.place_id); return pl ? dist(o0, [pl.lat, pl.lon]) : o.lat ? dist(o0, [o.lat, o.lon]) : 9e9; };
   const list = groupOffers(g).filter(([, o]) => offerInArea(o) && (!o.place_id || !byId.get(o.place_id) || inSelection(byId.get(o.place_id))))
     .map(([d, o]) => [near(o), d, o]).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-  const title = esc(g.label) + (state.tags.size ? ': ' + esc([...state.tags].map(t => TAG_LABEL[t] || t).join(', ')) : '');
-  return `<div class="ph" data-expand="1"><h2>${title}<span class="sub">${nf.format(list.length)} Angebote in den nächsten 8 Wochen · ${state.me ? 'von dir aus' : 'ab Kartenmitte'}</span></h2></div>${toolsHtml(false)}
+  return `<div class="ph" data-expand="1"><h2>${nf.format(list.length)} Angebote<span class="sub">in den nächsten 8 Wochen, ${state.me ? 'von dir aus' : 'ab Kartenmitte'}</span></h2></div>${toolsHtml(false)}
     ${list.length ? `<ol class="list">${list.slice(0, state.listLimit).map(([, d, o]) => offerItem(o, d)).join('')}</ol>
     ${list.length > state.listLimit ? '<button type="button" class="more" data-more="1">Mehr anzeigen</button>' : ''}`
     : '<div class="empty"><b>Hier ist nichts dabei.</b>Probier andere Tags.</div>'}
@@ -695,10 +709,24 @@ function itemHtml(p, d) {
 function showPlace(id, fromMap) {
   const p = byId.get(id); if (!p) return;
   if (fromMap && view().type === 'detail') stack.pop();
-  go({ type: 'detail', id }, desktop() ? 'full' : 'half');
+  if (fromMap && !desktop()) { go({ type: 'card', id }, 'card'); map.panInside([p.lat, p.lon], { paddingTopLeft: [24, 130], paddingBottomRight: [24, 210] }); }
+  else go({ type: 'detail', id }, desktop() ? 'full' : 'half');
   if (state.selected) byId.get(state.selected)?.marker?._icon?.classList.remove('sel');
   state.selected = id;
   setTimeout(() => p.marker?._icon?.classList.add('sel'), 50);
+}
+// small card for a tapped pin: the map stays visible, a tap opens the full page
+function cardView(id) {
+  const p = byId.get(id), d = dist(origin(), [p.lat, p.lon]), fav = store.favorites.includes(id), ot = openText(p);
+  const yes = [...p.tags].filter(t => PROP_TAGS.has(t)).slice(0, 2).map(t => `<span>${esc(TAG_LABEL[t])}</span>`)
+    .concat(relevantAttrs(p).filter(a => attrVal(p, a.id).v === 'yes').slice(0, 2).map(a => `<span>${esc(a.label)}</span>`)).join('');
+  return `<div class="pincard"><button type="button" class="pinmain" data-detail="${id}">${badge(p)}
+      <span><h3>${esc(p.name)}${p.f.tipp ? ` <span class="tipdot" title="Djuu-Tipp">${svg('star', '')}</span>` : ''}</h3>
+      <span class="meta">${esc(CAT_LABEL[p.cat] || '')}${ot ? ' · ' + ot : ''} · ${fmtDist(d)}</span>${yes ? `<span class="mini">${yes}</span>` : ''}</span></button>
+    <button type="button" class="round" data-home="peek" aria-label="Schließen">${svg('close')}</button></div>
+    <div class="pinacts"><a class="btn primary" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lon}&travelmode=walking" target="_blank" rel="noopener">${svg('route')}Route</a>
+      <button type="button" class="btn${fav ? ' on' : ''}" data-fav="${id}" aria-label="${fav ? 'Gemerkt' : 'Merken'}">${svg('heart')}</button>
+      <button type="button" class="btn" data-detail="${id}">Details</button></div>`;
 }
 async function photoTags(ids) {
   const out = [];
@@ -824,7 +852,7 @@ function filtersView() {
     ${block('Ausstattung', ATTRS.filter(fits))}
     ${!state.groups.size || state.groups.has('spielen') ? block('Spielgeräte', GEAR) : ''}
     <label class="switch" for="unkSwitch">Orte ohne Angabe blass zeigen <input type="checkbox" id="unkSwitch" ${state.showUnknown ? 'checked' : ''}></label>
-    <div class="sticky-bar"><button type="button" class="btn" data-reset="1">Zurücksetzen</button><button type="button" class="btn big primary" data-home="half">${nf.format(total)} Orte zeigen</button></div>`;
+    <div class="sticky-bar"><button type="button" class="btn" data-reset="1">Zurücksetzen</button><button type="button" class="btn big primary" data-home="peek">${nf.format(total)} Orte zeigen</button></div>`;
 }
 // area
 function areaView() {
@@ -840,7 +868,7 @@ function areaView() {
     <div class="sec"><h4>Stadtteil</h4>
       <div class="field" style="margin-top:0"><input id="distQ" type="search" placeholder="Stadtteil suchen, z. B. Ottensen" autocomplete="off"></div>
       <div class="fgrid" id="distList">${districtChips('')}</div></div>
-    <div class="sticky-bar"><button type="button" class="btn big primary" data-home="half">${nf.format(n)} Orte zeigen</button></div>`;
+    <div class="sticky-bar"><button type="button" class="btn big primary" data-home="peek">${nf.format(n)} Orte zeigen</button></div>`;
 }
 function districtChips(q) {
   q = q.trim().toLowerCase();
@@ -849,26 +877,36 @@ function districtChips(q) {
 }
 function drawView() {
   const n = state.drawing.length;
-  return `${head('Gebiet einzeichnen', 'Tippe nacheinander auf die Ecken des Gebiets')}
-    <p class="text">${n ? `${n} ${n === 1 ? 'Ecke' : 'Ecken'} gesetzt.` : 'Noch keine Ecke gesetzt.'}${n && n < 3 ? ' Mindestens 3 nötig.' : ''}</p>
-    <div class="sticky-bar"><button type="button" class="btn" data-drawundo="1" ${n ? '' : 'disabled'}>${svg('undo')}Zurück</button>
+  return `<p class="text drawhint"><b>Tippe auf die Ecken des Gebiets.</b> ${n ? `${n} ${n === 1 ? 'Ecke' : 'Ecken'} gesetzt.` : ''}${n && n < 3 ? ' Mindestens 3 nötig.' : ''}</p>
+    <div class="pinacts"><button type="button" class="btn" data-drawundo="1" ${n ? '' : 'disabled'}>${svg('undo')}Zurück</button>
       <button type="button" class="btn" data-drawcancel="1">Abbrechen</button>
-      <button type="button" class="btn big primary" data-drawdone="1" ${n >= 3 ? '' : 'disabled'}>Fertig</button></div>`;
+      <button type="button" class="btn primary" data-drawdone="1" ${n >= 3 ? '' : 'disabled'}>Fertig</button></div>`;
 }
 
 // search
 function searchView() {
-  const q = $('#q').value.trim().toLowerCase();
-  if (!q) return `${head('Schnelle Fragen', 'Tippe eine an oder suche oben nach Namen')}
-    <ol class="list">${PRESETS.map(p => `<li><button type="button" class="item" data-preset="${p.id}"><span class="badge" style="--c:var(--brand)">${svg(p.icon, '')}</span><span><h3>${esc(p.label)}</h3></span><span></span></button></li>`).join('')}</ol>`;
+  const catBlock = (m) => `<div class="sec"><h4>${m.label}</h4><div class="catgrid">${GROUPS.filter(g => g.mode === m.id).map(g => `<button type="button" class="catcard${state.groups.has(g.id) ? ' on' : ''}" data-group="${g.id}" style="--c:${g.color}"><span class="ic">${svg(g.icon, '')}</span>${esc(g.label)}</button>`).join('')}</div></div>`;
+  return `${head('Was sucht ihr?', '', false)}
+    <div class="searchfield">${svg('search')}<label for="q" class="sr">Suche</label><input id="q" type="search" placeholder="Ort, Stadtteil oder Thema, z. B. vegan" autocomplete="off" enterkeyhint="search" value="${esc(state.sq)}"></div>
+    <div id="searchRes">${searchResults()}</div>
+    <div id="searchHome"${state.sq ? ' hidden' : ''}>
+      <div class="tools" style="margin-top:12px"><button type="button" class="tool${state.area.type !== 'all' ? ' on' : ''}" data-open="area">${svg('pin')}<span>${esc(areaLabel())}</span></button></div>
+      ${MODES.map(catBlock).join('')}
+      <div class="sec"><h4>Schnelle Fragen</h4><ol class="list">${PRESETS.map(p => `<li><button type="button" class="item" data-preset="${p.id}"><span class="badge" style="--c:var(--brand)">${svg(p.icon, '')}</span><span><h3>${esc(p.label)}</h3></span><span></span></button></li>`).join('')}</ol></div>
+      <button type="button" class="btn" data-group-all="1">Alle Orte zeigen</button>
+    </div>`;
+}
+function searchResults() {
+  const q = state.sq.trim().toLowerCase();
+  if (!q) return '';
   const gs = GROUPS.filter(g => g.label.toLowerCase().includes(q));
   const ts = Object.entries(TAGS).flatMap(([gid, list]) => list.filter(t => t.label.toLowerCase().includes(q)).map(t => [gid, t])).slice(0, 8);
   const fs = ATTRS.filter(a => a.label.toLowerCase().includes(q));
+  const ds = districtList().filter(d => d.toLowerCase().includes(q)).slice(0, 4);
   const o = origin();
   const ps = places.filter(p => p.name.toLowerCase().includes(q)).map(p => [dist(o, [p.lat, p.lon]), p]).sort((a, b) => a[0] - b[0]).slice(0, 25);
-  return `${head('Suche', `„${esc(q)}“`)}
-    ${gs.length || fs.length || ts.length ? `<div class="fgrid" style="margin-bottom:10px">${gs.map(g => `<button type="button" class="chip" data-group-only="${g.id}">${esc(g.label)}</button>`).join('')}${ts.map(([gid, t]) => `<button type="button" class="chip" data-gtag="${gid}|${t.id}">${esc(GROUP[gid].label)}: ${esc(t.label)}</button>`).join('')}${fs.map(a => `<button type="button" class="chip" data-filter-only="${a.id}">${esc(a.label)}</button>`).join('')}</div>` : ''}
-    ${ps.length ? `<ol class="list">${ps.map(([d, p]) => itemHtml(p, d)).join('')}</ol>` : '<div class="empty"><b>Nichts gefunden.</b>Versuch einen anderen Namen.</div>'}`;
+  return `${gs.length || fs.length || ts.length || ds.length ? `<div class="fgrid" style="margin:12px 0 10px">${gs.map(g => `<button type="button" class="chip" data-group-only="${g.id}">${esc(g.label)}</button>`).join('')}${ts.map(([gid, t]) => `<button type="button" class="chip" data-gtag="${gid}|${t.id}">${esc(GROUP[gid].label)}: ${esc(t.label)}</button>`).join('')}${ds.map(d => `<button type="button" class="chip" data-sdistrict="${esc(d)}">${svg('pin')}${esc(d)}</button>`).join('')}${fs.map(a => `<button type="button" class="chip" data-filter-only="${a.id}">${esc(a.label)}</button>`).join('')}</div>` : ''}
+    ${ps.length ? `<ol class="list">${ps.map(([d, p]) => itemHtml(p, d)).join('')}</ol>` : '<div class="empty"><b>Keine Orte mit diesem Namen.</b>Versuch einen anderen Begriff.</div>'}`;
 }
 
 // urgent
@@ -1159,8 +1197,8 @@ function nearestDistrict(la, lo) {
 // ---------- Tabs ----------
 const TABS = [
   { id: 'map', label: 'Karte', icon: 'map' },
+  { id: 'search', label: 'Suchen', icon: 'search' },
   { id: 'events', label: 'Termine', icon: 'cal' },
-  { id: 'add', label: 'Eintragen', icon: 'plus', cls: 'add' },
   { id: 'me', label: 'Meins', icon: 'user' },
 ];
 function setTab(id) {
@@ -1173,15 +1211,19 @@ function toggle(set, v) { set.has(v) ? set.delete(v) : set.add(v); }
 document.addEventListener('click', async e => {
   const t = e.target.closest('button, [data-expand]'); if (!t) return;
   const ds = t.dataset;
-  if (ds.mode) { if (state.mode !== ds.mode) { state.mode = ds.mode; state.groups.clear(); state.cats.clear(); state.tags.clear(); state.preset = null; if (ds.mode === 'service') state.io = null; refresh(); } }
-  else if (ds.group) { const on = state.groups.size === 1 && state.groups.has(ds.group); state.groups = on ? new Set() : new Set([ds.group]); state.cats.clear(); state.tags.clear(); state.mode = GROUP[ds.group].mode; if (!IO_GROUPS.includes(ds.group)) state.io = null; state.preset = null; state.listLimit = 40; refresh(); if (view().type !== 'list') home('half'); else setSize(desktop() ? 'full' : 'half'); }
-  else if (ds.tag) { toggle(state.tags, ds.tag); state.preset = null; state.listLimit = 40; refresh(); if (view().type !== 'list') home('half'); else setSize(desktop() ? 'full' : 'half'); }
-  else if (ds.io) { state.io = state.io === ds.io ? null : ds.io; state.preset = null; refresh(); if (view().type === 'list') setSize(desktop() ? 'full' : 'half'); }
-  else if (ds.gtag) { const [gid, tg] = ds.gtag.split('|'); state.groups = new Set([gid]); state.tags = new Set([tg]); state.cats.clear(); state.mode = GROUP[gid].mode; state.q = ''; $('#q').value = ''; refresh(); home('half'); }
-  else if (ds.groupOnly) { state.groups = new Set([ds.groupOnly]); state.tags.clear(); state.cats.clear(); state.mode = GROUP[ds.groupOnly].mode; state.q = ''; $('#q').value = ''; refresh(); home('half'); }
-  else if (ds.filterOnly) { state.filters.add(ds.filterOnly); state.q = ''; $('#q').value = ''; refresh(); home('half'); }
-  else if (ds.filter) { toggle(state.filters, ds.filter); state.preset = null; refresh(); if (view().type === 'list') setSize(desktop() ? 'full' : 'half'); }
-  else if (ds.preset) { const p = PRESETS.find(x => x.id === ds.preset); state.preset = p.id; state.groups = new Set(p.groups); state.cats = new Set(p.cats || []); state.tags = new Set(p.tags || []); state.io = p.io || null; state.filters = new Set(p.filters); if (p.groups[0]) state.mode = GROUP[p.groups[0]].mode; state.q = ''; $('#q').value = ''; $('#q').blur(); refresh(); home('half'); }
+  if (ds.mode) { state.mode = ds.mode; state.browsing = true; renderTop(); }
+  else if (ds.browse) { state.browsing = true; state.mode = soleGroup()?.mode || state.mode; renderTop(); }
+  else if (ds.groupAll) { state.groups.clear(); state.cats.clear(); state.tags.clear(); state.preset = null; state.browsing = true; refresh(); home('peek'); }
+  else if (ds.group) { const same = state.groups.size === 1 && state.groups.has(ds.group); if (!same) { state.groups = new Set([ds.group]); state.cats.clear(); state.tags.clear(); state.preset = null; if (!IO_GROUPS.includes(ds.group)) state.io = null; state.listLimit = 40; } state.mode = GROUP[ds.group].mode; state.browsing = false; refresh(); if (view().type !== 'list') home('peek'); }
+  else if (ds.tag) { toggle(state.tags, ds.tag); state.preset = null; state.listLimit = 40; refresh(); if (view().type !== 'list') home('peek'); }
+  else if (ds.io) { state.io = state.io === ds.io ? null : ds.io; state.preset = null; refresh(); }
+  else if (ds.detail) go({ type: 'detail', id: ds.detail }, 'full');
+  else if (ds.sdistrict) { state.sq = ''; setArea({ type: 'district', name: ds.sdistrict }); home('peek'); }
+  else if (ds.gtag) { const [gid, tg] = ds.gtag.split('|'); state.groups = new Set([gid]); state.tags = new Set([tg]); state.cats.clear(); state.mode = GROUP[gid].mode; state.browsing = false; state.q = ''; state.sq = ''; refresh(); home('peek'); }
+  else if (ds.groupOnly) { state.groups = new Set([ds.groupOnly]); state.tags.clear(); state.cats.clear(); state.mode = GROUP[ds.groupOnly].mode; state.browsing = false; state.q = ''; state.sq = ''; refresh(); home('peek'); }
+  else if (ds.filterOnly) { state.filters.add(ds.filterOnly); state.q = ''; state.sq = ''; refresh(); home('peek'); }
+  else if (ds.filter) { toggle(state.filters, ds.filter); state.preset = null; refresh(); }
+  else if (ds.preset) { const p = PRESETS.find(x => x.id === ds.preset); state.preset = p.id; state.groups = new Set(p.groups); state.cats = new Set(p.cats || []); state.tags = new Set(p.tags || []); state.io = p.io || null; state.filters = new Set(p.filters); if (p.groups[0]) state.mode = GROUP[p.groups[0]].mode; state.browsing = false; state.q = ''; state.sq = ''; refresh(); home('peek'); }
   else if (ds.open === 'filters') go({ type: 'filters' });
   else if (ds.open === 'area') go({ type: 'area' });
   else if (ds.area === 'all') { setArea({ type: 'all' }, false); renderPanel(); }
@@ -1189,12 +1231,12 @@ document.addEventListener('click', async e => {
   else if (ds.center === 'me') { locate(false); setArea({ type: 'radius', r: state.area.r || 1000, center: 'me' }); renderPanel(); if (!state.me) toast('Wir suchen deinen Standort …'); }
   else if (ds.center === 'pick') { state.picking = true; setSize('peek'); toast('Tippe auf die Karte, um den Mittelpunkt zu setzen.'); }
   else if (ds.district) { setArea({ type: 'district', name: ds.district }); renderPanel(); }
-  else if (ds.draw) { state.drawing = []; drawArea(); go({ type: 'draw' }, 'peek'); }
+  else if (ds.draw) { state.drawing = []; drawArea(); go({ type: 'draw' }, 'card'); }
   else if (ds.drawundo) { state.drawing.pop(); drawArea(); renderPanel(); }
   else if (ds.drawcancel) { state.drawing = null; drawArea(); back(); }
   else if (ds.drawdone) { const pts = state.drawing; state.drawing = null; setArea({ type: 'poly', pts }); stack = [{ type: 'list' }]; renderPanel(); setSize(desktop() ? 'full' : 'half'); }
   else if (ds.evdateclear) { view().date = ''; renderPanel(); }
-  else if (ds.clearq) { state.q = ''; $('#q').value = ''; refresh(); }
+  else if (ds.clearq) { state.q = ''; state.sq = ''; refresh(); }
   else if (ds.unk) { state.showUnknown = !state.showUnknown; refresh(); }
   else if (ds.reset) { state.filters.clear(); state.io = null; state.preset = null; state.showUnknown = false; refresh(); renderPanel(); }
   else if (ds.more) { state.listLimit += 40; renderPanel(); }
@@ -1203,7 +1245,7 @@ document.addEventListener('click', async e => {
   else if (ds.back) back();
   else if (ds.home) home(ds.home === '1' ? (desktop() ? 'full' : 'peek') : ds.home);
   else if (ds.tab) {
-    if (ds.tab === 'map') home(desktop() ? 'full' : 'half');
+    if (ds.tab === 'map') home(desktop() ? 'full' : 'peek');
     else if (ds.tab === 'add') startWizard();
     else { stack = [{ type: 'list' }]; go({ type: ds.tab }, 'full'); setTab(ds.tab); }
   }
@@ -1234,11 +1276,15 @@ document.addEventListener('change', e => {
 $('#sos').innerHTML = svg('bolt') + '<span>Dringend</span>';
 $('#sos').onclick = () => { stack = [{ type: 'list' }]; go({ type: 'sos' }, 'full'); locate(false); };
 $('#locate').innerHTML = svg('locate');
+$('#addFab').innerHTML = svg('plus');
 $('#locate').onclick = () => locate(true);
-const qEl = $('#q');
-qEl.addEventListener('focus', () => go({ type: 'search' }, 'full'));
-let qt; qEl.addEventListener('input', () => { clearTimeout(qt); qt = setTimeout(() => { if (view().type === 'search') renderPanel(); }, 150); });
-qEl.addEventListener('keydown', e => { if (e.key === 'Enter') { state.q = qEl.value.trim(); qEl.blur(); state.listLimit = 40; refresh(); home('half'); } });
+document.addEventListener('input', e => {
+  if (e.target.id !== 'q') return;
+  state.sq = e.target.value;
+  clearTimeout(document.qt);
+  document.qt = setTimeout(() => { $('#searchRes').innerHTML = searchResults(); $('#searchHome').hidden = !!state.sq.trim(); }, 150);
+});
+document.addEventListener('keydown', e => { if (e.target.id === 'q' && e.key === 'Enter') { state.q = e.target.value.trim(); e.target.blur(); state.listLimit = 40; refresh(); home('peek'); } });
 
 // drag the sheet by its grip (phone)
 (() => {
@@ -1249,6 +1295,7 @@ qEl.addEventListener('keydown', e => { if (e.key === 'Enter') { state.q = qEl.va
     if (y0 === null) return;
     const dy = e.clientY - y0, i = order.indexOf($('#panel').dataset.size);
     y0 = null;
+    if ($('#panel').dataset.size === 'card') { if (view().type !== 'card') return; return dy > 8 ? home('peek') : go({ type: 'detail', id: view().id }, 'full'); }
     if (Math.abs(dy) < 8) return setSize(order[(i + 1) % 3]);
     setSize(order[Math.max(0, Math.min(2, i + (dy < 0 ? 1 : -1) * (Math.abs(dy) > 220 ? 2 : 1)))]);
   });

@@ -1,5 +1,5 @@
-// Djuu service worker v0.8: app shell and data work offline, map tiles need network.
-const CACHE = 'djuu-0.8';
+// Djuu service worker v0.9: app shell and data work offline, map tiles need network.
+const CACHE = 'djuu-0.9';
 const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png',
   'vendor/leaflet.js', 'vendor/leaflet.css', 'vendor/maplibre-gl.js', 'vendor/maplibre-gl.css', 'vendor/leaflet-maplibre-gl.js', 'vendor/leaflet.markercluster.js', 'vendor/MarkerCluster.css',
   'data/places.json', 'data/offers.json'];

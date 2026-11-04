@@ -22,18 +22,18 @@
     <div id="map" aria-label="Karte"></div>
 
     <header class="topbar" id="topbar">
-      <div class="searchbar">
-        <span class="brand" aria-hidden="true">dj</span>
-        <label for="q" class="sr">Suche</label>
-        <input id="q" type="search" placeholder="Was sucht ihr?" autocomplete="off" enterkeyhint="search">
-        <button type="button" class="iconbtn" id="locate" aria-label="Mein Standort"></button>
+      <div class="topline">
+        <button type="button" class="pill" id="pill" data-tab="search" aria-label="Suche öffnen"></button>
+        <button type="button" class="iconbtn" id="filterBtn" data-open="filters" aria-label="Filter"></button>
       </div>
-      <div class="row" id="cats" aria-label="Kategorien"></div>
-      <div class="row ctx" id="ctx" aria-label="Filter"></div>
+      <div class="row ctx" id="ctx" aria-label="Kategorien und Tags"></div>
     </header>
 
-    <button type="button" class="sos" id="sos" aria-label="Dringend: nächstes WC, Wickeltisch, Windeln oder Apotheke"></button>
-    <div class="addhint" id="addHint" hidden></div>
+    <div class="fabs" id="fabs">
+      <button type="button" class="sos" id="sos" aria-label="Dringend: nächstes WC, Wickeltisch, Windeln oder Apotheke"></button>
+      <button type="button" class="fab" id="locate" aria-label="Mein Standort"></button>
+      <button type="button" class="fab" id="addFab" data-tab="add" aria-label="Ort eintragen"></button>
+    </div>
 
     <section class="panel" id="panel" data-size="peek" aria-label="Orte">
       <div class="grip" id="grip" aria-hidden="true"><i></i></div>
