@@ -1,4 +1,4 @@
-# Djuu – Prototyp v0.13
+# Djuu – Prototyp v0.14
 
 Karte mit allen familienrelevanten Orten in Hamburg (ca. 19.700 Orte aus über 40 offenen Quellen, jede Angabe mit Quelle) mit Filtern.
 Installierbare Web-App (PWA): läuft auf Android, iPhone und Desktop aus demselben Code.

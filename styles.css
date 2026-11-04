@@ -1,4 +1,4 @@
-/* Djuu v0.13 – map first. Phone: one floating chip row on top, map buttons on the right, slim draggable sheet at the bottom,
+/* Djuu v0.14 – map first. Phone: one floating chip row on top, map buttons on the right, slim draggable sheet at the bottom,
    tabs below. Desktop (>= 900px): the same sheet becomes a fixed left column, map on the right. */
 :root {
   --bg: #FBF9FF;
@@ -440,3 +440,17 @@ h2, h3, h4, .ph h2, .item h3, .pinmain h3, .sec h4, .stylesec { font-family: var
 .round::after { left: -3px; right: -3px; }
 .row.ctx { padding: 6px 12px 8px; }
 .mini span, .pinmain .mini span { white-space: nowrap; }
+
+/* v0.14: logo, start screen and decorative balls from the design PDF */
+.logo { position: relative; display: inline-block; padding-right: .6em; font: 700 88px/1 var(--font-display); letter-spacing: -.021em; white-space: nowrap; }
+.balls { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
+.ball { position: absolute; border-radius: 50%; }
+.ball i { position: absolute; left: 20%; top: 14%; width: 30%; height: 16%; border-radius: 50%; background: #fff; opacity: .4; transform: rotate(-35deg); }
+.splash { position: fixed; inset: 0; z-index: 4000; display: grid; place-items: center; background: #6B4EE6; overflow: hidden; transition: opacity .25s ease; }
+.splash .logo { z-index: 1; }
+.splash.out { opacity: 0; pointer-events: none; }
+.thanks, .empty { position: relative; overflow: hidden; }
+.thanks > :not(.balls), .empty > :not(.balls) { position: relative; z-index: 1; }
+.thanks { padding-top: 28px; padding-bottom: 72px; padding-left: 56px; padding-right: 56px; min-height: 300px; }
+.empty { padding: 40px 48px; min-height: 170px; border-radius: 18px; display: grid; align-content: center; }
+@media (prefers-reduced-motion: reduce) { .splash { transition: none; } }

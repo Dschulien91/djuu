@@ -1,4 +1,4 @@
-/* Djuu v0.13 – family map for Hamburg.
+/* Djuu v0.14 – family map for Hamburg.
    The map owns the screen: one chip row floats on top, map buttons on the right, the sheet starts as a slim bar.
    The chip row drills down one level at a time: Erleben or Service, then categories, then the tags of a category.
    A tapped pin opens a small card; search and favorites live in the bottom bar. Default view: playgrounds.
@@ -7,7 +7,12 @@
    User input is stored on this device only until the server exists (server-ready shape, see STORE). */
 'use strict';
 
-const VERSION = '0.13';
+const VERSION = '0.14';
+// Decorative balls (design PDF): flat circles at the edge, only on the start screen, success and empty states; never on the map, never behind text or buttons.
+const ball = (pos, d, color, op = 1) => `<div class="ball" style="${pos};width:${d}px;height:${d}px;background:${color}${op === 1 ? '' : ';opacity:' + op}"><i></i></div>`;
+const BALLS_THANKS = `<div class="balls" aria-hidden="true">${ball('left:10px;top:14px', 30, '#FFB3CC')}${ball('right:12px;top:30px', 40, '#7FE0D4')}${ball('left:14px;bottom:12px', 48, '#FFD166')}${ball('left:50%;bottom:10px', 24, '#6B4EE6')}${ball('right:18px;bottom:16px', 30, '#C9BDFF')}</div>`;
+const BALLS_EMPTY = `<div class="balls" aria-hidden="true">${ball('left:-34px;top:-40px', 90, '#F1ECFF')}${ball('right:10px;top:8px', 30, '#7FE0D4')}${ball('left:12px;bottom:8px', 32, '#FFB3CC')}${ball('right:-30px;bottom:-34px', 92, '#FFD166', .4)}</div>`;
+function decorateEmpty(root) { root.querySelectorAll('.empty').forEach(el => { if (!el.querySelector('.balls')) el.insertAdjacentHTML('afterbegin', BALLS_EMPTY); }); }
 
 // ---------- Icons (24px line icons) ----------
 const ICON = {
@@ -785,6 +790,7 @@ async function renderPanel() {
   else if (v.type === 'rate') { body.innerHTML = rateView(v.id); bindRate(v.id); }
   else if (v.type === 'wizard') { renderWizard(); return; }
   else if (v.type === 'thanks') body.innerHTML = v.html;
+  decorateEmpty(body);
   if (v.type !== 'detail' && v.type !== 'rate') body.scrollTop = v.type === 'list' ? body.scrollTop : 0;
 }
 
@@ -1135,7 +1141,7 @@ function favsView() {
   const ps = store.favorites.map(id => byId.get(id)).filter(Boolean);
   return `${head('Favoriten', 'Nur auf diesem Gerät gespeichert', false)}
     ${ps.length ? `<ol class="list">${ps.map(p => itemHtml(p, dist(o, [p.lat, p.lon]))).join('')}</ol>`
-    : `<p class="muted text">Noch keine Favoriten. Tippe bei einem Ort auf das Herz.</p>`}`;
+    : `<div class="empty">Noch keine Favoriten. Tippe bei einem Ort auf das Herz.</div>`}`;
 }
 // ---------- Holiday ideas: what fits the next school break, the season and the children's ages ----------
 const fmtD = d => d.toLocaleDateString('de-DE', { day: 'numeric', month: 'long' });
@@ -1377,7 +1383,7 @@ async function saveWizard() {
   wiz.data = null;
   refresh();
   stack = [{ type: 'list' }];
-  go({ type: 'thanks', html: `<div class="thanks"><svg viewBox="0 0 24 24" width="64" height="64" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="#FFD166"/><path d="M7 12.5l3.2 3L17 9" stroke="#1F1B4D" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  go({ type: 'thanks', html: `<div class="thanks">${BALLS_THANKS}<svg viewBox="0 0 24 24" width="64" height="64" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="#0E8F84"/><path d="M7 12.5l3.2 3L17 9" stroke="#FFFFFF" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
     <h2>Danke!</h2><p>Dein Eintrag hilft Familien${area ? ' in ' + esc(area) : ' in Hamburg'}.</p>
     <p class="note">Im Prototyp ist er erst auf deinem Gerät gespeichert. Mit dem Djuu-Server sehen ihn bald alle.</p>
     <div style="display:flex;gap:8px;margin-top:10px">${p ? `<button type="button" class="btn primary" data-id="${p.id}">Ort ansehen</button>` : ''}<button type="button" class="btn" data-home="peek">Fertig</button></div></div>` }, desktop() ? 'full' : 'half');
@@ -1481,7 +1487,7 @@ document.addEventListener('input', e => {
   if (e.target.id !== 'q') return;
   state.sq = e.target.value;
   clearTimeout(document.qt);
-  document.qt = setTimeout(() => { $('#searchRes').innerHTML = searchResults(); $('#searchHome').hidden = !!state.sq.trim(); }, 150);
+  document.qt = setTimeout(() => { $('#searchRes').innerHTML = searchResults(); decorateEmpty($('#searchRes')); $('#searchHome').hidden = !!state.sq.trim(); }, 150);
 });
 document.addEventListener('keydown', e => { if (e.target.id === 'q' && e.key === 'Enter') { state.q = e.target.value.trim(); e.target.blur(); state.listLimit = 40; refresh(); home('peek'); } });
 
@@ -1521,6 +1527,10 @@ new ResizeObserver(() => document.documentElement.style.setProperty('--top-h', $
 window.addEventListener('resize', () => setSize($('#panel').dataset.size));
 
 // ---------- Boot ----------
+const splashShown = Date.now();
+function hideSplash() {
+  setTimeout(() => { const s = $('#splash'); s.classList.add('out'); setTimeout(() => s.remove(), 300); }, Math.max(0, 900 - (Date.now() - splashShown)));
+}
 setTab('map');
 setSize(desktop() ? 'full' : 'peek');
 loadWeather();
@@ -1541,7 +1551,9 @@ $('#panelBody').innerHTML = '<div class="ph"><h2>Lade Orte …</h2></div>';
     renderPanel();
     const hash = location.hash.slice(1);
     if (byId.has(hash)) { const p = byId.get(hash); map.setView([p.lat, p.lon], 17); showPlace(hash); }
+    hideSplash();
   } catch (err) {
+    hideSplash();
     $('#panelBody').innerHTML = '<div class="empty"><b>Daten konnten nicht geladen werden.</b>Bitte Seite neu laden.</div>';
     console.error(err);
   }
