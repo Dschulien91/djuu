@@ -1,16 +1,13 @@
-/* Djuu v0.9 – family map for Hamburg.
-   The map owns the screen: one summary pill and one chip row float on top, the sheet starts as a slim bar.
-   The chip row shows one level at a time: categories, or the tags of the chosen category.
-   A tapped pin opens a small card; search lives in the bottom bar and in the pill. Default view: playgrounds.
-   Layout variants for comparison: ?ux=a (default), ?ux=b (controls at the bottom), ?ux=c (pill only).
+/* Djuu v0.10 – family map for Hamburg.
+   The map owns the screen: one chip row floats on top, map buttons on the right, the sheet starts as a slim bar.
+   The chip row drills down one level at a time: Erleben or Service, then categories, then the tags of a category.
+   A tapped pin opens a small card; search and favorites live in the bottom bar. Default view: playgrounds.
    for list, place details, filters, urgent help, events, saved places and the add-place wizard.
    Data: data/places.json (db/export.py); every value carries its source.
    User input is stored on this device only until the server exists (server-ready shape, see STORE). */
 'use strict';
 
-const VERSION = '0.9';
-const UX = ['a', 'b', 'c'].includes(new URLSearchParams(location.search).get('ux')) ? new URLSearchParams(location.search).get('ux') : 'a';
-document.documentElement.dataset.ux = UX;
+const VERSION = '0.10';
 
 // ---------- Icons (24px line icons) ----------
 const ICON = {
@@ -276,7 +273,7 @@ async function compressPhoto(file) {
 }
 
 // ---------- State ----------
-const state = { mode: 'erleben', groups: new Set(['spielen']), cats: new Set(), tags: new Set(['spielplatz']), io: null, area: { type: 'all' }, picking: false, drawing: null, browsing: false, sq: '', filters: new Set(), preset: null, showUnknown: false, q: '', tab: 'map', listLimit: 40, me: null, selected: null };
+const state = { mode: 'erleben', groups: new Set(['spielen']), cats: new Set(), tags: new Set(['spielplatz']), io: null, area: { type: 'all' }, picking: false, drawing: null, level: 0, sq: '', filters: new Set(), preset: null, showUnknown: false, q: '', tab: 'map', listLimit: 40, me: null, selected: null };
 let SOURCES = [];
 const places = [];
 const byId = new Map();
@@ -584,23 +581,22 @@ function topTitle() {
   if (g) return state.tags.size ? [...state.tags].map(t => TAG_LABEL[t] || t).join(', ') : g.label;
   return state.groups.size ? 'Mehrere Kategorien' : 'Alle Orte';
 }
-// One level at a time: the categories of a mode, or the tags of the chosen category.
+// One level at a time: 0 = Erleben or Service, 1 = categories of that mode, 2 = tags of the chosen category.
 function rowHtml() {
   const g = soleGroup();
   const q = state.q ? `<button type="button" class="chip on" data-clearq="1">„${esc(state.q)}“ ${svg('close')}</button>` : '';
-  if (g && !state.browsing && TAGS[g.id]) return q + `<button type="button" class="chip up" data-browse="1" style="--c:${g.color}" aria-label="Andere Kategorie wählen">${svg('back')}<span class="ic">${svg(g.icon, '')}</span>${esc(g.short)}</button>` +
+  if (state.level === 2 && g && TAGS[g.id]) return q + `<button type="button" class="chip up" data-level="1" style="--c:${g.color}" aria-label="Andere Kategorie wählen">${svg('back')}<span class="ic">${svg(g.icon, '')}</span>${esc(g.short)}</button>` +
     tagCounts(g).map(([t]) => `<button type="button" class="chip tag${state.tags.has(t.id) ? ' on' : ''}" data-tag="${t.id}">${esc(t.label)}</button>`).join('');
-  const other = MODES.find(m => m.id !== state.mode);
-  return q + GROUPS.filter(x => x.mode === state.mode).map(x => `<button type="button" class="chip kat${state.groups.has(x.id) ? ' on' : ''}" data-group="${x.id}" style="--c:${x.color}"><span class="ic">${svg(x.icon, '')}</span>${esc(x.short)}</button>`).join('') +
-    `<button type="button" class="chip" data-mode="${other.id}">${other.label} ›</button>`;
+  if (state.level >= 1) return q + `<button type="button" class="chip up" data-level="0" style="--c:var(--brand)" aria-label="Zurück zu Erleben oder Service">${svg('back')}${esc(MODES.find(m => m.id === state.mode).label)}</button>` +
+    GROUPS.filter(x => x.mode === state.mode).map(x => `<button type="button" class="chip kat${state.groups.has(x.id) ? ' on' : ''}" data-group="${x.id}" style="--c:${x.color}"><span class="ic">${svg(x.icon, '')}</span>${esc(x.short)}</button>`).join('');
+  return q + MODES.map(m => `<button type="button" class="chip kat${state.mode === m.id ? ' on' : ''}" data-mode="${m.id}">${m.label}</button>`).join('');
 }
 function renderTop() {
-  const g = soleGroup(), nf_ = state.filters.size + (state.io ? 1 : 0), n = last.match.length;
-  $('#pill').innerHTML = `<span class="brand" aria-hidden="true">dj</span><span class="ptext"><b>${esc(topTitle())}</b><small>${esc(areaLabel())} · ${nf.format(n)} ${n === 1 ? 'Ort' : 'Orte'}</small></span>${svg('search')}`;
+  const g = soleGroup(), nf_ = state.filters.size + (state.io ? 1 : 0);
   $('#filterBtn').innerHTML = svg('filter') + (nf_ ? `<span class="count">${nf_}</span>` : '');
   $('#filterBtn').hidden = !!(g && g.offers);
   $('#filterBtn').classList.toggle('on', nf_ > 0);
-  $('#ctx').innerHTML = UX === 'c' ? '' : rowHtml();
+  $('#ctx').innerHTML = rowHtml();
 }
 // tags of a group that occur at least once, in their defined order
 const tagCountCache = new Map();
@@ -619,12 +615,14 @@ function tagCounts(g) {
   return tagCountCache.get(g.id);
 }
 
-// Panel header: where (Gebiet), plus the active filters as removable chips.
+// Panel header: where (Gebiet) and how (Filter), plus the active filters as removable chips.
 const ioAllowed = () => state.mode === 'erleben' && (!state.groups.size || [...state.groups].every(id => IO_GROUPS.includes(id)));
 function toolsHtml(withFilter = true) {
+  const nf_ = state.filters.size + (state.io ? 1 : 0);
   const active = (state.io ? [`<button type="button" class="chip on" data-io="${state.io}">${esc(TAG_LABEL[state.io])} ${svg('close')}</button>`] : [])
     .concat([...state.filters].map(id => `<button type="button" class="chip on" data-filter="${id}">${esc(FILTER_LABEL[id])} ${svg('close')}</button>`));
-  return `${UX === 'c' ? `<div class="row inlist">${rowHtml()}</div>` : ''}<div class="tools"><button type="button" class="tool${state.area.type !== 'all' ? ' on' : ''}" data-open="area">${svg('pin')}<span>${esc(areaLabel())}</span></button></div>
+  return `<div class="tools"><button type="button" class="tool${state.area.type !== 'all' ? ' on' : ''}" data-open="area">${svg('pin')}<span>${esc(areaLabel())}</span></button>
+    ${withFilter ? `<button type="button" class="tool${nf_ ? ' on' : ''}" data-open="filters">${svg('filter')}<span>Filter${nf_ ? ' · ' + nf_ : ''}</span></button>` : ''}</div>
     ${withFilter && active.length ? `<div class="active">${active.join('')}</div>` : ''}`;
 }
 
@@ -654,6 +652,7 @@ async function renderPanel() {
   else if (v.type === 'search') body.innerHTML = searchView();
   else if (v.type === 'sos') body.innerHTML = sosView(v.kind);
   else if (v.type === 'events') body.innerHTML = eventsView();
+  else if (v.type === 'favs') body.innerHTML = favsView();
   else if (v.type === 'me') body.innerHTML = savedView();
   else if (v.type === 'rate') { body.innerHTML = rateView(v.id); bindRate(v.id); }
   else if (v.type === 'wizard') { renderWizard(); return; }
@@ -673,7 +672,7 @@ function listView() {
     : `Nächste zuerst, ${state.area.type === 'radius' ? 'ab Mittelpunkt' : state.me ? 'von dir aus' : 'ab Kartenmitte'}`;
   const todayFits = hasFamily() ? OFFERS.filter(o => { const d = nextDate(o); return d && +d === +today0() && offerFits(o) === true; }).length : 0;
   const famCard = todayFits && !state.filters.size ? `<button type="button" class="askcard" data-tab="events" style="width:100%;border:0;text-align:left;margin:0 0 8px"><div><b>Heute: ${todayFits} passende ${todayFits === 1 ? 'Gruppe' : 'Gruppen und Kurse'}</b><span>für ${esc(familyAges().map(k => k.name).join(', ') || 'euch')}</span></div>${svg('cal')}</button>` : '';
-  return `<div class="ph" data-expand="1"><h2>${nf.format(shown.length)} ${shown.length === 1 ? 'Ort' : 'Orte'}<span class="sub">${sub}</span></h2></div>${toolsHtml()}${famCard}
+  return `<div class="ph" data-expand="1"><h2>${nf.format(shown.length)} ${shown.length === 1 ? 'Ort' : 'Orte'} · ${esc(topTitle())}<span class="sub">${sub}</span></h2></div>${toolsHtml()}${famCard}
     ${sorted.length ? `<ol class="list">${sorted.slice(0, state.listLimit).map(([d, p]) => itemHtml(p, d)).join('')}</ol>
     ${sorted.length > state.listLimit ? '<button type="button" class="more" data-more="1">Mehr anzeigen</button>' : ''}`
     : `<div class="empty"><b>Hier ist nichts dabei.</b>${state.area.type !== 'all' ? 'Probier ein größeres Gebiet oder weniger Filter.' : 'Probier weniger Filter oder zoom raus.'}</div>`}`;
@@ -684,7 +683,7 @@ function offerListView(g) {
   const near = o => { const pl = o.place_id && byId.get(o.place_id); return pl ? dist(o0, [pl.lat, pl.lon]) : o.lat ? dist(o0, [o.lat, o.lon]) : 9e9; };
   const list = groupOffers(g).filter(([, o]) => offerInArea(o) && (!o.place_id || !byId.get(o.place_id) || inSelection(byId.get(o.place_id))))
     .map(([d, o]) => [near(o), d, o]).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-  return `<div class="ph" data-expand="1"><h2>${nf.format(list.length)} Angebote<span class="sub">in den nächsten 8 Wochen, ${state.me ? 'von dir aus' : 'ab Kartenmitte'}</span></h2></div>${toolsHtml(false)}
+  return `<div class="ph" data-expand="1"><h2>${nf.format(list.length)} Angebote · ${esc(topTitle())}<span class="sub">in den nächsten 8 Wochen, ${state.me ? 'von dir aus' : 'ab Kartenmitte'}</span></h2></div>${toolsHtml(false)}
     ${list.length ? `<ol class="list">${list.slice(0, state.listLimit).map(([, d, o]) => offerItem(o, d)).join('')}</ol>
     ${list.length > state.listLimit ? '<button type="button" class="more" data-more="1">Mehr anzeigen</button>' : ''}`
     : '<div class="empty"><b>Hier ist nichts dabei.</b>Probier andere Tags.</div>'}
@@ -709,7 +708,7 @@ function itemHtml(p, d) {
 function showPlace(id, fromMap) {
   const p = byId.get(id); if (!p) return;
   if (fromMap && view().type === 'detail') stack.pop();
-  if (fromMap && !desktop()) { go({ type: 'card', id }, 'card'); map.panInside([p.lat, p.lon], { paddingTopLeft: [24, 130], paddingBottomRight: [24, 210] }); }
+  if (fromMap && !desktop()) { go({ type: 'card', id }, 'card'); map.panInside([p.lat, p.lon], { paddingTopLeft: [24, 70], paddingBottomRight: [70, 210] }); }
   else go({ type: 'detail', id }, desktop() ? 'full' : 'half');
   if (state.selected) byId.get(state.selected)?.marker?._icon?.classList.remove('sel');
   state.selected = id;
@@ -725,7 +724,7 @@ function cardView(id) {
       <span class="meta">${esc(CAT_LABEL[p.cat] || '')}${ot ? ' · ' + ot : ''} · ${fmtDist(d)}</span>${yes ? `<span class="mini">${yes}</span>` : ''}</span></button>
     <button type="button" class="round" data-home="peek" aria-label="Schließen">${svg('close')}</button></div>
     <div class="pinacts"><a class="btn primary" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lon}&travelmode=walking" target="_blank" rel="noopener">${svg('route')}Route</a>
-      <button type="button" class="btn${fav ? ' on' : ''}" data-fav="${id}" aria-label="${fav ? 'Gemerkt' : 'Merken'}">${svg('heart')}</button>
+      <button type="button" class="btn${fav ? ' on' : ''}" data-fav="${id}" aria-label="${fav ? 'Favorit' : 'Merken'}">${svg('heart')}</button>
       <button type="button" class="btn" data-detail="${id}">Details</button></div>`;
 }
 async function photoTags(ids) {
@@ -766,7 +765,7 @@ async function detailView(id) {
     </div></div>
     <div class="acts">
       <a class="act primary" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lon}&travelmode=walking" target="_blank" rel="noopener">${svg('route')}Route</a>
-      <button type="button" class="act${fav ? ' on' : ''}" data-fav="${id}">${svg('heart')}${fav ? 'Gemerkt' : 'Merken'}</button>
+      <button type="button" class="act${fav ? ' on' : ''}" data-fav="${id}">${svg('heart')}${fav ? 'Favorit' : 'Merken'}</button>
       <button type="button" class="act" data-share="${id}">${svg('share')}Teilen</button>
       <button type="button" class="act" data-addinfo="${id}">${svg('edit')}Ergänzen</button>
     </div>
@@ -984,9 +983,14 @@ function occursOn(o, day) {
   if (o.weekday != null) return o.weekday === dayIdx(day) && (!s || s <= k) && (!e || k <= e);
   return !!s && s <= k && (!e ? s === k : k <= e);
 }
-function savedView() {
+function favsView() {
   const o = origin();
   const ps = store.favorites.map(id => byId.get(id)).filter(Boolean);
+  return `${head('Favoriten', 'Nur auf diesem Gerät gespeichert', false)}
+    ${ps.length ? `<ol class="list">${ps.map(p => itemHtml(p, dist(o, [p.lat, p.lon]))).join('')}</ol>`
+    : `<p class="muted text">Noch keine Favoriten. Tippe bei einem Ort auf das Herz.</p>`}`;
+}
+function savedView() {
   const pr = store.profile, now = new Date();
   const maxYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   return `${head('Meins', 'Nur auf diesem Gerät gespeichert', false)}
@@ -1003,9 +1007,7 @@ function savedView() {
         <div class="stepper"><button type="button" data-dogs="-1" aria-label="Weniger">–</button><b id="dogsN">${pr.dogs || 0}</b><button type="button" data-dogs="1" aria-label="Mehr">+</button></div></div>
       <p class="note">Wenn ihr einen Hund habt, zeigt Djuu „Hunde erlaubt“ immer direkt mit an.</p>
     </div>
-    <div class="sec"><h4>Gemerkt</h4>
-    ${ps.length ? `<ol class="list">${ps.map(p => itemHtml(p, dist(o, [p.lat, p.lon]))).join('')}</ol>`
-    : `<p class="muted text">Noch nichts gemerkt. Tippe bei einem Ort auf „Merken“.</p>`}</div>`;
+`;
 }
 function saveProfileField(el) {
   const pr = store.profile;
@@ -1199,6 +1201,7 @@ const TABS = [
   { id: 'map', label: 'Karte', icon: 'map' },
   { id: 'search', label: 'Suchen', icon: 'search' },
   { id: 'events', label: 'Termine', icon: 'cal' },
+  { id: 'favs', label: 'Favoriten', icon: 'heart' },
   { id: 'me', label: 'Meins', icon: 'user' },
 ];
 function setTab(id) {
@@ -1211,19 +1214,19 @@ function toggle(set, v) { set.has(v) ? set.delete(v) : set.add(v); }
 document.addEventListener('click', async e => {
   const t = e.target.closest('button, [data-expand]'); if (!t) return;
   const ds = t.dataset;
-  if (ds.mode) { state.mode = ds.mode; state.browsing = true; renderTop(); }
-  else if (ds.browse) { state.browsing = true; state.mode = soleGroup()?.mode || state.mode; renderTop(); }
-  else if (ds.groupAll) { state.groups.clear(); state.cats.clear(); state.tags.clear(); state.preset = null; state.browsing = true; refresh(); home('peek'); }
-  else if (ds.group) { const same = state.groups.size === 1 && state.groups.has(ds.group); if (!same) { state.groups = new Set([ds.group]); state.cats.clear(); state.tags.clear(); state.preset = null; if (!IO_GROUPS.includes(ds.group)) state.io = null; state.listLimit = 40; } state.mode = GROUP[ds.group].mode; state.browsing = false; refresh(); if (view().type !== 'list') home('peek'); }
+  if (ds.mode) { state.mode = ds.mode; state.level = 1; renderTop(); }
+  else if (ds.level) { state.level = +ds.level; renderTop(); }
+  else if (ds.groupAll) { state.groups.clear(); state.cats.clear(); state.tags.clear(); state.preset = null; state.level = 0; refresh(); home('peek'); }
+  else if (ds.group) { const same = state.groups.size === 1 && state.groups.has(ds.group); if (!same) { state.groups = new Set([ds.group]); state.cats.clear(); state.tags.clear(); state.preset = null; if (!IO_GROUPS.includes(ds.group)) state.io = null; state.listLimit = 40; } state.mode = GROUP[ds.group].mode; state.level = TAGS[ds.group] ? 2 : 1; refresh(); if (view().type !== 'list') home('peek'); }
   else if (ds.tag) { toggle(state.tags, ds.tag); state.preset = null; state.listLimit = 40; refresh(); if (view().type !== 'list') home('peek'); }
   else if (ds.io) { state.io = state.io === ds.io ? null : ds.io; state.preset = null; refresh(); }
   else if (ds.detail) go({ type: 'detail', id: ds.detail }, 'full');
   else if (ds.sdistrict) { state.sq = ''; setArea({ type: 'district', name: ds.sdistrict }); home('peek'); }
-  else if (ds.gtag) { const [gid, tg] = ds.gtag.split('|'); state.groups = new Set([gid]); state.tags = new Set([tg]); state.cats.clear(); state.mode = GROUP[gid].mode; state.browsing = false; state.q = ''; state.sq = ''; refresh(); home('peek'); }
-  else if (ds.groupOnly) { state.groups = new Set([ds.groupOnly]); state.tags.clear(); state.cats.clear(); state.mode = GROUP[ds.groupOnly].mode; state.browsing = false; state.q = ''; state.sq = ''; refresh(); home('peek'); }
+  else if (ds.gtag) { const [gid, tg] = ds.gtag.split('|'); state.groups = new Set([gid]); state.tags = new Set([tg]); state.cats.clear(); state.mode = GROUP[gid].mode; state.level = 2; state.q = ''; state.sq = ''; refresh(); home('peek'); }
+  else if (ds.groupOnly) { state.groups = new Set([ds.groupOnly]); state.tags.clear(); state.cats.clear(); state.mode = GROUP[ds.groupOnly].mode; state.level = 2; state.q = ''; state.sq = ''; refresh(); home('peek'); }
   else if (ds.filterOnly) { state.filters.add(ds.filterOnly); state.q = ''; state.sq = ''; refresh(); home('peek'); }
   else if (ds.filter) { toggle(state.filters, ds.filter); state.preset = null; refresh(); }
-  else if (ds.preset) { const p = PRESETS.find(x => x.id === ds.preset); state.preset = p.id; state.groups = new Set(p.groups); state.cats = new Set(p.cats || []); state.tags = new Set(p.tags || []); state.io = p.io || null; state.filters = new Set(p.filters); if (p.groups[0]) state.mode = GROUP[p.groups[0]].mode; state.browsing = false; state.q = ''; state.sq = ''; refresh(); home('peek'); }
+  else if (ds.preset) { const p = PRESETS.find(x => x.id === ds.preset); state.preset = p.id; state.groups = new Set(p.groups); state.cats = new Set(p.cats || []); state.tags = new Set(p.tags || []); state.io = p.io || null; state.filters = new Set(p.filters); if (p.groups[0]) state.mode = GROUP[p.groups[0]].mode; state.level = 2; state.q = ''; state.sq = ''; refresh(); home('peek'); }
   else if (ds.open === 'filters') go({ type: 'filters' });
   else if (ds.open === 'area') go({ type: 'area' });
   else if (ds.area === 'all') { setArea({ type: 'all' }, false); renderPanel(); }
@@ -1249,7 +1252,7 @@ document.addEventListener('click', async e => {
     else if (ds.tab === 'add') startWizard();
     else { stack = [{ type: 'list' }]; go({ type: ds.tab }, 'full'); setTab(ds.tab); }
   }
-  else if (ds.fav) { const i = store.favorites.indexOf(ds.fav); i >= 0 ? store.favorites.splice(i, 1) : store.favorites.push(ds.fav); save(); toast(i >= 0 ? 'Nicht mehr gemerkt.' : 'Gemerkt. Du findest den Ort unter „Meins“.'); renderPanel(); }
+  else if (ds.fav) { const i = store.favorites.indexOf(ds.fav); i >= 0 ? store.favorites.splice(i, 1) : store.favorites.push(ds.fav); save(); toast(i >= 0 ? 'Aus den Favoriten entfernt.' : 'Zu den Favoriten hinzugefügt.'); renderPanel(); }
   else if (ds.share) {
     const p = byId.get(ds.share), url = location.origin + location.pathname + '#' + p.id;
     if (navigator.share) navigator.share({ title: p.name, text: p.name + ' auf Djuu', url }).catch(() => {});
@@ -1273,7 +1276,7 @@ document.addEventListener('change', e => {
   if (e.target.id === 'famSwitch') { view().fam = e.target.checked; renderPanel(); }
   if (e.target.id === 'evDate') { view().date = e.target.value; view().limit = 60; renderPanel(); }
 });
-$('#sos').innerHTML = svg('bolt') + '<span>Dringend</span>';
+$('#sos').innerHTML = svg('bolt');
 $('#sos').onclick = () => { stack = [{ type: 'list' }]; go({ type: 'sos' }, 'full'); locate(false); };
 $('#locate').innerHTML = svg('locate');
 $('#addFab').innerHTML = svg('plus');

@@ -1,4 +1,4 @@
-/* Djuu v0.9 – map first. Phone: floating pill + one chip row on top, slim draggable sheet at the bottom,
+/* Djuu v0.10 – map first. Phone: one floating chip row on top, map buttons on the right, slim draggable sheet at the bottom,
    tabs below. Desktop (>= 900px): the same sheet becomes a fixed left column, map on the right. */
 :root {
   --bg: #F3F6F4;
@@ -75,8 +75,6 @@ svg.i { width: 20px; height: 20px; flex: none; fill: none; stroke: currentColor;
 .me-dot { width: 18px; height: 18px; border-radius: 50%; background: #1C7ED6; border: 3px solid #fff; box-shadow: 0 0 0 6px rgba(28,126,214,.25); }
 
 /* ---------- Urgent button ---------- */
-.sos { position: absolute; z-index: 1050; right: 14px; bottom: calc(var(--tabs-h) + var(--peek) + 14px); display: inline-flex; align-items: center; gap: 8px; height: 50px; padding: 0 18px 0 14px; border: 0; border-radius: 999px; background: var(--sos); color: #fff; font-weight: 800; font-size: 15px; box-shadow: var(--shadow); transition: bottom .25s ease; }
-.sos svg.i { width: 22px; height: 22px; stroke-width: 2.2; }
 
 /* ---------- Panel (sheet on phone, column on desktop) ---------- */
 .panel { position: absolute; z-index: 1100; left: 0; right: 0; bottom: var(--tabs-h); height: var(--peek); background: var(--surface); border-radius: 22px 22px 0 0; box-shadow: 0 -6px 30px rgba(16,48,42,.16); display: flex; flex-direction: column; transition: height .25s ease; }
@@ -247,8 +245,8 @@ textarea { min-height: 80px; resize: vertical; }
 .addhint { position: absolute; z-index: 1150; left: 12px; right: 12px; top: calc(70px + env(safe-area-inset-top, 0px)); display: flex; gap: 10px; align-items: center; justify-content: space-between; background: var(--sun); color: var(--sun-ink); padding: 10px 14px; border-radius: 16px; font-weight: 700; box-shadow: var(--shadow); }
 
 /* tabs */
-.tabs { position: absolute; z-index: 1200; left: 0; right: 0; bottom: 0; height: calc(var(--tabs-h) + env(safe-area-inset-bottom, 0px)); padding-bottom: env(safe-area-inset-bottom, 0px); display: grid; grid-template-columns: repeat(4, 1fr); background: var(--surface); border-top: 1px solid var(--line); }
-.tabs button { border: 0; background: none; display: grid; place-items: center; align-content: center; gap: 3px; font-size: 11.5px; font-weight: 700; color: var(--muted); }
+.tabs { position: absolute; z-index: 1200; left: 0; right: 0; bottom: 0; height: calc(var(--tabs-h) + env(safe-area-inset-bottom, 0px)); padding-bottom: env(safe-area-inset-bottom, 0px); display: grid; grid-template-columns: repeat(5, 1fr); background: var(--surface); border-top: 1px solid var(--line); }
+.tabs button { border: 0; background: none; display: grid; place-items: center; align-content: center; gap: 3px; font-size: 11px; padding: 0; font-weight: 700; color: var(--muted); }
 .tabs button svg.i { width: 24px; height: 24px; }
 .tabs button.on { color: var(--brand); }
 .tabs .add svg.i { width: 30px; height: 30px; padding: 5px; border-radius: 50%; background: var(--sun); color: var(--sun-ink); stroke-width: 2.4; }
@@ -325,29 +323,22 @@ textarea { min-height: 80px; resize: vertical; }
 .zs .leaflet-marker-icon.sel .mk { transform: scale(1.1); }
 
 /* v0.9: map owns the screen. Pill + one chip row on top, slim sheet, small card for a tapped pin */
-.topline { display: flex; gap: 8px; margin: 0 12px; align-items: center; }
-.pill { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; height: 54px; padding: 0 14px 0 9px; border: 0; border-radius: 999px; background: var(--surface); box-shadow: var(--shadow); text-align: left; }
-.pill .ptext { flex: 1; min-width: 0; display: grid; line-height: 1.2; }
-.pill b, .pill small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pill b { font-weight: 700; font-size: 15px; }
-.pill small { color: var(--muted); font-size: 12.5px; }
-.pill svg.i { color: var(--muted); }
-.topline .iconbtn { width: 46px; height: 46px; background: var(--surface); box-shadow: var(--shadow-sm); color: var(--ink); position: relative; }
-.topline .iconbtn.on { background: var(--ink); color: #fff; }
-.iconbtn .count { position: absolute; top: -3px; right: -3px; min-width: 18px; height: 18px; border-radius: 9px; background: var(--sos); color: #fff; font-size: 11px; font-weight: 800; display: grid; place-items: center; }
 .ctx .chip { height: 36px; box-shadow: var(--shadow-sm); border-color: transparent; }
 .chip .ic { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; color: var(--c); margin-left: -4px; }
 .chip .ic svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .chip.on, .chip.tag.on, .chip.kat.on { background: var(--ink); border-color: var(--ink); color: #fff; }
 .chip.kat.on .ic { color: #fff; }
 .chip.up { background: color-mix(in srgb, var(--c) 14%, var(--surface)); padding-left: 8px; }
-.row.inlist { margin: 0 -16px 10px; padding: 2px 16px; }
 
 /* map buttons on the right, above the sheet */
 .fabs { position: absolute; z-index: 1050; right: 12px; bottom: calc(var(--tabs-h) + var(--peek) + 12px); display: grid; justify-items: end; gap: 10px; transition: bottom .25s ease, opacity .15s; }
-.fabs .sos { position: static; height: 44px; padding: 0 14px 0 11px; font-size: 14px; }
 .fab { width: 44px; height: 44px; border-radius: 50%; border: 0; background: var(--surface); color: var(--ink); box-shadow: var(--shadow-sm); display: grid; place-items: center; }
 .fab.on { color: #1C7ED6; }
+#filterBtn { position: relative; }
+#filterBtn.on { background: var(--ink); color: #fff; }
+.fab .count { position: absolute; top: -3px; right: -3px; min-width: 18px; height: 18px; border-radius: 9px; background: var(--sos); color: #fff; font-size: 11px; font-weight: 800; display: grid; place-items: center; }
+.fab.sos { background: var(--sos); color: #fff; }
+.fab.sos svg.i { width: 22px; height: 22px; stroke-width: 2.2; }
 #app[data-size="card"] .fabs { bottom: calc(var(--tabs-h) + var(--card) + 12px); }
 #app[data-size="half"] .fabs, #app[data-size="full"] .fabs { opacity: 0; pointer-events: none; }
 .leaflet-bottom.leaflet-left { bottom: var(--peek); }
@@ -359,7 +350,7 @@ textarea { min-height: 80px; resize: vertical; }
 .panel[data-size="card"] .panel-body { overflow: hidden; padding-bottom: 8px; }
 .grip { height: 18px; }
 .panel[data-size="peek"] .ph { justify-content: center; text-align: center; padding: 0; }
-.panel[data-size="peek"] .ph h2 { font: 700 16px/1.25 var(--font-body); letter-spacing: 0; }
+.panel[data-size="peek"] .ph h2 { font: 700 16px/1.25 var(--font-body); letter-spacing: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .panel[data-size="peek"] .ph .sub { display: none; }
 .pincard { display: flex; gap: 10px; align-items: flex-start; }
 .pinmain { flex: 1; min-width: 0; display: grid; grid-template-columns: 44px 1fr; gap: 12px; border: 0; background: none; padding: 0; text-align: left; }
@@ -381,22 +372,13 @@ textarea { min-height: 80px; resize: vertical; }
 .catcard .ic svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .catcard.on { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
 
-/* variant B: pill and chips directly above the sheet, in thumb reach */
-[data-ux="b"] .topbar { top: auto; bottom: calc(var(--tabs-h) + var(--peek) + 2px); transition: opacity .15s; }
-[data-ux="b"] #app[data-size="card"] .topbar, [data-ux="b"] #app[data-size="half"] .topbar, [data-ux="b"] #app[data-size="full"] .topbar { opacity: 0; pointer-events: none; }
-[data-ux="b"] .topbar * { pointer-events: inherit; }
-[data-ux="b"] .fabs { bottom: calc(var(--tabs-h) + var(--peek) + 118px); }
 
 @media (min-width: 900px) {
-  .topline .iconbtn { box-shadow: none; background: var(--surface-2); }
-  .pill { box-shadow: none; background: var(--surface-2); }
   .ctx .chip { box-shadow: none; border-color: var(--line); }
   .ctx .chip.on { border-color: var(--ink); }
   .fabs, #app[data-size] .fabs { left: calc(var(--col) + 16px); right: auto; top: 16px; bottom: auto; justify-items: start; opacity: 1; pointer-events: auto; }
   .leaflet-bottom.leaflet-left { bottom: 0; }
   .panel[data-size="peek"] .ph { text-align: left; }
-  [data-ux="b"] .topbar { top: 0; bottom: auto; }
-  [data-ux="b"] .fabs { bottom: auto; }
 }
 .panel[data-size="peek"] .panel-body > :not(.ph) { display: none; }
 @media (min-width: 900px) { .panel[data-size] .panel-body > :not(.ph) { display: revert-layer; } }
