@@ -1,4 +1,4 @@
-/* Djuu v0.14 – family map for Hamburg.
+/* Djuu v0.15 – family map for Hamburg.
    The map owns the screen: one chip row floats on top, map buttons on the right, the sheet starts as a slim bar.
    The chip row drills down one level at a time: Erleben or Service, then categories, then the tags of a category.
    A tapped pin opens a small card; search and favorites live in the bottom bar. Default view: playgrounds.
@@ -7,7 +7,11 @@
    User input is stored on this device only until the server exists (server-ready shape, see STORE). */
 'use strict';
 
-const VERSION = '0.14';
+const VERSION = '0.15';
+// Logo on light backgrounds, as specified in the design PDF.
+const LOGO = `<span class="logo" role="img" aria-label="djuu"><span style="color:#6B4EE6">d</span><span style="color:#0E8F84">j</span><span style="color:#D6336C">u</span><span style="color:#CC6A00">u</span>
+  <svg viewBox="18 92 78 34" style="position:absolute;right:.225em;top:.84em;width:.482em;height:.21em;overflow:visible" aria-hidden="true"><path d="M20 112 C38 130 66 114 92 97" fill="none" stroke="#0E8F84" stroke-width="9" stroke-linecap="round" stroke-dasharray="0.1 17"/></svg>
+  <svg viewBox="-40 -48 80 96" style="position:absolute;right:.04em;top:.39em;width:.42em;height:.5em;overflow:visible" aria-hidden="true"><g transform="rotate(-14 0 44)"><path d="M0 -44 C-24 -44 -36 -26 -36 -10 C-36 14 0 44 0 44 C0 44 36 14 36 -10 C36 -26 24 -44 0 -44 Z" fill="#6B4EE6"/><circle cx="0" cy="-10" r="15" fill="#FFFFFF"/><path d="M-27 -20 Q-26 -33 -15 -38" fill="none" stroke="#FFFFFF" stroke-width="5" stroke-linecap="round" opacity=".55"/></g></svg></span>`;
 // Decorative balls (design PDF): flat circles at the edge, only on the start screen, success and empty states; never on the map, never behind text or buttons.
 const ball = (pos, d, color, op = 1) => `<div class="ball" style="${pos};width:${d}px;height:${d}px;background:${color}${op === 1 ? '' : ';opacity:' + op}"><i></i></div>`;
 const BALLS_THANKS = `<div class="balls" aria-hidden="true">${ball('left:10px;top:14px', 30, '#FFB3CC')}${ball('right:12px;top:30px', 40, '#7FE0D4')}${ball('left:14px;bottom:12px', 48, '#FFD166')}${ball('left:50%;bottom:10px', 24, '#6B4EE6')}${ball('right:18px;bottom:16px', 30, '#C9BDFF')}</div>`;
@@ -1185,7 +1189,7 @@ function ferienView() {
 function savedView() {
   const pr = store.profile, now = new Date();
   const maxYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  return `${head('Meins', 'Nur auf diesem Gerät gespeichert', false)}
+  return `<div class="melogo">${LOGO}</div>${head('Meins', 'Nur auf diesem Gerät gespeichert', false)}
     <div class="sec"><h4>Unsere Familie</h4>
       <p class="muted text">Mit dem Alter deiner Kinder zeigt Djuu passende Gruppen, Kurse und Orte. Der Tag ist freiwillig, Monat und Jahr reichen.</p>
       <div id="kids">${pr.kids.map((k, i) => `<div class="kidrow">
