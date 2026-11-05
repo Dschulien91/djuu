@@ -1,4 +1,4 @@
-/* Djuu v0.16 – family map for Hamburg.
+/* Djuu v0.17 – family map for Hamburg.
    The map owns the screen: one chip row floats on top, map buttons on the right, the sheet starts as a slim bar.
    The chip row drills down one level at a time: Erleben or Service, then categories, then the tags of a category.
    A tapped pin opens a small card; search and favorites live in the bottom bar. Default view: playgrounds.
@@ -7,7 +7,7 @@
    User input is stored on this device only until the server exists (server-ready shape, see STORE). */
 'use strict';
 
-const VERSION = '0.16';
+const VERSION = '0.17';
 // Logo on light backgrounds, as specified in the design PDF.
 const LOGO = `<span class="logo" role="img" aria-label="djuu"><span style="color:#6B4EE6">d</span><span style="color:#0E8F84">j</span><span style="color:#D6336C">u</span><span style="color:#CC6A00">u</span>
   <svg viewBox="18 92 78 34" style="position:absolute;right:.225em;top:.84em;width:.482em;height:.21em;overflow:visible" aria-hidden="true"><path d="M20 112 C38 130 66 114 92 97" fill="none" stroke="#0E8F84" stroke-width="9" stroke-linecap="round" stroke-dasharray="0.1 17"/></svg>
@@ -55,6 +55,7 @@ const ICON = {
   user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/>',
   pin: '<path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/>',
   undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/>',
+  mic: '<rect x="9" y="2.5" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3.5M8.5 21.5h7"/>',
   pill: '<rect x="3" y="8.5" width="18" height="7" rx="3.5" transform="rotate(-45 12 12)"/><path d="M9.5 9.5l5 5"/>',
 };
 const svg = (name, cls = 'i') => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON[name] || ''}</svg>`;
@@ -412,6 +413,7 @@ function buildPlace(row) {
   return p;
 }
 function addUserPlaces() {
+  SI = null;
   for (const c of store.contributions) if (c.isNew && !byId.has(c.placeId)) {
     const p = { id: c.placeId, name: c.name, named: true, cat: c.cat, lat: c.lat, lon: c.lon, district: '', f: {}, srcs: [], tags: new Set([c.cat]), mine: true };
     if (c.hours) { p.hoursRaw = c.hours; p.oh = parseOH(c.hours); }
@@ -685,11 +687,12 @@ function compute() {
   offerPlaces = new Map();
   for (const id of state.groups) if (GROUP[id].offers) offerPlaces.set(id, new Set(groupOffers(GROUP[id]).map(([, o]) => o.place_id).filter(Boolean)));
   const q = state.q.trim().toLowerCase();
+  const qHits = q ? new Set(searchPlaces(q).map(r => r.p.id)) : null;
   const fs = [...state.filters];
   const res = { match: [], unknown: [] };
   for (const p of places) {
     if (!inSelection(p)) continue;
-    if (q && !(p.name.toLowerCase().includes(q) || (p.district || '').toLowerCase().includes(q) || (CAT_LABEL[p.cat] || '').toLowerCase().includes(q))) continue;
+    if (qHits && !qHits.has(p.id)) continue;
     let unk = false, ok = true;
     for (const f of fs) {
       const v = filterVal(p, f);
@@ -781,6 +784,7 @@ const head = (title, sub = '', canBack = true) => `<div class="ph">${canBack ? `
 
 async function renderPanel() {
   const v = view(), body = $('#panelBody');
+  if (rec && v.type !== 'search') rec.abort();
   if (v.type !== 'wizard' && wiz.map) { wiz.map.remove(); wiz.map = null; }
   if (v.type === 'list') body.innerHTML = listView();
   else if (v.type === 'detail') { const html = await detailView(v.id); if (view() !== v) return; body.innerHTML = html; bindDetail(v.id); }
@@ -1044,10 +1048,175 @@ function drawView() {
 }
 
 // search
+// ---------- Search: words, tags, similar terms and typos, all on the device ----------
+const norm = s => String(s ?? '').toLowerCase().replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+const words = s => norm(s).split(/[^a-z0-9]+/).filter(Boolean);
+const STOP = new Set('und oder in im am an auf mit ohne fuer der die das den dem des ein eine einen einem einer wo ist sind gibt es naehe nah bei was zum zur von vom wir ich suche suchen finden machen will wollen moechte hier heute irgendwas etwas nach hamburg hh stadt'.split(' '));
+// Similar terms: search word -> words that exist in names, categories and tags. Earlier words count more.
+const SYN = {
+  zoo: ['tierpark', 'hagenbeck', 'tiere'], tiergarten: ['tierpark', 'tiere'], tierpark: ['hagenbeck', 'tiere'], wildpark: ['tiere'], streichelzoo: ['tiere'], bauernhof: ['tiere', 'hof'], kinderbauernhof: ['tiere', 'hof'], aquarium: ['tiere'],
+  klo: ['toilette'], toiletten: ['toilette'], wc: ['toilette'], pipi: ['toilette'], wickeln: ['wickelplatz', 'wickeltisch'], wickelraum: ['wickelplatz', 'wickeltisch'], stillraum: ['stillen', 'stillmoeglichkeit'], stillen: ['stillmoeglichkeit'],
+  windeln: ['drogerie', 'supermarkt', 'spaeti'], pampers: ['drogerie', 'supermarkt'], babynahrung: ['drogerie', 'supermarkt'], einkaufen: ['supermarkt', 'drogerie'], kiosk: ['spaeti'], spielsachen: ['spielzeug'], klamotten: ['kinderkleidung', 'secondhand'], kleidung: ['kinderkleidung'], schuhe: ['kinderkleidung'], buch: ['buecher', 'buecherhallen'],
+  arzt: ['kinderarzt'], aerztin: ['kinderarzt'], doktor: ['kinderarzt'], kinderaerztin: ['kinderarzt'], krankenhaus: ['klinik'], notaufnahme: ['klinik'], notfall: ['klinik', 'apotheke'], fieber: ['kinderarzt', 'apotheke'], zahnaerztin: ['zahnarzt'], zaehne: ['zahnarzt'], frauenaerztin: ['frauenarzt'], gynaekologe: ['frauenarzt'], ohren: ['hno'], augen: ['augenarzt'], krankengymnastik: ['physiotherapie'], physio: ['physiotherapie'], logopaedie: ['logopaedie'], ergo: ['ergotherapie'], psychologe: ['kinderpsychologie'], geburt: ['geburtshaus', 'hebamme'],
+  schwimmbad: ['baden', 'schwimmbad'], hallenbad: ['hallenbad', 'baden'], freibad: ['freibad', 'baden'], schwimmen: ['baden', 'schwimmbad'], planschen: ['wasserspiel', 'baden'], badestelle: ['baden'], strand: ['baden'], see: ['baden', 'natur'],
+  playground: ['spielplatz'], spielplaetze: ['spielplatz'], rutschen: ['rutsche'], schaukeln: ['schaukel'], sandkiste: ['sandkasten'], indoor: ['indoorspielplatz', 'drinnen'], indoorspielplatz: ['indoorspielplatz'], regen: ['indoorspielplatz', 'spielhaus', 'museen', 'drinnen'], toben: ['spielplatz', 'indoorspielplatz', 'trampolin'], kindergeburtstag: ['indoorspielplatz', 'trampolin', 'kindercafe'], bouldern: ['klettern'], fussball: ['bolzplatz'], bolzen: ['bolzplatz'], basketball: ['bolzplatz'], ping: ['tischtennis'], sport: ['sportanlagen', 'sportvereine'], turnen: ['sportvereine'], pferde: ['reiten'], ponyhof: ['reiten'], schlitten: ['rodeln'], rodelberg: ['rodeln'],
+  cafe: ['cafe'], kaffee: ['cafe'], kuchen: ['kuchen', 'cafe'], eisdiele: ['eis'], eiscafe: ['eis'], essen: ['restaurant', 'imbiss', 'cafe'], restaurants: ['restaurant'], fruehstuecken: ['fruehstueck'], brunch: ['fruehstueck'], pommes: ['imbiss'], doener: ['imbiss'], pizzeria: ['pizza'], spielcafe: ['kindercafe'], familiencafe: ['kindercafe'], vegetarier: ['vegetarisch'], terrasse: ['draussen'],
+  kultur: ['museen', 'kultur'], ausstellung: ['museen', 'museum'], theater: ['theater'], kino: ['theater', 'kino'], bibliothek: ['buecherhallen', 'buecherhalle'], buecherei: ['buecherhallen', 'buecherhalle'], wald: ['natur', 'park'], wiese: ['park', 'natur'], natur: ['natur', 'park'], gruenanlage: ['park'], ausflug: ['ausflugsziele', 'tiere', 'museen'], faehre: ['faehren', 'faehranleger'], boot: ['bootsverleih'], grillen: ['picknick'],
+  hund: ['hunde', 'hundeauslauf'], hunde: ['hunde', 'hundeauslauf'], gassi: ['hundeauslauf'], kindergarten: ['kita'], kitas: ['kita'], grundschule: ['schule'], schulen: ['schule'], musikunterricht: ['musikschulen'], tanzen: ['tanzschulen'], ballett: ['tanzschulen'], beratungsstelle: ['beratung'], familienzentrum: ['familienzentren'], elternschule: ['elternschulen'],
+  krabbelgruppe: ['krabbel', 'spielgruppe'], babykurs: ['babymassage', 'pekip', 'krabbel'], kurs: ['kurs'], kurse: ['kurs'], babyschwimmen: ['babyschwimmen'], geburtsvorbereitung: ['geburtsvorbereitung'], flohmarkt: ['flohmarkt', 'basar'], basar: ['flohmarkt', 'basar'], laterne: ['laternenumzug'], vorlesen: ['vorlesen', 'bilderbuch'],
+  kinderwagen: ['kinderwagen'], fahrstuhl: ['aufzug'], lift: ['aufzug'], bus: ['haltestelle'], bahn: ['haltestelle', 'bahnhof'], ubahn: ['haltestelle', 'bahnhof'], sbahn: ['haltestelle', 'bahnhof'], station: ['haltestelle', 'bahnhof'],
+};
+const PHRASES = { 'u bahn': 'ubahn', 's bahn': 'sbahn', 'ice cream': 'eis', 'wc anlage': 'wc', 'spiel platz': 'spielplatz', 'kinder arzt': 'kinderarzt', 'kinder cafe': 'kindercafe' };
+// Places with this tag are what the word really means, not those that merely share a word with its synonyms.
+const INTENT = { zoo: 'tiere', tierpark: 'tiere', tiergarten: 'tiere', wildpark: 'tiere', streichelzoo: 'tiere', bauernhof: 'tiere', kinderbauernhof: 'tiere', aquarium: 'tiere', regen: 'drinnen', ubahn: 'bahnhof', sbahn: 'bahnhof', bahn: 'bahnhof' };
+const OPEN_WORDS = new Set(['offen', 'geoeffnet', 'jetzt']);
+const SUNDAY_WORDS = new Set(['sonntag', 'sonntags']);
+// Places that are rarely what someone means by a word in their name.
+const LOW_RANK = new Set(['haltestelle', 'bahnhof', 'aufzug', 'spielstrasse', 'faehre']);
+let SI = null;
+function searchIndex() {
+  if (SI) return SI;
+  const name = new Map(), meta = new Map(), low = new Map();
+  const add = (m, text, i) => { for (const w of words(text)) { let l = m.get(w); if (!l) m.set(w, l = []); if (l[l.length - 1] !== i) l.push(i); } };
+  places.forEach((p, i) => {
+    if (p.named) add(name, p.name, i);
+    if (p.cat !== 'windeln') add(meta, CAT_LABEL[p.cat], i); // its tags say which kind of shop it is
+    for (const t of p.tags) add(meta, TAG_LABEL[t], i);
+    if (p.gear) for (const g of GEAR) if (p.gear.has(g.id)) add(meta, g.label, i);
+    for (const a of ATTRS) if (!a.id.endsWith('_nahe') && attrVal(p, a.id).v === 'yes') add(meta, a.label, i);
+    add(meta, cuisineText(p.f.cuisine?.[0]), i); add(meta, sportText(p.f.sport?.[0]), i);
+    add(low, p.district, i); add(low, p.f.street?.[0], i);
+  });
+  return SI = { fields: [[name, 3], [meta, 3], [low, 1]], offers: null };
+}
+// Edit distance with swapped letters, gives up beyond max.
+function typoDist(a, b, max) {
+  if (Math.abs(a.length - b.length) > max) return max + 1;
+  let p2 = null, p = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    const c = [i]; let best = i;
+    for (let j = 1; j <= b.length; j++) {
+      let v = Math.min(p[j] + 1, c[j - 1] + 1, p[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      if (p2 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) v = Math.min(v, p2[j - 2] + 1);
+      c.push(v); if (v < best) best = v;
+    }
+    if (best > max) return max + 1;
+    p2 = p; p = c;
+  }
+  return p[b.length];
+}
+const typoMax = w => w.length >= 8 ? 2 : w.length >= 4 ? 1 : 0;
+function parseQuery(q) {
+  let n = words(q).join(' ');
+  for (const [k, v] of Object.entries(PHRASES)) n = n.replace(new RegExp(`\\b${k}\\b`, 'g'), v);
+  const all = n.split(' ').filter(Boolean), open = all.some(w => OPEN_WORDS.has(w)), sunday = all.some(w => SUNDAY_WORDS.has(w));
+  const tokens = all.filter(w => !STOP.has(w) && !OPEN_WORDS.has(w) && !SUNDAY_WORDS.has(w));
+  return { tokens, open, sunday };
+}
+// Place index -> score for one search word. Exact word > start of word > part of word > similar spelling.
+function tokenHits(tok, state) {
+  const idx = searchIndex(), hits = new Map();
+  const put = (list, s) => { for (const i of list) if (s > (hits.get(i) || 0)) hits.set(i, s); };
+  const scan = (w, f) => {
+    for (const [m, wt] of idx.fields) {
+      const exact = m.get(w);
+      if (exact) put(exact, 10 * wt * f);
+      if (w.length < 3) continue;
+      for (const [v, list] of m) if (v !== w) {
+        if (v.startsWith(w)) put(list, 7 * wt * f);
+        else if (w.length >= 4 && v.includes(w)) put(list, 5 * wt * f);
+      }
+    }
+  };
+  scan(tok, 1);
+  (SYN[tok] || []).forEach((w, j) => scan(w, 1.2 - j * .1));
+  if (hits.size) return hits;
+  const max = typoMax(tok);
+  if (!max) return hits;
+  state.fuzzy = true;
+  for (const k of Object.keys(SYN)) if (typoDist(tok, k, max) <= max) SYN[k].forEach((w, j) => scan(w, .9 - j * .1));
+  for (const [m, wt] of idx.fields) for (const [v, list] of m) {
+    const d = v.length > 2 ? typoDist(tok, v, max) : 9;
+    if (d <= max) put(list, (4 - d) * wt);
+  }
+  return hits;
+}
+// All matching places, best first: every search word must match.
+function searchPlaces(q, o = origin()) {
+  const { tokens, open, sunday } = parseQuery(q), st = { fuzzy: false };
+  let scores = null;
+  for (const t of tokens) {
+    const h = tokenHits(t, st);
+    if (!scores) { scores = h; continue; }
+    const next = new Map();
+    for (const [i, s] of scores) if (h.has(i)) next.set(i, s + h.get(i));
+    scores = next;
+  }
+  const nq = tokens.join(' ');
+  let list;
+  if (scores) list = [...scores];
+  else if (open || sunday) list = places.map((_, i) => [i, 1]);
+  else list = [];
+  const res = [];
+  for (const [i, s0] of list) {
+    const p = places[i];
+    if (open && isOpen(p.oh) !== true) continue;
+    if (sunday && opensSunday(p.oh) !== true) continue;
+    let s = s0 + (p.f.tipp ? 4 : 0) + (p.named ? 0 : -3);
+    if (tokens.some(t => p.tags.has(INTENT[t]))) s += 25;
+    if (tokens.some(t => [t, ...(SYN[t] || [])].some(w => words(CAT_LABEL[p.cat]).includes(w)))) s += 12;
+    const n = norm(p.name);
+    if (nq && n === nq) s += 40; else if (nq && words(p.name).join(' ').startsWith(nq + ' ')) s += 15;
+    if (LOW_RANK.has(p.cat) && !tokens.some(t => t.includes(p.cat) || (SYN[t] || []).includes(p.cat))) s *= .4;
+    res.push({ p, s, d: dist(o, [p.lat, p.lon]) });
+  }
+  res.sort((a, b) => b.s - a.s || a.d - b.d);
+  res.fuzzy = st.fuzzy;
+  return res;
+}
+function searchOffers(q) {
+  const { tokens } = parseQuery(q);
+  if (!tokens.length) return [];
+  const idx = searchIndex();
+  if (!idx.offers) idx.offers = OFFERS.map(o => norm([o.title, TOPIC_LABEL[o.topic], o.venue, o.provider].filter(Boolean).join(' ')));
+  const typoKeys = t => { const m = typoMax(t); return m && !SYN[t] ? Object.keys(SYN).filter(k => typoDist(t, k, m) <= m).flatMap(k => SYN[k]) : []; };
+  const terms = tokens.map(t => [t, ...(SYN[t] || []), ...typoKeys(t)]);
+  const out = [];
+  OFFERS.forEach((o, i) => {
+    if (terms.every(ts => ts.some(w => idx.offers[i].includes(w)))) { const d = nextDate(o); if (d) out.push([d, o]); }
+  });
+  return out.sort((a, b) => a[0] - b[0]);
+}
+// Category and tag shortcuts for the search words.
+function searchChips(tokens) {
+  const terms = new Set(tokens.flatMap(t => [t, ...(SYN[t] || [])]));
+  const hit = label => { const n = norm(label), ws = words(label); return [...terms].some(w => w.length > 3 ? n.includes(w) : ws.includes(w)); };
+  return { gs: GROUPS.filter(g => hit(g.label)), ts: Object.entries(TAGS).flatMap(([gid, list]) => list.filter(t => hit(t.label)).map(t => [gid, t])).slice(0, 8), fs: ATTRS.filter(a => a.q && hit(a.label)).slice(0, 4), ds: districtList().filter(d => tokens.some(t => t.length > 2 && norm(d).includes(t))).slice(0, 4) };
+}
+
+// Voice input with the browser's own speech service; the button only appears where the browser offers one.
+const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
+let rec = null;
+function toggleMic() {
+  if (rec) { rec.stop(); return; }
+  const r = new Speech();
+  r.lang = 'de-DE'; r.interimResults = true; r.maxAlternatives = 1; r.continuous = false;
+  const setBtn = on => { const b = $('#micBtn'); if (b) { b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); b.setAttribute('aria-label', on ? 'Spracheingabe beenden' : 'Spracheingabe starten'); } };
+  r.onresult = e => {
+    const el = $('#q'); if (!el) return;
+    el.value = [...e.results].map(x => x[0].transcript).join(' ').trim();
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  };
+  r.onerror = e => toast(e.error === 'not-allowed' || e.error === 'service-not-allowed' ? 'Das Mikrofon ist nicht erlaubt. Bitte im Browser freigeben.' : e.error === 'no-speech' ? 'Nichts gehört. Versuch es noch einmal.' : 'Die Spracheingabe hat gerade nicht geklappt.');
+  r.onend = () => { rec = null; setBtn(false); };
+  rec = r;
+  try { r.start(); setBtn(true); } catch (e) { rec = null; toast('Die Spracheingabe hat gerade nicht geklappt.'); }
+}
+
 function searchView() {
   const catBlock = (m) => `<div class="sec"><h4>${m.label}</h4><div class="catgrid">${GROUPS.filter(g => g.mode === m.id).map(g => `<button type="button" class="catcard${state.groups.has(g.id) ? ' on' : ''}" data-group="${g.id}" style="--c:${g.color}"><span class="ic">${svg(g.icon, '')}</span>${esc(g.label)}</button>`).join('')}</div></div>`;
   return `${head('Was sucht ihr?', '', false)}
-    <div class="searchfield">${svg('search')}<label for="q" class="sr">Suche</label><input id="q" type="search" placeholder="Ort, Stadtteil oder Thema, z. B. vegan" autocomplete="off" enterkeyhint="search" value="${esc(state.sq)}"></div>
+    <div class="searchfield">${svg('search')}<label for="q" class="sr">Suche</label><input id="q" type="search" placeholder="Ort, Stadtteil oder Thema, z. B. vegan" autocomplete="off" enterkeyhint="search" value="${esc(state.sq)}">${Speech ? `<button type="button" class="micbtn" id="micBtn" data-mic="1" aria-label="Spracheingabe starten" aria-pressed="false">${svg('mic')}</button>` : ''}</div>
     <div id="searchRes">${searchResults()}</div>
     <div id="searchHome"${state.sq ? ' hidden' : ''}>
       <div class="tools" style="margin-top:12px"><button type="button" class="tool${state.area.type !== 'all' ? ' on' : ''}" data-open="area">${svg('pin')}<span>${esc(areaLabel())}</span></button></div>
@@ -1059,14 +1228,13 @@ function searchView() {
 function searchResults() {
   const q = state.sq.trim().toLowerCase();
   if (!q) return '';
-  const gs = GROUPS.filter(g => g.label.toLowerCase().includes(q));
-  const ts = Object.entries(TAGS).flatMap(([gid, list]) => list.filter(t => t.label.toLowerCase().includes(q)).map(t => [gid, t])).slice(0, 8);
-  const fs = ATTRS.filter(a => a.label.toLowerCase().includes(q));
-  const ds = districtList().filter(d => d.toLowerCase().includes(q)).slice(0, 4);
-  const o = origin();
-  const ps = places.filter(p => p.name.toLowerCase().includes(q)).map(p => [dist(o, [p.lat, p.lon]), p]).sort((a, b) => a[0] - b[0]).slice(0, 25);
+  const { tokens } = parseQuery(q);
+  const { gs, ts, fs, ds } = searchChips(tokens);
+  const found = searchPlaces(q), ps = found.slice(0, 25).map(r => [r.d, r.p]), offers = searchOffers(q);
   return `${gs.length || fs.length || ts.length || ds.length ? `<div class="fgrid" style="margin:12px 0 10px">${gs.map(g => `<button type="button" class="chip" data-group-only="${g.id}">${esc(g.label)}</button>`).join('')}${ts.map(([gid, t]) => `<button type="button" class="chip" data-gtag="${gid}|${t.id}">${esc(GROUP[gid].label)}: ${esc(t.label)}</button>`).join('')}${ds.map(d => `<button type="button" class="chip" data-sdistrict="${esc(d)}">${svg('pin')}${esc(d)}</button>`).join('')}${fs.map(a => `<button type="button" class="chip" data-filter-only="${a.id}">${esc(a.label)}</button>`).join('')}</div>` : ''}
-    ${ps.length ? `<ol class="list">${ps.map(([d, p]) => itemHtml(p, d)).join('')}</ol>` : '<div class="empty"><b>Keine Orte mit diesem Namen.</b>Versuch einen anderen Begriff.</div>'}`;
+    ${found.fuzzy && ps.length ? '<p class="note" style="margin:8px 0 0">Ähnliche Schreibweisen gezeigt.</p>' : ''}
+    ${ps.length ? `<ol class="list">${ps.map(([d, p]) => itemHtml(p, d)).join('')}</ol>` : offers.length ? '' : '<div class="empty"><b>Keine Orte mit diesem Namen.</b>Versuch einen anderen Begriff.</div>'}
+    ${offers.length ? `<div class="sec"><h4>Kurse und Termine</h4><ol class="list">${offers.slice(0, 6).map(([d, o]) => offerItem(o, d)).join('')}</ol>${offers.length > 6 ? `<p class="note">und ${nf.format(offers.length - 6)} weitere im Tab Termine</p>` : ''}</div>` : ''}`;
 }
 
 // urgent
@@ -1213,7 +1381,7 @@ function savedView() {
     </div>
     <div class="sec"><h4>Kartenstil</h4>
       ${MAP_STYLES.map(m => m.sec ? `<p class="stylesec">${esc(m.sec)}</p>` : `<button type="button" class="stylecard${mapStyle().id === m.id ? ' on' : ''}" data-mapstyle="${m.id}"><img src="icons/maps/${m.id}.jpg" alt="" loading="lazy" width="150" height="100"><span>${esc(m.label)}</span></button>`).join('')}
-      <p class="note">Alle Kartenstile sind kostenlos und brauchen kein Konto. Die Wetteranzeige stammt vom Deutschen Wetterdienst über Bright Sky. Schulferien: Ferienordnung Hamburg, andere Bundesländer über OpenHolidays (ODbL).</p>
+      <p class="note">Alle Kartenstile sind kostenlos und brauchen kein Konto. Die Wetteranzeige stammt vom Deutschen Wetterdienst über Bright Sky. Schulferien: Ferienordnung Hamburg, andere Bundesländer über OpenHolidays (ODbL). Die Spracheingabe in der Suche nutzt den Sprachdienst deines Browsers, dabei kann der Ton an dessen Anbieter gehen.</p>
     </div>
 `;
 }
@@ -1449,6 +1617,7 @@ document.addEventListener('click', async e => {
   else if (ds.drawdone) { const pts = state.drawing; state.drawing = null; setArea({ type: 'poly', pts }); stack = [{ type: 'list' }]; renderPanel(); setSize(desktop() ? 'full' : 'half'); }
   else if (ds.evdateclear) { view().date = ''; renderPanel(); }
   else if (ds.clearq) { state.q = ''; state.sq = ''; refresh(); }
+  else if (ds.mic) toggleMic();
   else if (ds.unk) { state.showUnknown = !state.showUnknown; refresh(); }
   else if (ds.reset) { state.filters.clear(); state.io = null; state.preset = null; state.showUnknown = false; refresh(); renderPanel(); }
   else if (ds.more) { state.listLimit += 40; renderPanel(); }
@@ -1499,7 +1668,7 @@ document.addEventListener('input', e => {
   clearTimeout(document.qt);
   document.qt = setTimeout(() => { $('#searchRes').innerHTML = searchResults(); decorateEmpty($('#searchRes')); $('#searchHome').hidden = !!state.sq.trim(); }, 150);
 });
-document.addEventListener('keydown', e => { if (e.target.id === 'q' && e.key === 'Enter') { state.q = e.target.value.trim(); e.target.blur(); state.listLimit = 40; refresh(); home('peek'); } });
+document.addEventListener('keydown', e => { if (e.target.id === 'q' && e.key === 'Enter') { state.q = e.target.value.trim(); state.groups.clear(); state.cats.clear(); state.tags.clear(); state.preset = null; state.level = 0; e.target.blur(); state.listLimit = 40; refresh(); home('peek'); } });
 
 // drag the sheet by its grip (phone)
 (() => {
@@ -1559,6 +1728,7 @@ $('#panelBody').innerHTML = '<div class="ph"><h2>Lade Orte …</h2></div>';
     try { const ro = await fetch('data/offers.json'); if (ro.ok) loadOffers(await ro.json()); } catch (e) { /* offers optional */ }
     refresh();
     renderPanel();
+    (window.requestIdleCallback || setTimeout)(searchIndex); // first search answers at once
     const hash = location.hash.slice(1);
     if (byId.has(hash)) { const p = byId.get(hash); map.setView([p.lat, p.lon], 17); showPlace(hash); }
     hideSplash();

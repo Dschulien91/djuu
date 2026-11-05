@@ -77,7 +77,7 @@ def place_tags(cat, name, raw, facts, gear):
     if cat == 'museum': t.add('museum')
     if cat == 'kultur' and re.search(r'theatre|cinema', g('amenity') or '') or re.search(r'theater|kino|bühne|puppen', n) and cat == 'kultur': t.add('theater')
     if cat == 'buecherei': t.add('buecherei')
-    if g('tourism') in ('zoo', 'aquarium') or g('landuse') == 'farmyard' or re.search(r'tierpark|wildpark|zoo|hagenbeck|bauernhof|kinderbauernhof|aquarium|streichelzoo', n): t.add('tiere')
+    if g('tourism') in ('zoo', 'aquarium') or g('landuse') == 'farmyard' or (cat in ('ausflug', 'tierhof', 'park', 'museum', 'freizeit') and re.search(r'tierpark|wildpark|zoo|zoologisch|hagenbeck|bauernhof|kinderbauernhof|aquarium|streichelzoo', n)): t.add('tiere')
     if g('tourism') == 'viewpoint' or re.search(r'aussicht|turm\b', n): t.add('aussicht')
     if cat == 'ausflug' and not t & {'tiere', 'aussicht'}: t.add('ausflugsziel')
     # --- Service: Notfall & Gesundheit, Sanitär, Läden, Familie & Beratung, Mobilität

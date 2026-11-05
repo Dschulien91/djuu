@@ -1,4 +1,4 @@
-/* Djuu v0.16 – map first. Phone: one floating chip row on top, map buttons on the right, slim draggable sheet at the bottom,
+/* Djuu v0.17 – map first. Phone: one floating chip row on top, map buttons on the right, slim draggable sheet at the bottom,
    tabs below. Desktop (>= 900px): the same sheet becomes a fixed left column, map on the right. */
 :root {
   --bg: #FBF9FF;
@@ -460,3 +460,8 @@ h2, h3, h4, .ph h2, .item h3, .pinmain h3, .sec h4, .stylesec { font-family: var
 .melogo .logo { font-size: 52px; }
 .leaflet-container .leaflet-control-attribution { background: none !important; box-shadow: none; max-width: none; padding: 0 8px 2px; color: var(--ink); white-space: nowrap; text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 3px #fff; }
 .leaflet-container .leaflet-control-attribution a { color: var(--ink); }
+
+/* v0.17: voice input in the search field */
+.searchfield { padding-right: 3px; }
+.micbtn { flex: none; width: 44px; height: 44px; border: 0; border-radius: 50%; background: none; color: var(--ink); display: grid; place-items: center; }
+.micbtn.on { background: #6B4EE6; color: #fff; }
