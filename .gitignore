@@ -4,3 +4,4 @@ data/*.tmp
 __pycache__/
 data/cleaning/datenschutz.csv
 data/backups/
+data/refresh.log

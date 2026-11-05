@@ -53,13 +53,19 @@ TOPICS = {  # topic id -> label, keyword regex (first match wins, order matters)
     'schwimmen': ('Babyschwimmen', r'babyschwimm|aqua baby|wassergewöhnung|schwimm'),
     'musik': ('Musik', r'musik|singen|lieder|klang'),
     'spiele': ('Spielen & Medien', r'brettspiel|spiele(treff|nachmittag|zimmer|universum|abend)|duplo|lego|switch|gaming|konsole|pokemon|medien|robot|coding|programmier'),
-    'krabbelgruppe': ('Krabbel- & Spielgruppe', r'krabbel|spielgruppe|eltern-kind-gruppe|miniclub|spielkreis|kennenlern|treff'),
+    'krabbelgruppe': ('Krabbel- & Spielgruppe', r'krabbel|spielgruppe|eltern-kind-gruppe|miniclub|spielkreis|kennenlern|treff|morgenkreis|vater-kind|eltern mit (kindern|babys)'),
     'eltern_cafe': ('Eltern-Café & Frühstück', r'café|cafe|frühstück|fruehstueck|offener treff|elterncafé'),
     'beratung': ('Beratung', r'beratung|sprechstunde|mütterberatung|stillberatung|hebammensprechstunde'),
     'erste_hilfe': ('Erste Hilfe am Kind', r'erste hilfe|notfall'),
-    'kreativ': ('Basteln & Kreatives', r'basteln|malen|kreativ|werkst'),
+    'kreativ': ('Basteln & Kreatives', r'basteln|malen|kreativ|werkst|bastel|malnachmittag|atelier|postkarten|weihnachtskarten|kunstwerk|nähen|drucken'),
     'lesen': ('Vorlesen', r'vorlese|bilderbuch|geschichte|lesen|lese|märchen|kamishibai|gedicht|buch'),
     'theater': ('Theater, Kino & Zirkus', r'theater|puppen|zirkus|zauber|kino|film|konzert'),
+    # second pass for what the list above leaves open: only reached by titles that matched nothing
+    'feste': ('Feste & Laternen', r'laterne|st\. martin|nikolaus|weihnacht|advent|lichterfest|ostern|fasching|karneval|halloween'),
+    'kochen': ('Kochen & Backen', r'backen|kochen|festtagsmenü|beikost|rezept|plätzchen'),
+    'sport': ('Sport & Toben', r'sport|turnen|turn|toben|skating|laufen|springen|tanz|ball\b|kids|eimsbüttelinis|akrobatik|parkour|klettern|judo|karate|stretch'),
+    'eltern_thema': ('Elternthemen', r'gelassen|selbstregulation|patchwork|weint|trotz|schlaf|erziehung|pubertät|familienalltag|grenzen|geschwister|ernährung|elternabend|vortrag|relax'),
+    'wissen': ('Forschen & Wissen', r'mint\b|forsch|experiment|natur|pilze|wissenschaft|workshop|tiere'),
 }
 
 

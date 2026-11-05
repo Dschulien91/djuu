@@ -465,3 +465,16 @@ h2, h3, h4, .ph h2, .item h3, .pinmain h3, .sec h4, .stylesec { font-family: var
 .searchfield { padding-right: 3px; }
 .micbtn { flex: none; width: 44px; height: 44px; border: 0; border-radius: 50%; background: none; color: var(--ink); display: grid; place-items: center; }
 .micbtn.on { background: #6B4EE6; color: #fff; }
+
+/* v0.18 */
+.fact.no { text-decoration: none; }
+.zd .mk { transform: scale(.42); }
+.zd .mk svg, .zd .mk .star { opacity: 0; }
+.zd .mk.tip { transform: scale(.55); }
+.zd .leaflet-marker-icon.sel .mk { transform: scale(1); }
+.zd .leaflet-marker-icon.sel .mk svg { opacity: 1; }
+.calls a { color: inherit; }
+.evrow { padding: 0 0 8px; margin: 0 -2px; }
+.evrow .sep { flex: none; width: 1px; align-self: stretch; margin: 6px 2px; background: var(--line); }
+.melinks { display: flex; flex-wrap: wrap; gap: 8px 18px; }
+.melinks a { padding: 10px 0; font-weight: 700; }

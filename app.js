@@ -1,4 +1,4 @@
-/* Djuu v0.17 – family map for Hamburg.
+/* Djuu v0.18 – family map for Hamburg.
    The map owns the screen: one chip row floats on top, map buttons on the right, the sheet starts as a slim bar.
    The chip row drills down one level at a time: Erleben or Service, then categories, then the tags of a category.
    A tapped pin opens a small card; search and favorites live in the bottom bar. Default view: playgrounds.
@@ -7,7 +7,8 @@
    User input is stored on this device only until the server exists (server-ready shape, see STORE). */
 'use strict';
 
-const VERSION = '0.17';
+const VERSION = '0.18';
+const CONTACT = window.DJUU_CONTACT || {}; // config.js: reports and feedback stay hidden until an address is set
 // Logo on light backgrounds, as specified in the design PDF.
 const LOGO = `<span class="logo" role="img" aria-label="djuu"><span style="color:#6B4EE6">d</span><span style="color:#0E8F84">j</span><span style="color:#D6336C">u</span><span style="color:#CC6A00">u</span>
   <svg viewBox="18 92 78 34" style="position:absolute;right:.225em;top:.84em;width:.482em;height:.21em;overflow:visible" aria-hidden="true"><path d="M20 112 C38 130 66 114 92 97" fill="none" stroke="#0E8F84" stroke-width="9" stroke-linecap="round" stroke-dasharray="0.1 17"/></svg>
@@ -98,9 +99,9 @@ const TAGS = {
   mobil: [T('haltestelle', 'Haltestellen'), T('bahnhof', 'Bahnhöfe'), T('aufzug', 'Aufzüge')],
   kurse: [T('aud:kinder', 'Für Kinder'), T('aud:erwachsene', 'Für Erwachsene'), T('krabbelgruppe', 'Krabbel- & Spielgruppe'), T('pekip', 'PEKiP & Bewegung'),
     T('musik', 'Musik'), T('schwimmen', 'Babyschwimmen'), T('babymassage', 'Babymassage'), T('kreativ', 'Kreativ'), T('spiele', 'Spielen & Medien'),
-    T('eltern_cafe', 'Eltern-Café'), T('geburtsvorbereitung', 'Geburtsvorbereitung'), T('rueckbildung', 'Rückbildung'), T('erste_hilfe', 'Erste Hilfe'), T('beratung', 'Beratung')],
+    T('sport', 'Sport & Toben'), T('eltern_thema', 'Elternthemen'), T('eltern_cafe', 'Eltern-Café'), T('geburtsvorbereitung', 'Geburtsvorbereitung'), T('rueckbildung', 'Rückbildung'), T('erste_hilfe', 'Erste Hilfe'), T('beratung', 'Beratung')],
   events: [T('aud:kinder', 'Für Kinder'), T('aud:erwachsene', 'Für Erwachsene'), T('lesen', 'Vorlesen'), T('kreativ', 'Basteln'), T('spiele', 'Spielen & Medien'),
-    T('theater', 'Theater, Kino & Zirkus'), T('musik', 'Musik'), T('flohmarkt', 'Flohmarkt & Basar')],
+    T('theater', 'Theater, Kino & Zirkus'), T('musik', 'Musik'), T('feste', 'Feste & Laternen'), T('wissen', 'Forschen & Wissen'), T('sport', 'Sport & Toben'), T('kochen', 'Kochen & Backen'), T('eltern_thema', 'Elternthemen'), T('flohmarkt', 'Flohmarkt & Basar')],
 };
 const TAG_LABEL = {};
 for (const list of Object.values(TAGS)) for (const t of list) TAG_LABEL[t.id] = TAG_LABEL[t.id] || t.label;
@@ -151,6 +152,7 @@ const ATTRS = [
   { id: 'kostenlos', label: 'Kostenlos', keys: ['fee'], invert: true, groups: ['spielen', 'entdecken', 'sanitaer', 'familie'], q: 'Ist es kostenlos?' },
 ];
 const ATTR = Object.fromEntries(ATTRS.map(a => [a.id, a]));
+const NO_LABEL = { stillen: 'Keine Stillmöglichkeit', spielecke: 'Keine Spielecke', kleinkind: 'Nicht für Kleinkinder', eingezaeunt: 'Nicht eingezäunt', schatten: 'Wenig Schatten', kinderwagen: 'Nicht stufenlos', toilette: 'Keine Toilette', drinnen: 'Draußen', hund: 'Keine Hunde', baenke: 'Keine Sitzbänke', kinder_wc: 'Keine Kindertoilette', kostenlos: 'Kostenpflichtig', windeln: 'Keine Windeln' };
 function normValue(attr, v) {
   if (v == null || v === '') return null;
   if (attr.id === 'hund') return /yes|leashed|outside|offleash/.test(v) ? 'yes' : v === 'no' ? 'no' : null;
@@ -349,8 +351,9 @@ function dist(a, b) {
   const k = Math.PI / 180;
   return 6371000 * Math.hypot((b[1] - a[1]) * k * Math.cos((a[0] + b[0]) * k / 2), (b[0] - a[0]) * k);
 }
-const fmtDist = m => m < 1000 ? Math.round(m / 10) * 10 + ' m' : (m / 1000).toFixed(1).replace('.', ',') + ' km';
+const fmtDist = m => m < 1000 ? Math.max(10, Math.round(m / 10) * 10) + ' m' : (m / 1000).toFixed(1).replace('.', ',') + ' km';
 const walkMin = m => Math.max(1, Math.round(m * 1.3 / 75));
+const distLine = m => !state.me ? '' : `<span>${fmtDist(m)}${m <= 3000 ? ` · ${walkMin(m)} Min. zu Fuß` : ''}</span>`;
 const groupOf = p => GROUP_OF[p.cat] || GROUPS[0];
 const iconOf = p => CAT_ICON[p.cat] || groupOf(p).icon;
 const badge = (p, cls = 'badge') => `<span class="${cls}" style="--c:${groupOf(p).color}">${svg(iconOf(p), '')}</span>`;
@@ -403,7 +406,7 @@ const relevantAttrs = p => ATTRS.filter(a => !a.groups || a.groups.includes(grou
 // ---------- Data ----------
 function buildPlace(row) {
   const [id, name, cat, lat, lon, district, f, srcs, tags] = row;
-  const p = { id, name: name || CAT_LABEL[cat] || 'Ort', named: !!name, cat, lat, lon, district, f, srcs: srcs || [], tags: new Set(tags || []), mine: false };
+  const p = { id, name: name || (f.near_name ? `${CAT_LABEL[cat] || 'Ort'} ${f.near_name[0]}` : CAT_LABEL[cat] || 'Ort'), named: !!name, cat, lat, lon, district, f, srcs: srcs || [], tags: new Set(tags || []), mine: false };
   if (f.opening_hours) { p.hoursRaw = f.opening_hours[0]; p.oh = parseOH(p.hoursRaw); }
   if (f.gear) {
     p.gear = new Set();
@@ -428,7 +431,7 @@ const TOPIC_LABEL = {
   geburtsvorbereitung: 'Geburtsvorbereitung', rueckbildung: 'Rückbildung', pekip: 'PEKiP & Bewegung', babymassage: 'Babymassage',
   schwimmen: 'Babyschwimmen', musik: 'Musik', krabbelgruppe: 'Krabbel- & Spielgruppe', eltern_cafe: 'Eltern-Café', beratung: 'Beratung',
   erste_hilfe: 'Erste Hilfe am Kind', kreativ: 'Basteln', lesen: 'Vorlesen', spiele: 'Spielen & Medien', theater: 'Theater, Kino & Zirkus',
-  flohmarkt: 'Flohmarkt & Basar', sonstiges: 'Angebot',
+  flohmarkt: 'Flohmarkt & Basar', feste: 'Feste & Laternen', kochen: 'Kochen & Backen', sport: 'Sport & Toben', eltern_thema: 'Elternthemen', wissen: 'Forschen & Wissen', sonstiges: 'Angebot',
 };
 const WD = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 function loadOffers(data) {
@@ -562,7 +565,7 @@ const cluster = L.markerClusterGroup({
 });
 map.addLayer(cluster);
 // compact markers until street level, so single dots stay readable without clustering
-const zoomClass = () => map.getContainer().classList.toggle('zs', map.getZoom() < 15);
+const zoomClass = () => { const c = map.getContainer().classList; c.toggle('zs', map.getZoom() < 15); c.toggle('zd', map.getZoom() < 14); };
 map.on('zoomend', zoomClass); zoomClass();
 const iconCache = {};
 function iconFor(p, unknown, og) {
@@ -771,12 +774,30 @@ function toolsHtml(withFilter = true) {
 // ---------- Panel: one stack of views ----------
 let stack = [{ type: 'list' }];
 const view = () => stack[stack.length - 1];
+// Hardware back closes what is open before it leaves the app: one spare history entry stands in front of the page.
+let armed = false;
+const canClose = () => stack.length > 1 || !!state.drawing || !!state.picking || (!desktop() && $('#panel').dataset.size !== 'peek');
+function arm() { if (!armed && canClose()) { history.pushState({ djuu: 1 }, ''); armed = true; } }
+function closeTop() {
+  const v = view();
+  if (state.picking) { state.picking = false; return setSize(desktop() ? 'full' : 'half'); }
+  if (state.drawing) { state.drawing = null; drawArea(); return back(); }
+  if (v.type === 'wizard' && wiz.step > 1) { keepFields(); wiz.step--; return renderWizard(); }
+  if (stack.length === 1) return setSize('peek');
+  if (stack.length === 2 && ['card', 'search', 'events', 'favs', 'me', 'sos'].includes(v.type)) return home(desktop() ? 'full' : 'peek');
+  back();
+}
+window.addEventListener('popstate', () => {
+  armed = false;
+  if (!canClose()) return history.back(); // the spare entry was left over: leave for real
+  closeTop(); arm();
+});
 function go(v, size) { if (view().type === v.type && v.type !== 'detail') stack.pop(); stack.push(v); renderPanel(); setSize(size || 'full'); }
-function back() { stack.pop(); if (!stack.length) stack = [{ type: 'list' }]; clearSel(); renderPanel(); if (view().type === 'list') setSize(desktop() ? 'full' : 'half'); else if (view().type === 'card') setSize('card'); }
+function back() { stack.pop(); if (!stack.length) stack = [{ type: 'list' }]; clearSel(); renderPanel(); if (view().type === 'list') setSize(desktop() ? 'full' : 'half'); else if (view().type === 'card') setSize('card'); if (view().type === 'list') setTab('map'); arm(); }
 function home(size = 'peek') { stack = [{ type: 'list' }]; clearSel(); renderPanel(); setSize(size); setTab('map'); }
 function setSize(s) {
   if (desktop()) s = 'full';
-  $('#panel').dataset.size = s; $('#app').dataset.size = s;
+  $('#panel').dataset.size = s; $('#app').dataset.size = s; arm();
 }
 function clearSel() { if (state.selected) { byId.get(state.selected)?.marker?._icon?.classList.remove('sel'); state.selected = null; } if (wiz.map) { wiz.map.remove(); wiz.map = null; } }
 const head = (title, sub = '', canBack = true) => `<div class="ph">${canBack ? `<button type="button" class="round" data-back="1" aria-label="Zurück">${svg('back')}</button>` : ''}
@@ -799,6 +820,7 @@ async function renderPanel() {
   else if (v.type === 'favs') body.innerHTML = favsView();
   else if (v.type === 'me') body.innerHTML = savedView();
   else if (v.type === 'rate') { body.innerHTML = rateView(v.id); bindRate(v.id); }
+  else if (v.type === 'report') body.innerHTML = reportView(v.id);
   else if (v.type === 'wizard') { renderWizard(); return; }
   else if (v.type === 'thanks') body.innerHTML = v.html;
   decorateEmpty(body);
@@ -867,7 +889,7 @@ function cardView(id) {
     .concat(relevantAttrs(p).filter(a => attrVal(p, a.id).v === 'yes' && ![...p.tags].some(t => PROP_TAGS.has(t) && TAG_LABEL[t] === a.label)).slice(0, 2).map(a => `<span>${esc(a.label)}</span>`)).join('');
   return `<div class="pincard"><button type="button" class="pinmain" data-detail="${id}">${badge(p)}
       <span><h3>${esc(p.name)}${p.f.tipp ? ` <span class="tipdot" title="Djuu-Tipp">${svg('star', '')}</span>` : ''}</h3>
-      <span class="meta">${esc(CAT_LABEL[p.cat] || '')}${ot ? ' · ' + ot : ''} · ${fmtDist(d)}</span>${yes ? `<span class="mini">${yes}</span>` : ''}</span></button>
+      <span class="meta">${esc(CAT_LABEL[p.cat] || '')}${ot ? ' · ' + ot : ''}${state.me ? ' · ' + fmtDist(d) : ''}</span>${yes ? `<span class="mini">${yes}</span>` : ''}</span></button>
     <button type="button" class="round" data-home="peek" aria-label="Schließen">${svg('close')}</button></div>
     <div class="pinacts"><a class="btn primary" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lon}&travelmode=walking" target="_blank" rel="noopener">${svg('route')}Route</a>
       <button type="button" class="btn${fav ? ' on' : ''}" data-fav="${id}" aria-label="${fav ? 'Favorit' : 'Merken'}">${svg('heart')}</button>
@@ -915,14 +937,14 @@ async function detailView(id) {
     f.operator && p.cat !== 'aufzug' && `<span class="muted">Betreiber: ${esc(f.operator[0])}</span>`,
   ].filter(Boolean);
   const today = dayIdx(new Date());
-  const factChip = ([a, r]) => `<span class="fact${r.v === 'no' ? ' no' : r.v === 'limited' ? ' lim' : ''}">${r.v === 'no' ? '' : svg('check')}${esc(a.label)}${r.v === 'limited' ? ' (eingeschränkt)' : ''}</span>`;
+  const factChip = ([a, r]) => `<span class="fact${r.v === 'no' ? ' no' : r.v === 'limited' ? ' lim' : ''}">${r.v === 'no' ? '' : svg('check')}${esc(r.v === 'no' ? NO_LABEL[a.id] || 'Kein ' + a.label : a.label)}${r.v === 'limited' ? ' (eingeschränkt)' : ''}</span>`;
   return `
     <div class="ph"><button type="button" class="round" data-back="1" aria-label="Zurück">${svg('back')}</button><span style="flex:1"></span>
       <button type="button" class="round" data-home="1" aria-label="Schließen">${svg('close')}</button></div>
     <div class="hero">${badge(p)}<div style="min-width:0">
       <h2 style="margin:0;font:800 23px/1.15 var(--font-display);letter-spacing:-.02em;text-wrap:balance">${esc(p.name)}</h2>
       <div class="status-line"><span>${esc(CAT_LABEL[p.cat] || '')}${p.district ? ' · ' + esc(p.district) : ''}</span></div>
-      <div class="status-line">${openText(p)}<span>${fmtDist(d)} · ${walkMin(d)} Min. zu Fuß</span>${avg ? `<span class="stars-read">★ ${avg}</span>` : ''}</div>
+      <div class="status-line">${openText(p)}${distLine(d)}${avg ? `<span class="stars-read">★ ${avg}</span>` : ''}</div>
     </div></div>
     <div class="acts">
       <a class="act primary" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lon}&travelmode=walking" target="_blank" rel="noopener">${svg('route')}Route</a>
@@ -932,7 +954,7 @@ async function detailView(id) {
     </div>
     ${f.tipp ? `<div class="tipbanner">${svg('star')}<div><b>Djuu-Tipp</b>${esc(f.tipp[0])}</div></div>` : ''}
     ${p.cat === 'kurs' && !offersByPlace.has(id) ? `<p class="note">Für diesen Ort haben wir noch keine Kurszeiten. Schau auf die Webseite.</p>` : ''}
-    ${cm ? `<figure class="heroimg"><img src="https://commons.wikimedia.org/wiki/Special:FilePath/${esc(cm[1])}?width=640" alt="" loading="lazy" onerror="this.parentNode.remove()"><figcaption><a href="https://commons.wikimedia.org/wiki/File:${esc(cm[1])}" target="_blank" rel="noopener">Foto und Lizenz: Wikimedia Commons</a></figcaption></figure>` : ''}
+    ${cm ? `<figure class="heroimg"><img src="https://commons.wikimedia.org/wiki/Special:FilePath/${esc(cm[1])}?width=640" alt="" loading="lazy" onerror="this.parentNode.remove()"><figcaption><a href="https://commons.wikimedia.org/wiki/File:${esc(cm[1])}" target="_blank" rel="noopener">Foto: Urheber und Lizenz auf Wikimedia Commons</a></figcaption></figure>` : ''}
     ${stars ? `<div class="sec"><h4>Bewertung</h4><p class="text"><b class="stars-read">★ ${String(stars).replace('.', ',')}</b> von 5${f.review_text ? `</p><p class="text">„${esc(f.review_text[0].slice(0, 280))}“` : ''}</p><p class="note">Von Nutzern über Mangrove, einer offenen Bewertungsplattform.</p></div>` : ''}
     ${photos ? `<div class="photos" style="margin-top:12px">${photos}</div>` : ''}
     <div class="sec"><h4>Auf einen Blick</h4>
@@ -959,8 +981,9 @@ async function detailView(id) {
       ${known.map(([a, r]) => `<div class="srcrow"><b>${esc(a.label)}</b><span>${r.v === 'yes' ? 'Ja' : r.v === 'no' ? 'Nein' : 'Eingeschränkt'}</span>
         <span class="s">${r.method === 'user' ? `Von Nutzern bestätigt (${r.confirmations.length}×, zuletzt ${fmtDate(r.confirmations[0].at)}, auf diesem Gerät)` : r.method === 'website' ? `Webseite des Ortes, automatisch gelesen (${Math.round((r.conf || .6) * 100)} % sicher)` : r.method === 'computed' ? 'Aus Kartendaten berechnet' : esc(r.src || '')}</span>
         ${r.evidence ? `<q>${esc(r.evidence)}</q>` : ''}</div>`).join('')}
-      <p class="note">Datensätze: ${p.srcs.map(i => esc(SOURCES[i]?.[1]) + ' (' + esc(SOURCES[i]?.[2]) + ')').join(' · ') || 'von dir eingetragen'}</p></div></details>
-    <p class="note" style="margin-top:16px">Prototyp: Deine Angaben werden bisher nur auf diesem Gerät gespeichert.</p>`;
+      ${f.near_name ? '<p class="note">Der Name ist nur eine Orientierung: abgeleitet aus dem Park oder der nächsten Straße.</p>' : ''}<p class="note">Datensätze: ${p.srcs.map(i => esc(SOURCES[i]?.[1]) + ' (' + esc(SOURCES[i]?.[2]) + ')').join(' · ') || 'von dir eingetragen'}</p></div></details>
+    ${CONTACT.email ? `<button type="button" class="linkbtn" data-reportplace="${id}" style="margin-top:16px">Stimmt etwas nicht? Ort melden</button>` : ''}
+    <p class="note" style="margin-top:12px">Was du hier einträgst, bleibt bisher auf diesem Gerät.</p>`;
 }
 function placeOffersHtml(id) {
   const list = (offersByPlace.get(id) || []).map(o => [nextDate(o), o]).filter(([d]) => d).sort((a, b) => a[0] - b[0]);
@@ -1000,21 +1023,53 @@ function bindRate(id) {
   };
 }
 
+// report a wrong place: an e-mail the user sees before it goes out, nothing is sent in the background
+const REPORT_REASONS = ['Geschlossen oder gibt es nicht mehr', 'Öffnungszeiten stimmen nicht', 'Angaben stimmen nicht', 'Doppelt eingetragen', 'Etwas anderes'];
+function reportView(id) {
+  const p = byId.get(id), v = view();
+  return `${head('Ort melden', esc(p.name))}
+    <div class="fgrid">${REPORT_REASONS.map(r => `<button type="button" class="chip${v.reason === r ? ' on' : ''}" data-reason="${esc(r)}">${esc(r)}</button>`).join('')}</div>
+    <div class="field"><label for="repText">Was stimmt nicht? (freiwillig)</label><textarea id="repText" maxlength="500"></textarea></div>
+    <p class="error" id="repErr" hidden>Bitte wähle aus, was nicht stimmt.</p>
+    <p class="note">Dein E-Mail-Programm öffnet sich. Du siehst alles, bevor du es abschickst.</p>
+    <div class="sticky-bar"><button type="button" class="btn big primary" data-reportsend="1">E-Mail vorbereiten</button></div>`;
+}
+function sendPlaceReport() {
+  const v = view(), p = byId.get(v.id);
+  if (!v.reason) { $('#repErr').hidden = false; return; }
+  const body = [`Ort: ${p.name}`, `Kennung: ${p.id}`, `Grund: ${v.reason}`, $('#repText').value.trim()].filter(Boolean).join('\n');
+  location.href = `mailto:${CONTACT.email}?subject=${encodeURIComponent('Djuu: Ort melden')}&body=${encodeURIComponent(body)}`;
+  back();
+}
+
 // filters
+const RARE_BELOW = 10;
+const CORE_FILTERS = new Set(['jetzt', 'sonntag', 'wickeltisch', 'stillen', 'hochstuhl', 'spielecke', 'kindermenue', 'kinderwagen', 'toilette', 'kleinkind', 'eingezaeunt', 'wasser', 'hund', 'age_fit', 'age_0', 'age_3', 'age_6']);
 function filtersView() {
   const first = [...state.groups][0];
   const fits = a => !a.groups || !state.groups.size || [...state.groups].some(g => a.groups.includes(g));
-  const count = id => { let n = 0; for (const p of places) if (inSelection(p) && filterVal(p, id) === true) n++; return n; };
-  const relevant = items => items.filter(x => state.filters.has(x.id) || count(x.id) > 0);
-  const block = (title, all, items = relevant(all)) => items.length ? `<div class="sec"><h4>${title}</h4><div class="fgrid">${items.map(x => `<button type="button" class="chip${state.filters.has(x.id) ? ' on' : ''}" data-filter="${x.id}">${esc(x.label)} <span class="n">${nf.format(count(x.id))}</span></button>`).join('')}</div></div>` : '';
+  const sel = places.filter(inSelection), counts = new Map();
+  const count = id => { if (!counts.has(id)) { let n = 0; for (const p of sel) if (filterVal(p, id) === true) n++; counts.set(id, n); } return counts.get(id); };
+  // Nothing here: gone. Few here and not a core question for parents: further down, under "Seltene Angaben".
+  const rare = [];
+  const chipFor = x => `<button type="button" class="chip${state.filters.has(x.id) ? ' on' : ''}" data-filter="${x.id}">${esc(x.label)} <span class="n">${nf.format(count(x.id))}</span></button>`;
+  const block = (title, all, sorted = false) => {
+    const live = all.filter(x => state.filters.has(x.id) || count(x.id) > 0);
+    const main = live.filter(x => state.filters.has(x.id) || CORE_FILTERS.has(x.id) || count(x.id) >= RARE_BELOW);
+    rare.push(...live.filter(x => !main.includes(x)));
+    if (sorted) main.sort((a, b) => (store.profile.dogs > 0 ? (b.id === 'hund') - (a.id === 'hund') : 0) || CORE_FILTERS.has(b.id) - CORE_FILTERS.has(a.id) || count(b.id) - count(a.id));
+    return main.length ? `<div class="sec"><h4>${title}</h4><div class="fgrid">${main.map(chipFor).join('')}</div></div>` : '';
+  };
   const total = last.match.length + (state.showUnknown ? last.unknown.length : 0);
+  const timeBlock = block('Öffnungszeiten', TIME_FILTERS);
+  const attrBlock = block('Ausstattung', ATTRS.filter(fits), true);
+  const ageBlock = !state.groups.size || ['spielen', 'entdecken', 'familie'].some(g => state.groups.has(g)) ? block('Alter', AGE_FILTERS.filter(a => !a.family || hasFamily())) : '';
+  const gearBlock = !state.groups.size || state.groups.has('spielen') ? block('Spielgeräte', GEAR, true) : '';
   return `${head('Filter', state.groups.size ? 'für ' + [...state.groups].map(g => GROUP[g].label).join(', ') : 'für alle Orte')}
-    <p class="muted text">Die Zahl zeigt, wie viele Orte die Angabe sicher haben.</p>
+    <p class="muted text">Die Zahl zeigt, bei wie vielen Orten wir es sicher wissen. Es können mehr sein.</p>
     ${ioAllowed() ? `<div class="sec"><h4>Drinnen oder draußen</h4><div class="fgrid">${[['drinnen', 'house', 'Drinnen'], ['draussen', 'tree', 'Draußen']].map(([id, ic, l]) => `<button type="button" class="chip${state.io === id ? ' on' : ''}" data-io="${id}">${svg(ic)}${l}</button>`).join('')}</div></div>` : ''}
-    ${block('Öffnungszeiten', TIME_FILTERS)}
-    ${block('Ausstattung', ATTRS.filter(fits).sort((x, y) => store.profile.dogs > 0 ? (y.id === 'hund') - (x.id === 'hund') : 0))}
-    ${!state.groups.size || ['spielen', 'entdecken', 'familie'].some(g => state.groups.has(g)) ? block('Alter', AGE_FILTERS.filter(a => !a.family || hasFamily())) : ''}
-    ${!state.groups.size || state.groups.has('spielen') ? block('Spielgeräte', GEAR) : ''}
+    ${timeBlock}${attrBlock}${ageBlock}${gearBlock}
+    ${rare.length ? `<details class="fold"><summary>Seltene Angaben</summary><div class="fgrid" style="margin-top:10px">${rare.map(chipFor).join('')}</div></details>` : ''}
     <label class="switch" for="unkSwitch">Orte ohne Angabe blass zeigen <input type="checkbox" id="unkSwitch" ${state.showUnknown ? 'checked' : ''}></label>
     <div class="sticky-bar"><button type="button" class="btn" data-reset="1">Zurücksetzen</button><button type="button" class="btn big primary" data-home="peek">${nf.format(total)} Orte zeigen</button></div>`;
 }
@@ -1085,7 +1140,7 @@ function searchIndex() {
     if (p.gear) for (const g of GEAR) if (p.gear.has(g.id)) add(meta, g.label, i);
     for (const a of ATTRS) if (!a.id.endsWith('_nahe') && attrVal(p, a.id).v === 'yes') add(meta, a.label, i);
     add(meta, cuisineText(p.f.cuisine?.[0]), i); add(meta, sportText(p.f.sport?.[0]), i);
-    add(low, p.district, i); add(low, p.f.street?.[0], i);
+    add(low, p.district, i); add(low, p.f.street?.[0], i); add(low, p.f.near_name?.[0], i);
   });
   return SI = { fields: [[name, 3], [meta, 3], [low, 1]], offers: null };
 }
@@ -1246,7 +1301,8 @@ const SOS = [
 ];
 function sosView(kind) {
   const calls = `<div class="calls"><b style="font-family:var(--font-display)">Medizinischer Notfall</b>
-    <span>Notruf: <b>112</b></span><span>Kinderärztlicher Bereitschaftsdienst: <b>116 117</b></span><span>Giftnotruf Nord: <b>0551 19240</b></span></div>`;
+    <span>Notruf: <a href="tel:112"><b>112</b></a></span><span>Kinderärztlicher Bereitschaftsdienst: <a href="tel:116117"><b>116 117</b></a></span><span>Giftnotruf Nord: <a href="tel:+4955119240"><b>0551 19240</b></a></span>
+    <span>Apotheken-Notdienst: <a href="tel:08000022833"><b>0800 00 22833</b></a> oder <a href="https://www.aponet.de/apotheke/notdienstsuche/20095" target="_blank" rel="noopener">aktuelle Liste bei aponet.de</a></span></div>`;
   if (!kind) return `${head('Was braucht ihr jetzt?', state.me ? 'Ab deinem Standort' : 'Ab Kartenmitte · Standort freigeben für genauere Wege')}
     <div class="sosgrid">${SOS.map(s => `<button type="button" class="sostile" data-sos="${s.id}"><span class="ic" style="--c:${s.color}">${svg(s.icon)}</span><span>${s.label}<small>${s.hint}</small></span></button>`).join('')}</div>${calls}`;
   const s = SOS.find(x => x.id === kind), o = origin();
@@ -1275,33 +1331,33 @@ const EXAMPLE_EVENTS = [
   { d: nextDow(6, 1), time: '09:00–14:00', title: 'Kinderkleiderbasar Herbst/Winter', where: 'Winterhude', kind: 'Flohmarkt' },
 ];
 function eventsView() {
-  const v = view(), f = v.f || 'alle', fam = v.fam ?? hasFamily(), day = v.date ? new Date(v.date + 'T00:00') : null;
+  const v = view(), when = v.when || '', art = v.art || '', aud = v.aud || '', fam = v.fam ?? hasFamily(), day = v.date ? new Date(v.date + 'T00:00') : null;
   const t = today0(), sat = new Date(t); sat.setDate(t.getDate() + ((5 - dayIdx(t) + 7) % 7)); const sun = new Date(sat); sun.setDate(sat.getDate() + 1);
   const own = store.events.map(e => ({ title: e.title, kind: 'termin', start_date: e.date, time_from: e.time, lat: e.lat, lon: e.lon, venue: 'von dir eingetragen', url: '#', topic: 'sonstiges' }));
   let list = day ? OFFERS.concat(own).filter(o => occursOn(o, day)).map(o => [day, o])
     : OFFERS.concat(own).map(o => [nextDate(o), o]).filter(([d]) => d && d - t < 56 * 864e5);
   list = list.filter(([, o]) => o.venue === 'von dir eingetragen' || offerInArea(o));
-  if (f === 'heute') list = list.filter(([d]) => +d === +t);
-  if (f === 'wochenende') list = list.filter(([d]) => +d === +sat || +d === +sun);
-  if (f === 'gruppen') list = list.filter(([, o]) => o.kind === 'gruppe');
-  if (f === 'kurse') list = list.filter(([, o]) => o.kind === 'kurs');
-  if (f === 'termine') list = list.filter(([, o]) => o.kind === 'termin');
-  if (f === 'kinder' || f === 'erwachsene') list = list.filter(([, o]) => o.audience === f);
-  if (fam && hasFamily() && f !== 'erwachsene') list = list.filter(([, o]) => offerFits(o) !== false);
+  if (!day && when === 'heute') list = list.filter(([d]) => +d === +t);
+  if (!day && when === 'wochenende') list = list.filter(([d]) => +d === +sat || +d === +sun);
+  if (art) list = list.filter(([, o]) => o.kind === art);
+  if (aud) list = list.filter(([, o]) => o.audience === aud);
+  if (fam && hasFamily() && aud !== 'erwachsene') list = list.filter(([, o]) => offerFits(o) !== false);
   const o0 = origin();
   const near = o => { const pl = o.place_id && byId.get(o.place_id); return pl ? dist(o0, [pl.lat, pl.lon]) : o.lat ? dist(o0, [o.lat, o.lon]) : 9e9; };
   list.sort((a, b) => a[0] - b[0] || near(a[1]) - near(b[1]));
-  const chips = [['alle', 'Alle'], ['heute', 'Heute'], ['wochenende', 'Wochenende'], ['gruppen', 'Offene Gruppen'], ['kurse', 'Kurse'], ['termine', 'Veranstaltungen'], ['kinder', 'Für Kinder'], ['erwachsene', 'Für Erwachsene']]
-    .map(([id, l]) => `<button type="button" class="chip${f === id ? ' on' : ''}" data-ef="${id}">${l}</button>`).join('');
+  const chipRow = (key, cur, items) => items.map(([id, l]) => `<button type="button" class="chip${cur === id ? ' on' : ''}" data-ef="${key}" data-efv="${id}">${l}</button>`).join('');
+  const whenChips = day ? '' : chipRow('when', when, [['heute', 'Heute'], ['wochenende', 'Wochenende']]);
+  const artChips = chipRow('art', art, [['gruppe', 'Offene Gruppen'], ['kurs', 'Kurse'], ['termin', 'Veranstaltungen']]);
+  const audChips = chipRow('aud', aud, [['kinder', 'Für Kinder'], ['erwachsene', 'Für Erwachsene']]);
   const kids = familyAges();
   return `${head('Termine', day ? 'am ' + day.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' }) : 'Gruppen, Kurse und Veranstaltungen in den nächsten 8 Wochen', false)}
     <div class="datepick"><label for="evDate">${svg('cal')}Datum</label><input id="evDate" type="date" value="${esc(v.date || '')}" min="${ymd(t)}">${v.date ? `<button type="button" class="round" data-evdateclear="1" aria-label="Datum zurücksetzen">${svg('close')}</button>` : ''}
       <button type="button" class="tool${state.area.type !== 'all' ? ' on' : ''}" data-open="area">${svg('pin')}<span>${esc(areaLabel())}</span></button></div>
-    ${ferienCard(56)}
     ${schoolHoliday(day || t) ? `<p class="note" style="margin:0 0 10px">${esc(schoolHoliday(day || t))}: Viele Kurse pausieren, bitte beim Anbieter nachsehen.</p>` : ''}
-    <div class="row" style="padding:0 0 10px;margin:0 -2px">${chips}</div>
-    ${hasFamily() ? `<label class="switch" for="famSwitch" style="margin:0 0 10px">Nur passend für ${esc(kids.map(k => `${k.name} (${kidLabel(k.months)})`).join(', ') || 'unser Baby')} <input type="checkbox" id="famSwitch" ${fam ? 'checked' : ''}></label>`
-      : `<button type="button" class="askcard" data-tab="me" style="width:100%;border:0;text-align:left"><div><b>Alter deiner Kinder eintragen</b><span>Dann zeigen wir nur Gruppen und Kurse, die passen.</span></div>${svg('back')}</button>`}
+    <div class="row evrow">${whenChips}${whenChips ? '<i class="sep"></i>' : ''}${audChips}</div>
+    <div class="row evrow">${artChips}</div>
+    ${hasFamily() ? `<label class="switch" for="famSwitch" style="margin:0 0 10px">Nur passend für ${esc(kids.map(k => `${k.name} (${kidLabel(k.months)})`).join(', ') || 'unser Baby')} <input type="checkbox" id="famSwitch" ${fam ? 'checked' : ''}></label>` : ''}
+    ${ferienCard(14, true)}
     ${list.length ? `<ol class="list">${list.slice(0, v.limit || 60).map(([d, o]) => offerItem(o, d)).join('')}</ol>${list.length > (v.limit || 60) ? '<button type="button" class="more" data-emore="1">Mehr anzeigen</button>' : ''}`
       : `<div class="empty"><b>${OFFERS.length ? 'Nichts gefunden.' : 'Noch keine Termine geladen.'}</b>${OFFERS.length ? 'Probier einen anderen Filter.' : ''}</div>`}
     <button type="button" class="btn" data-addevent="1" style="margin-top:14px">${svg('plus')}Veranstaltung eintragen</button>
@@ -1324,11 +1380,11 @@ function favsView() {
 // ---------- Holiday ideas: what fits the next school break, the season and the children's ages ----------
 const fmtD = d => d.toLocaleDateString('de-DE', { day: 'numeric', month: 'long' });
 const kidNames = () => familyAges().filter(k => k.months >= 0).map(k => `${k.name} (${kidLabel(k.months)})`);
-function ferienCard(within) {
+function ferienCard(within, forAll = false) {
   const b = nextBreak();
   if (!b || (!b.running && b.days > within)) return '';
   // on the map only families with school children see it; Kita children are not bound to the dates
-  if (within < 30 && !familyAges().some(k => k.months >= 72)) return '';
+  if (!forAll && within < 30 && !familyAges().some(k => k.months >= 72)) return '';
   const when = b.running ? `Noch bis ${fmtD(b.to)}` : b.days === 1 ? 'Ab morgen' : `In ${b.days} Tagen, ab ${fmtD(b.from)}`;
   return `<button type="button" class="askcard ferien" data-open="ferien"><div><b>${esc(b.name)}: ${esc(when)}</b><span>${kidNames().length ? 'Ideen für ' + esc(familyAges().filter(k => k.months >= 0).map(k => k.name).join(', ')) : 'Ideen für die freien Tage'}</span></div>${svg('star')}</button>`;
 }
@@ -1360,6 +1416,7 @@ function ferienView() {
     ${sections.map(([title, list]) => `<div class="sec"><h4>${esc(title)}</h4><ol class="list">${list.map(([d, p]) => itemHtml(p, d)).join('')}</ol></div>`).join('')}
     <p class="note">${state === 'Hamburg' ? '' : 'Die Ferien gelten für euer Bundesland, die Orte liegen in Hamburg. '}Sortiert nach Djuu-Tipps und Entfernung${kids.length ? ', passend zum Alter, soweit bekannt' : ''}.</p>`;
 }
+const DATA_AT = { offers: null };
 function savedView() {
   const pr = store.profile, now = new Date();
   const maxYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -1383,6 +1440,9 @@ function savedView() {
       ${MAP_STYLES.map(m => m.sec ? `<p class="stylesec">${esc(m.sec)}</p>` : `<button type="button" class="stylecard${mapStyle().id === m.id ? ' on' : ''}" data-mapstyle="${m.id}"><img src="icons/maps/${m.id}.jpg" alt="" loading="lazy" width="150" height="100"><span>${esc(m.label)}</span></button>`).join('')}
       <p class="note">Alle Kartenstile sind kostenlos und brauchen kein Konto. Die Wetteranzeige stammt vom Deutschen Wetterdienst über Bright Sky. Schulferien: Ferienordnung Hamburg, andere Bundesländer über OpenHolidays (ODbL). Die Spracheingabe in der Suche nutzt den Sprachdienst deines Browsers, dabei kann der Ton an dessen Anbieter gehen.</p>
     </div>
+    <div class="sec"><h4>Über Djuu</h4>
+      <div class="melinks">${CONTACT.email ? `<a href="mailto:${esc(CONTACT.email)}?subject=${encodeURIComponent('Feedback zu Djuu')}">Feedback geben</a>` : ''}<a href="legal.html#impressum" target="_blank" rel="noopener">Impressum</a><a href="legal.html#datenschutz" target="_blank" rel="noopener">Datenschutz</a><a href="legal.html#daten" target="_blank" rel="noopener">Daten und Lizenzen</a></div>
+      <p class="note">${DATA_AT.offers ? `Termine zuletzt aktualisiert am ${esc(new Date(DATA_AT.offers).toLocaleDateString('de-DE', { day: 'numeric', month: 'long', year: 'numeric' }))}. ` : ''}Version ${VERSION}</p></div>
 `;
 }
 function saveProfileField(el) {
@@ -1562,8 +1622,7 @@ async function saveWizard() {
   refresh();
   stack = [{ type: 'list' }];
   go({ type: 'thanks', html: `<div class="thanks">${BALLS_THANKS}<svg viewBox="0 0 24 24" width="64" height="64" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="#0E8F84"/><path d="M7 12.5l3.2 3L17 9" stroke="#FFFFFF" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    <h2>Danke!</h2><p>Dein Eintrag hilft Familien${area ? ' in ' + esc(area) : ' in Hamburg'}.</p>
-    <p class="note">Im Prototyp ist er erst auf deinem Gerät gespeichert. Mit dem Djuu-Server sehen ihn bald alle.</p>
+    <h2>Gespeichert</h2><p>Dein Eintrag${area ? ' in ' + esc(area) : ''} ist auf diesem Gerät gespeichert. Andere sehen ihn noch nicht.</p>
     <div style="display:flex;gap:8px;margin-top:10px">${p ? `<button type="button" class="btn primary" data-id="${p.id}">Ort ansehen</button>` : ''}<button type="button" class="btn" data-home="peek">Fertig</button></div></div>` }, desktop() ? 'full' : 'half');
 }
 function nearestDistrict(la, lo) {
@@ -1639,7 +1698,10 @@ document.addEventListener('click', async e => {
   else if (ds.addinfo) startWizard({ place: byId.get(ds.addinfo) });
   else if (ds.addevent) startWizard({ type: 'event' });
   else if (ds.rate) go({ type: 'rate', id: ds.rate });
-  else if (ds.ef) { view().f = ds.ef; view().limit = 60; renderPanel(); }
+  else if (ds.reportplace) go({ type: 'report', id: ds.reportplace });
+  else if (ds.reason) { view().reason = ds.reason; $('#panelBody').querySelectorAll('[data-reason]').forEach(b => b.classList.toggle('on', b === t)); $('#repErr').hidden = true; }
+  else if (ds.reportsend) sendPlaceReport();
+  else if (ds.ef) { const v = view(); v[ds.ef] = v[ds.ef] === ds.efv ? '' : ds.efv; v.limit = 60; renderPanel(); }
   else if (ds.emore) { view().limit = (view().limit || 60) + 60; renderPanel(); }
   else if (ds.offerurl) window.open(ds.offerurl, '_blank', 'noopener');
   else if (ds.mapstyle) { setMapStyle(ds.mapstyle); renderPanel(); toast(`Kartenstil: ${mapStyle().label}`); }
@@ -1647,7 +1709,7 @@ document.addEventListener('click', async e => {
   else if (ds.addkid) { store.profile.kids.push({ name: '', ym: '' }); save(); renderPanel(); setTimeout(() => $('#kidYm' + (store.profile.kids.length - 1))?.focus(), 50); }
   else if (ds.delkid) { store.profile.kids.splice(+ds.delkid, 1); save(); renderPanel(); }
   else if (ds.dogs) { store.profile.dogs = Math.max(0, Math.min(9, (store.profile.dogs || 0) + +ds.dogs)); save(); $('#dogsN').textContent = store.profile.dogs; renderTop(); }
-  else if (ds.report) { store.reports.push({ targetType: 'review', targetId: ds.report, at: Date.now() }); save(); toast('Gemeldet und ausgeblendet. Mit dem Server geht die Meldung später an das Djuu-Team.'); renderPanel(); }
+  else if (ds.report) { store.reports.push({ targetType: 'review', targetId: ds.report, at: Date.now() }); save(); toast('Auf diesem Gerät ausgeblendet.'); renderPanel(); }
   else if (ds.sos) go({ type: 'sos', kind: ds.sos });
 });
 document.addEventListener('input', e => { if (e.target.id === 'distQ') $('#distList').innerHTML = districtChips(e.target.value); });
@@ -1725,7 +1787,7 @@ $('#panelBody').innerHTML = '<div class="ph"><h2>Lade Orte …</h2></div>';
     for (const row of data.places) { const p = buildPlace(row); places.push(p); byId.set(p.id, p); }
     addUserPlaces();
     if (store.area && store.area.type) { state.area = store.area; drawArea(); if (state.area.center === 'me') locate(false); }
-    try { const ro = await fetch('data/offers.json'); if (ro.ok) loadOffers(await ro.json()); } catch (e) { /* offers optional */ }
+    try { const ro = await fetch('data/offers.json'); if (ro.ok) { const od = await ro.json(); DATA_AT.offers = od.generated; loadOffers(od); } } catch (e) { /* offers optional */ }
     refresh();
     renderPanel();
     (window.requestIdleCallback || setTimeout)(searchIndex); // first search answers at once

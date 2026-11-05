@@ -1,7 +1,7 @@
-# Djuu – Prototyp v0.17
+# Djuu v0.18
 
-Karte mit allen familienrelevanten Orten in Hamburg (ca. 22.300 Orte aus 80 offenen Quellen, jede Angabe mit Quelle) mit Filtern.
-Installierbare Web-App (PWA): läuft auf Android, iPhone und Desktop aus demselben Code.
+Kurse, Gruppen, Termine und Orte für Familien in Hamburg auf einer Karte (ca. 22.300 Orte und 1.800 Angebote aus 80 offenen Quellen, jede Angabe mit Quelle).
+Installierbare Web-App (PWA): läuft auf Android, iPhone und Desktop aus demselben Code. Noch nicht öffentlich beworben, siehe „Vor dem öffentlichen Start“.
 
 ## Starten (lokal)
 
@@ -13,39 +13,31 @@ Dann http://localhost:8765 im Browser öffnen.
 
 ## Daten aktualisieren
 
+Kurse, Gruppen und Termine aktualisiert und veröffentlicht `tools/refresh.py`. Wöchentlich läuft es, nachdem `tools/refresh-task.ps1` einmal ausgeführt wurde: Windows-Aufgabe „Djuu weekly refresh“, montags 05:00, oder sobald der Rechner wieder an ist. Protokoll: `data/refresh.log`. Sieht das Ergebnis kaputt aus (unter 70 % der Angebote oder 95 % der Orte), bleibt der alte Stand online.
+
+Orte von Hand (alle paar Monate):
+
 ```
 sh tools/download-osm.sh
 cd db
 python import_osm.py; python import_spieli.py; python import_mangrove.py; python import_hamburg.py; python import_wikidata.py; python import_overture.py
 python import_gtfs.py
 python merge.py; python import_websites.py; python merge.py
-python import_offers_elbkinder.py; python import_offers_kathfbs.py; python import_offers_elternschulen.py
-python import_offers_buecherhallen.py; python import_offers_flohmaerkte.py
-python import_offers_planetarium.py; python import_offers_allee.py; python import_offers_hamburgde.py; python import_offers_vhs.py; python import_offers_klick.py
+python derive_names.py
 python export.py; python stats.py
 ```
 
 Die Datenbank (`data/djuu.db`) bleibt lokal, die App liest `data/places.json` (Orte) und `data/offers.json` (Kurse, Gruppen, Termine).
 `import_offers_elbphilharmonie.py` ist abgeschaltet: elbphilharmonie.de schließt ClaudeBot aus.
 
-## Was der Prototyp kann
+## Vor dem öffentlichen Start
 
-- 15 Kategorien: Spielplätze, Indoor, Cafés, Restaurants, Eis, Windeln & Drogerie (inkl. Tankstellen, Spätis), Apotheken, Kinderärzte, Toiletten, Wickelplätze, Aufzüge, Baden, Bücherhallen, Zoo & Museum, Spielzeug
-- Filter: Wickeltisch, Kinderwagen/stufenlos, Hochstuhl, Spielecke, Hund erlaubt, Toilette, Jetzt geöffnet, Sonntags geöffnet, Spielgeräte (Schaukel, Rutsche, Sandkasten, Klettern, Wasser, Seilbahn, Wippe)
-- Schnelle Fragen: "Jetzt Windeln kaufen", "Windeln am Sonntag", "Wickeln unterwegs", "Café mit Kind und Hund", "Es regnet", "Wasserspielplatz"
-- Zähler "x passen · y ohne Angabe", Orte ohne Angabe blass einblendbar
-- Detail: Öffnungszeiten, Route, Quelle jeder Angabe (OSM oder Nutzer), "Stimmt das noch?", Sterne + Kommentar, fehlende Angaben ergänzen
-- Orte eintragen
-- Events-Tab (nur Beispiele)
+- `config.js`: Name, Anschrift und E-Mail eintragen. Erst dann erscheinen Impressum, „Ort melden“ und „Feedback geben“ vollständig.
+- `legal.html` rechtlich prüfen lassen, dann den Entwurfshinweis entfernen. Ebenso die Quellenlizenzen (ODbL-Mischung) und die Fotonennung.
+- Einträge, Bewertungen und Favoriten bleiben bisher auf dem Gerät. Sollen andere sie sehen, braucht es einen Server mit Prüfung gegen Missbrauch.
+- Kartenkacheln: OpenFreeMap als Standard; bei vielen Nutzern Bedingungen prüfen.
 
-## Grenzen (bewusst)
-
-- Nutzereingaben werden nur auf dem eigenen Gerät gespeichert (kein Server).
-- Feiertage bei Öffnungszeiten nicht berücksichtigt; komplexe Öffnungszeiten gelten als "unbekannt".
-- Events sind Beispieldaten.
-- Kartenkacheln kommen vom OSM-Server, dessen Nutzungsregeln nur geringe Last erlauben. Für echte Nutzer braucht es einen eigenen oder bezahlten Kachel-Dienst.
-
-Daten © OpenStreetMap-Mitwirkende, ODbL.
+Daten © OpenStreetMap-Mitwirkende, ODbL. Alle Quellen und Lizenzen: `legal.html`.
 
 ## Bereinigung
 

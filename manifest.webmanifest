@@ -1,7 +1,7 @@
 {
   "name": "Djuu Hamburg",
   "short_name": "Djuu",
-  "description": "Alle Orte für Familien in Hamburg auf einer Karte.",
+  "description": "Kurse, Gruppen, Termine und Orte für Familien in Hamburg auf einer Karte.",
   "lang": "de",
   "start_url": "./",
   "scope": "./",

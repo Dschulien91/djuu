@@ -14,6 +14,7 @@ import re
 from collections import defaultdict
 
 from common import ROOT, connect, now
+from derive_names import is_bad_name
 from flags import ensure as ensure_flags, flagged_offers
 from tags import drop, place_tags
 from tipps import auto_reason, editorial_match
@@ -127,9 +128,12 @@ def run():
         if r[2] in ('bahnhof', 'faehre') and r[1]: stops[(int(r[3] / 0.004), int(r[4] / 0.007))].append((r[3], r[4], r[1]))
     wcs = [(r[3], r[4]) for r in rows if r[2] == 'wc' or facts[r[0]].get('toilets', [None])[0] == 'yes']
 
+    derived = {r[0]: r[1:] for r in con.execute('SELECT place_id, near, basis FROM derived_names')} if con.execute("SELECT 1 FROM sqlite_master WHERE name='derived_names'").fetchone() else {}
     places = []
     for pid, name, cat, lat, lon, district in rows:
         f = facts.get(pid, {})
+        if is_bad_name(name): name = None  # stop ids and building numbers are not names
+        if not name and pid in derived: f['near_name'] = [derived[pid][0], sidx['osm'], 'computed', derived[pid][1]]
         if gear.get(pid): f['gear'] = [','.join(sorted(gear[pid])), sidx['osm_geraete'], 'source']
         if cat == 'spielplatz' and wcs:
             d = min(dist(lat, lon, a, b) for a, b in wcs if abs(a - lat) < 0.004 and abs(b - lon) < 0.007) if any(abs(a - lat) < 0.004 and abs(b - lon) < 0.007 for a, b in wcs) else None
@@ -149,6 +153,8 @@ def run():
     out = {'version': 2, 'generated': now(), 'sources': sources, 'places': places}
     path = ROOT / 'data' / 'places.json'
     path.write_text(json.dumps(out, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
+    # small file for the legal page, so it never has to load all places
+    (ROOT / 'data' / 'sources.json').write_text(json.dumps({'generated': out['generated'], 'sources': [s[1:] for s in sources]}, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
     from collections import Counter
     print(f'{len(places)} places, {path.stat().st_size / 1e6:.1f} MB -> {path}')
     print('categories:', dict(Counter(p[2] for p in places).most_common()))
@@ -162,10 +168,10 @@ OFFER_COLS = ['id', 'title', 'kind', 'topic', 'age_min_m', 'age_max_m', 'for_par
               'lat', 'lon', 'place_id', 'url', 'provider', 'source_id', 'audience']
 
 # Who takes part: 'kinder' (children, also together with a parent) or 'erwachsene' (adults only, not always parents).
-ADULT_TOPICS = {'geburtsvorbereitung', 'rueckbildung', 'beratung', 'erste_hilfe'}
+ADULT_TOPICS = {'geburtsvorbereitung', 'rueckbildung', 'beratung', 'erste_hilfe', 'eltern_thema'}
 ADULT_TITLE = re.compile(r'schwanger|werdende|trennungseltern|alleinerziehend|sprachcaf|deutschkurs|sprachkurs|zumba|pilates|'
                          r'fitness|elternabend|vortrag|infoabend|elternkurs|für (mütter|väter)|väterkreis|müttercaf|entspann|'
-                         r'selbstfürsorge|stillvorbereitung|säuglingspflege|nähkurs|nähcaf|bewerbung|yoga(?! für kinder)', re.I)
+                         r'selbstfürsorge|stretch|relax|stillvorbereitung|säuglingspflege|nähkurs|nähcaf|bewerbung|yoga(?! für kinder)', re.I)
 
 
 def audience(o):
@@ -179,6 +185,7 @@ def audience(o):
 def export_offers(con, places, sidx, dup_of=None):
     """Write data/offers.json: courses, groups and events, each linked to the nearest matching Djuu place."""
     from offers import ensure, topic_of
+    from offers_util import age_of
     from merge import similar
     ensure(con)
     today = now()[:10]
@@ -189,6 +196,11 @@ def export_offers(con, places, sidx, dup_of=None):
         grid[(int(p[3] / 0.002), int(p[4] / 0.0034))].append(p)
     out = []
     hide = flagged_offers(con)
+    # a venue whose exact name exists once in Hamburg is that place, wherever the provider puts its pin
+    key = lambda s: re.sub(r'[^a-z0-9äöüß]+', ' ', (s or '').lower()).strip()
+    by_name = defaultdict(list)
+    for p in places:
+        if p[1]: by_name[key(p[1])].append(p[0])
     for r in rows:
         o = dict(zip(cols, r))
         if o['id'] in hide: continue
@@ -203,6 +215,10 @@ def export_offers(con, places, sidx, dup_of=None):
                         if d < bd and (d < 40 or similar(o['venue'], p[1])):
                             best, bd = p, d
             if best: o['place_id'] = best[0]
+        if not o['place_id'] and len(by_name.get(key(o['venue']), ())) == 1:
+            o['place_id'] = by_name[key(o['venue'])][0]
+        if o['age_min_m'] is None and o['age_max_m'] is None and not o['for_parents']:
+            o['age_min_m'], o['age_max_m'] = age_of(o['title'])
         if o['topic'] in (None, 'sonstiges'): o['topic'] = topic_of(o['title'])
         o['audience'] = audience(o)
         o['source_id'] = sidx.get(o['source_id'], -1)
