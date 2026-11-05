@@ -15,6 +15,7 @@ from collections import defaultdict
 from difflib import SequenceMatcher
 
 from common import RAW_DIR, connect, now
+from strict_match import ENRICH_ONLY, STRICT_SOURCES, attach_contacts, chain_token_sets, contact_index, find_match
 
 MATCH_M = 80
 GROUPS = [  # categories that may describe the same real place
@@ -23,7 +24,14 @@ GROUPS = [  # categories that may describe the same real place
     {'baden'}, {'buecherei'}, {'museum', 'ausflug', 'kultur'}, {'wc', 'wickel'}, {'kita'},
     {'bahnhof', 'haltestelle'}, {'schule'}, {'spielstrasse'}, {'bolzplatz'}, {'wochenmarkt'},
     {'treffpunkt', 'kultur', 'beratung', 'spielhaus'}, {'apotheke'}, {'kinderarzt', 'klinik'}, {'windeln', 'laden'}, {'hundeauslauf', 'park'},
+    {'freizeit', 'sportstaette', 'sportverein'}, {'park', 'garten', 'naturschutz'}, {'ausflug', 'tierhof'}, {'kultur', 'musikschule'},
+    {'treffpunkt', 'jugend'}, {'beratung', 'kinderpsychologie'},
+    {'physio', 'therapie'}, {'hebamme', 'geburtshaus'}, {'musikschule', 'tanzschule', 'sprachschule', 'kreativschule'},
+    {'kultur', 'tanzschule', 'kreativschule'}, {'indoor', 'freizeit', 'sportstaette'}, {'reiten', 'tierhof'},
 ]
+# Records derived by us (generated name, guessed type): the name says nothing, so distance alone decides, and they must not
+# outrank the real OSM values on the place they join. Set here so the rule holds whichever importer ran last.
+DERIVED_SOURCES = {'hh_bolzplatz': 50}
 
 
 def compatible(a, b):
@@ -70,6 +78,9 @@ def pid(source_id, ref):
 def run():
     con = connect()
     ts = now()
+    for src, priority in DERIVED_SOURCES.items():
+        con.execute('UPDATE sources SET priority=? WHERE id=?', (priority, src))
+    con.commit()  # do not hold the write lock during the long matching below
     places = {}  # id -> dict
     for row in con.execute('SELECT id, name, category, lat, lon, created_at FROM places'):
         places[row[0]] = {'id': row[0], 'name': row[1], 'category': row[2], 'lat': row[3], 'lon': row[4], 'created_at': row[5], 'used': False}
@@ -84,9 +95,12 @@ def run():
 
     grid = Grid()
     osm_refs = {}
+    contacts = contact_index(con)  # evidence for STRICT_SOURCES, see strict_match.py
+    chains = chain_token_sets(r[0] for r in con.execute(f"SELECT name FROM source_records WHERE source_id IN ({','.join(repr(s) for s in sorted(STRICT_SOURCES))})"))
     for ref, name, cat, la, lo in con.execute("SELECT source_ref, name, category, lat, lon FROM source_records WHERE source_id='osm'"):
         p = make('osm', ref, name, cat, la, lo)
         links.append((p['id'], 'osm', ref)); grid.add(la, lo, p); osm_refs[ref] = p
+        attach_contacts(p, contacts.get(('osm', ref))); attach_contacts(p, contacts.get(('website', p['id'])))
 
     for src, ref, name, cat, la, lo in con.execute("SELECT source_id, source_ref, name, category, lat, lon FROM source_records WHERE source_id NOT IN ('osm','osm_geraete','hh_spielgeraete') ORDER BY source_id"):
         p = osm_refs.get(ref) if src == 'spieli' else None
@@ -94,10 +108,14 @@ def run():
             p = places[ref]  # website scans are keyed by place id
         if src == 'mangrove' and (m := re.match(r'osm_[a-z_]+?_(\d+)#', ref)):
             p = next((osm_refs[k] for k in (f'node/{m[1]}', f'way/{m[1]}', f'relation/{m[1]}') if k in osm_refs), None)
-        if p is None and la is not None:
+        if src in STRICT_SOURCES and la is not None:
+            mine = contacts.get((src, ref)) or {'phones': set(), 'domains': set()}
+            p, why = find_match(name, mine['phones'], mine['domains'], la, lo, grid.near(la, lo), lambda c: compatible(cat, c), dist, chains)
+            if p is None and (why or cat in ENRICH_ONLY): continue  # stays unlinked: never a wrong merge, never a stale new place
+        elif p is None and la is not None:
             best, bd = None, MATCH_M
             for q in grid.near(la, lo):
-                if not compatible(cat, q['category']) or not similar(name, q['name']): continue
+                if not compatible(cat, q['category']) or (src not in DERIVED_SOURCES and not similar(name, q['name'])): continue
                 d = dist(la, lo, q['lat'], q['lon'])
                 if d < bd: best, bd = q, d
             p = best
@@ -107,6 +125,7 @@ def run():
         elif not p.get('name') and name:
             p['name'] = name
         links.append((p['id'], src, ref))
+        attach_contacts(p, contacts.get((src, ref)))
 
     for ref, la, lo in con.execute("SELECT source_ref, lat, lon FROM source_records WHERE source_id='osm_geraete'"):
         best, bd = None, 80

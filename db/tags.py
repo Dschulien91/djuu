@@ -8,7 +8,7 @@ Also decides which places are dropped completely (adult venues, gambling, namele
 import re
 
 ADULT = re.compile(r'erotik|erotic|\bsex(?!ual)|sexy|stripclub|striptease|strip ?bar|table ?dance|bordell|laufhaus|swinger|peep|'
-                   r'fetisch|beate uhse|nachtclub|night ?club|spielhalle|spielothek|\bcasino|wettbüro|sportwetten|gay-kino', re.I)
+                   r'fetisch|beate uhse|nachtclub|night ?club|spielhalle|spielothek|\bcasino(?! oberalster)|wettbüro|sportwetten|gay-kino', re.I)
 SHISHA = re.compile(r'shisha|hookah', re.I)
 KIDS_OK = re.compile(r'jump|trampolin|kinder|kids|family|familie', re.I)
 ADULT_OSM = {('amenity', 'stripclub'), ('amenity', 'brothel'), ('amenity', 'nightclub'), ('amenity', 'casino'),
@@ -39,7 +39,10 @@ def place_tags(cat, name, raw, facts, gear):
         t.add('spielplatz')
         if gear and re.search(r'water|splash|pump|archimedes', ','.join(gear)) or re.search(r'wasserspiel', n): t.add('wasserspiel')
     if cat == 'abenteuer': t.add('abenteuer')
-    if cat in ('spielstrasse', 'bolzplatz', 'wochenmarkt', 'schule'): t.add(cat)
+    if cat in ('spielstrasse', 'bolzplatz', 'wochenmarkt', 'schule', 'tischtennis', 'sportstaette', 'sportverein', 'reiten', 'rodeln', 'brunnen', 'buecherschrank', 'faehre', 'bootsverleih', 'camping',
+               'physio', 'therapie', 'zahnarzt', 'frauenarzt', 'hno', 'augenarzt', 'kinderpsychologie', 'jugend', 'pfadfinder', 'nachhilfe', 'musikschule', 'tanzschule', 'sprachschule', 'kreativschule'): t.add(cat)
+    if cat in ('garten', 'naturschutz', 'tierhof', 'bootsverleih', 'camping'): t.add('natur')
+    if cat == 'tierhof': t.add('tiere')
     if cat == 'spielhaus': t.add('spielhaus')
     if cat == 'indoor':
         if re.search(r'climb|boulder', g('sport') or '') or re.search(r'boulder|kletter|apes|bloc', n): t.add('klettern')
@@ -96,7 +99,7 @@ def place_tags(cat, name, raw, facts, gear):
     return sorted(t)
 
 
-OUT_CATS = {'spielstrasse', 'bolzplatz', 'spielplatz', 'abenteuer', 'park', 'picknick', 'grillplatz', 'hundeauslauf', 'trinkwasser', 'ausflug'}
+OUT_CATS = {'tischtennis', 'reiten', 'rodeln', 'garten', 'naturschutz', 'tierhof', 'brunnen', 'buecherschrank', 'faehre', 'bootsverleih', 'camping', 'spielstrasse', 'bolzplatz', 'spielplatz', 'abenteuer', 'park', 'picknick', 'grillplatz', 'hundeauslauf', 'trinkwasser', 'ausflug'}
 IN_CATS = {'indoor', 'spielhaus', 'museum', 'kultur', 'buecherei', 'cafe', 'restaurant', 'kurs', 'treffpunkt'}
 
 

@@ -139,7 +139,8 @@ LAYERS = {
         **addr(p), 'changing_table': jn(p.get('wickeltisch')), 'fee': 'no' if jn(p.get('kostenlos')) == 'yes' else jn(p.get('kostenlos')) and 'yes',
         'wheelchair': jn(p.get('behindertengerecht')), 'unisex': jn(p.get('genderneutral')), 'drinking_water': 'yes', 'type': g(p, 'toilette')})), None),
     'hh_bibliotheken': ('HH_WFS_Oeffentliche_Bibliotheken', 'de.hh.up:oeffentliche_bibs', ('buecherei', lambda p: (g(p, 'bezeichnung'), {
-        **addr(p), 'website': g(p, 'homepage', 'link'), 'services': g(p, 'angebote'), 'profile': g(p, 'profil')})), None),
+        **addr(p), 'website': g(p, 'homepage', 'link'), 'services': g(p, 'angebote'), 'profile': g(p, 'profil'),
+        'wheelchair': 'yes' if re.search('barrierefrei', g(p, 'angebote') or '', re.I) else None})), None),
     'hh_sportstaetten': ('HH_WFS_Sportstaetten', 'de.hh.up:sportstaetten', ('baden', lambda p: (g(p, 'name', 'einrichtung'), {
         **addr(p), 'type': g(p, 'typ'), 'operator': g(p, 'vereinsname')})), ('typ', ['Schwimmbad', 'Kletteranlage', 'Skateanlage', 'Bewegungsinsel'])),
     'hh_badestellen': ('HH_WFS_Badegewaesser', 'app:badegewaesser', ('baden', lambda p: (g(p, 'name'), {
@@ -154,7 +155,8 @@ LAYERS = {
     'hh_trinkbrunnen': ('wfs_trinkwasserbrunnen', 'de.hh.up:trinkwasserbrunnen', ('trinkwasser', lambda p: (
         'Trinkbrunnen', {'address': g(p, 'adresse'), 'description': g(p, 'angebot'), 'drinking_water': 'yes'})), None),
     'hh_refill': ('wfs_refill_station_hamburg', 'de.hh.up:refill_station_hamburg', ('trinkwasser', lambda p: (
-        g(p, 'Einrichtung'), {'description': g(p, 'Beschreibung'), 'drinking_water': 'refill'})), None),
+        g(p, 'Einrichtung'), {'description': g(p, 'Beschreibung'), 'drinking_water': 'refill',
+                              'wheelchair': 'yes' if g(p, 'Hinweis') == 'barrierefrei' else None})), None),
     'hh_museen': ('wfs_museen', 'de.hh.up:museen', ('museum', lambda p: (g(p, 'einrichtung'), addr(p))), None),
     'hh_theater': ('wfs_theater', 'de.hh.up:theater', ('kultur', lambda p: (g(p, 'einrichtung'), {**addr(p), 'seats': g(p, 'gesamtplaetze')})), None),
     'hh_krankenhaeuser': ('HH_WFS_Krankenhaeuser', 'de.hh.up:gesundheit_krankenhaeuser', ('klinik', lambda p: (g(p, 'name'), {

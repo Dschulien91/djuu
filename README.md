@@ -1,6 +1,6 @@
-# Djuu – Prototyp v0.15
+# Djuu – Prototyp v0.16
 
-Karte mit allen familienrelevanten Orten in Hamburg (ca. 19.700 Orte aus über 40 offenen Quellen, jede Angabe mit Quelle) mit Filtern.
+Karte mit allen familienrelevanten Orten in Hamburg (ca. 22.300 Orte aus 80 offenen Quellen, jede Angabe mit Quelle) mit Filtern.
 Installierbare Web-App (PWA): läuft auf Android, iPhone und Desktop aus demselben Code.
 
 ## Starten (lokal)
@@ -16,7 +16,7 @@ Dann http://localhost:8765 im Browser öffnen.
 ```
 sh tools/download-osm.sh
 cd db
-python import_osm.py; python import_spieli.py; python import_mangrove.py; python import_hamburg.py; python import_wikidata.py
+python import_osm.py; python import_spieli.py; python import_mangrove.py; python import_hamburg.py; python import_wikidata.py; python import_overture.py
 python import_gtfs.py
 python merge.py; python import_websites.py; python merge.py
 python import_offers_elbkinder.py; python import_offers_kathfbs.py; python import_offers_elternschulen.py
@@ -46,3 +46,15 @@ Die Datenbank (`data/djuu.db`) bleibt lokal, die App liest `data/places.json` (O
 - Kartenkacheln kommen vom OSM-Server, dessen Nutzungsregeln nur geringe Last erlauben. Für echte Nutzer braucht es einen eigenen oder bezahlten Kachel-Dienst.
 
 Daten © OpenStreetMap-Mitwirkende, ODbL.
+
+## Bereinigung
+
+Unpassende Einträge und Dubletten werden nicht gelöscht, sondern in `place_flags` und `offer_flags` markiert (`db/flags.py`). `db/export.py` lässt sie aus der App. Listen stehen in `data/cleaning/`.
+
+```
+python flags.py unflag <id>     # einzelne Markierung aufheben
+python flags.py undo review-2026-11-05   # ganze Runde aufheben (auch dup-2026-11-05, rule-2026-11-05)
+python export.py
+```
+
+Weitere Angebots-Importer: `db/import_offers_*.py`, Overture: `db/import_overture.py`.

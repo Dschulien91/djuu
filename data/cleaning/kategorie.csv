@@ -1,0 +1,200 @@
+﻿id;name;kategorie;stadtteil;grund;duplikat_von_oder_neue_kategorie;methode
+dj_2da41e8c1774;Atlasprofilax-Praxis Flick;apotheke;Blankenese;Therapiepraxis, keine Apotheke;therapie;review
+dj_af2446de66d0;Athleticum am Volkspark;augenarzt;Bahrenfeld;Sportmedizin-Zentrum, kein Augenarzt;klinik;review
+dj_3283c05927f5;Linse Phoenix - Optik Hallmann;augenarzt;Harburg;Optiker, kein Augenarzt;laden;review
+dj_4f2edf0cb8d4;Chinaland Hamburg;cafe;Eilbek;Falsche Kategorie;restaurant;review
+dj_e293531a4ccf;Gaziantep Sofrası;cafe;St. Georg;Falsche Kategorie;restaurant;review
+dj_0bc016b74c3f;Kaffeemuseum Burg;cafe;HafenCity;Falsche Kategorie;museum;review
+dj_295d979e9ff6;Kiko Milano;cafe;Ottensen;Falsche Kategorie;laden;review
+dj_4c9c12ff1449;Lieblingsstück;cafe;Bergedorf;Falsche Kategorie;laden;review
+dj_c4a7b39ebc3b;Mozart;cafe;Altstadt;Falsche Kategorie;restaurant;review
+dj_fbc8edd65747;Pamukkale Cafe & Bar;cafe;St. Pauli;Falsche Kategorie;restaurant;review
+dj_6ed180099420;Pizza Max City Süd;cafe;Rothenburgsort;Falsche Kategorie;imbiss;review
+dj_256600409035;Restaurant Facette;cafe;St. Georg;Falsche Kategorie;restaurant;review
+dj_fd1c3d34b47a;Ristorante Vero;cafe;Bergedorf;Falsche Kategorie;restaurant;review
+dj_58f4753d03c1;Taj Mahal;cafe;Hamm;Falsche Kategorie;restaurant;review
+dj_02abbb66895b;Toni's Pizza Service;cafe;Bahrenfeld;Falsche Kategorie;imbiss;review
+dj_8a73f81fcb8b;filón Tapas Bar;cafe;Blankenese;Falsche Kategorie;restaurant;review
+dj_2d12c927f475;trader.hifi;cafe;Ottensen;Falsche Kategorie;laden;review
+dj_114cd872bdbd;Spielplatz Fruchtallee;freizeit;Eimsbüttel;Spielplatz;spielplatz;review
+dj_62e81a59d74a;Mini Golf;imbiss;Neustadt;Minigolf;freizeit;review
+dj_9ae246895159;Minigolf im Stadtpark;imbiss;Winterhude;Minigolf;freizeit;review
+dj_2dfb9416b00b;Zahnarztpraxis Kerstin Dochow;kinderarzt;Schnelsen;Zahnarztpraxis;zahnarzt;review
+dj_394bc676e32d;Therapiezentrum Am Fleet;kita;Neustadt;Therapiezentrum;therapie;review
+dj_6cc7e6015226;Physioteam & Ergoteam Kirchwerder;klinik;Kirchwerder;Physiotherapie, keine Klinik;physio;review
+dj_142ca58bc96f;Tanzbrücke Hamburg e.V.;kreativschule;Barmbek-Nord;Tanzschule, nicht Musikschule;tanzschule;review
+dj_0127142721a2;Gokarthof;laden;Neuengamme;Gokart-Bahn;freizeit;review
+dj_48fe92527424;ADTV Tanzschule Walter Bartel;musikschule;Uhlenhorst;Tanzschule, nicht Musikschule;tanzschule;review
+dj_1d3a97b13f15;Baladin Tanzschule;musikschule;Bahrenfeld;Tanzschule, nicht Musikschule;tanzschule;review
+dj_6bdbd0767b07;Balettstudio Blankenese;musikschule;Blankenese;Tanzschule, nicht Musikschule;tanzschule;review
+dj_c8c7615267d1;Ballett Studio Beate Schüßler Preuß;musikschule;Bahrenfeld;Tanzschule, nicht Musikschule;tanzschule;review
+dj_464163019c35;Ballettschule Zimmermann;musikschule;Eißendorf;Tanzschule, nicht Musikschule;tanzschule;review
+dj_3f47d7e34cf3;Ballettzentrum Hamburg;musikschule;Hamm;Tanzschule, nicht Musikschule;tanzschule;review
+dj_fb4725f1ab24;Der TANZSaal;musikschule;Curslack;Tanzschule, nicht Musikschule;tanzschule;review
+dj_cf01c25f7efd;Die Schrittmacher;musikschule;Bahrenfeld;Tanzschule, nicht Musikschule;tanzschule;review
+dj_74fc843e13e1;Erika Klütz Schule;musikschule;Bahrenfeld;Tanzschule, nicht Musikschule;tanzschule;review
+dj_213cb572d5bf;Hamburg Dance Academy;musikschule;Heimfeld;Tanzschule, nicht Musikschule;tanzschule;review
+dj_77f02acc8dae;Ilkas Malschule;musikschule;Sasel;Malschule;kreativschule;review
+dj_c1c61d76baf0;Kinderwerk;musikschule;Eimsbüttel;Tanzschule, nicht Musikschule;tanzschule;review
+dj_7b7f0e28963c;Kinderwerk Hamburg;musikschule;Niendorf;Tanzschule, nicht Musikschule;tanzschule;review
+dj_71de49dc0ebd;Lola Rogge Schule im Hirschparkhaus;musikschule;Nienstedten;Tanzschule, nicht Musikschule;tanzschule;review
+dj_ced42595ee66;Malschule Tanja Gott;musikschule;Langenhorn;Malschule;kreativschule;review
+dj_47a25f35c66a;Open Area Dance School;musikschule;Ottensen;Tanzschule, nicht Musikschule;tanzschule;review
+dj_d222aaddf684;Rhythm & Dance;musikschule;Bergedorf;Tanzschule, nicht Musikschule;tanzschule;review
+dj_b8f4d90b16b0;S-eins;musikschule;Poppenbüttel;Tanzschule, nicht Musikschule;tanzschule;review
+dj_e3a8fc97301e;Studio Tanzkunst;musikschule;Ottensen;Tanzschule, nicht Musikschule;tanzschule;review
+dj_0e98cb47010f;Tanzparterre;musikschule;Winterhude;Tanzschule, nicht Musikschule;tanzschule;review
+dj_ebbd6cf97878;Tanzsalon Hamburg Eimsbüttel;musikschule;Lokstedt;Tanzschule, nicht Musikschule;tanzschule;review
+dj_16fba3550f60;"Tanzschule ""die 2"" ADTV";musikschule;Winterhude;Tanzschule, nicht Musikschule;tanzschule;review
+dj_2792237f06a0;Tanzschule Fennel;musikschule;Hoheluft-Ost;Tanzschule, nicht Musikschule;tanzschule;review
+dj_c2ebe9418d4d;Tanzschule Heiko Stender;musikschule;Niendorf;Tanzschule, nicht Musikschule;tanzschule;review
+dj_b2ae644ac1c0;Tanzschule Hädrich;musikschule;Wilstorf;Tanzschule, nicht Musikschule;tanzschule;review
+dj_a101d996f8f3;Triade – Studio für Tanz und Performance;musikschule;Altona-Altstadt;Tanzschule, nicht Musikschule;tanzschule;review
+dj_58306ed21e82;Tybas Dance Center;musikschule;Neustadt;Tanzschule, nicht Musikschule;tanzschule;review
+dj_a5ae65b056ac;Wandsbeker Ballettstudio;musikschule;Wandsbek;Tanzschule, nicht Musikschule;tanzschule;review
+dj_b7618ebad842;Bauspielplatz Berne;park;Farmsen-Berne;Spielplatz, nicht Park;spielplatz;review
+dj_7ff9d9ed342d;Die Kuhle - Bauspielplatz Kaltenbergen;park;Billstedt;Spielplatz, nicht Park;spielplatz;review
+dj_fedbd8b0a2a7;Dschungelspielplatz Steilhooper Straße;park;Steilshoop;Spielplatz, nicht Park;spielplatz;review
+dj_743a714dc9f9;Kelle Skatepark;park;Eppendorf;Sportanlage;sportstaette;review
+dj_f6f3ffaf90ae;Kinderspielplatz Kiefernberg;park;Heimfeld;Spielplatz, nicht Park;spielplatz;review
+dj_2a9e30acfb91;Loki-Schmidt-Garten;park;Osdorf;Botanischer Garten;garten;review
+dj_b8ab3d37d363;Spielpark Rissener Kuhle;park;Rissen;Spielplatz, nicht Park;spielplatz;review
+dj_f0c8d0e0a189;Spielplatz Grandweg;park;Lokstedt;Spielplatz, nicht Park;spielplatz;review
+dj_33318be17cd3;Spielplatz Meenkwiese am Alsterwanderweg;park;Winterhude;Spielplatz, nicht Park;spielplatz;review
+dj_699d8d604c44;Spielplatz Silbersackstraße;park;St. Pauli;Spielplatz, nicht Park;spielplatz;review
+dj_90c1d24ab40d;Spielplatz Vogelkamp;park;Neugraben-Fischbek;Spielplatz, nicht Park;spielplatz;review
+dj_27176e5bdc8a;Spielplatz Vorhornweg;park;Bahrenfeld;Spielplatz, nicht Park;spielplatz;review
+dj_c001abd54cdd;Spielplatz „Rollerbahn“;park;Dulsberg;Spielplatz, nicht Park;spielplatz;review
+dj_c3329525aee8;Sportpark Lurup;park;Lurup;Sportanlage;sportstaette;review
+dj_34fd17004430;Psychotherapeutische, Praxengemeinschaft;physio;Eimsbüttel;Psychotherapie, keine Physio;therapie;review
+dj_964183cc12ec;Carlos Coffee;restaurant;Ottensen;Falsche Kategorie;cafe;review
+dj_8d605773b4b5;Das Café im Hamburg-Haus;restaurant;Eimsbüttel;Falsche Kategorie;cafe;review
+dj_f108b64e64c4;Edeka-Lebensmittel.de;restaurant;Lohbrügge;Falsche Kategorie;laden;review
+dj_b5a6d77b0de8;Egon Geißen Fischfeinkost;restaurant;Hoheluft-West;Falsche Kategorie;laden;review
+dj_950865ee1e10;Familiencafé Krümel;restaurant;Dulsberg;Falsche Kategorie;cafe;review
+dj_8a0a406013f8;Fischfeinkost Delikatessen des Meeres;restaurant;Neustadt;Falsche Kategorie;laden;review
+dj_a6927df10e75;Fleischerei Kluckow;restaurant;Wandsbek;Falsche Kategorie;laden;review
+dj_08c1e0034226;Katzentempel;restaurant;HafenCity;Falsche Kategorie;cafe;review
+dj_23f14d35fc5e;Minigolf Events Hamburg Horn;restaurant;Horn;Falsche Kategorie;freizeit;review
+dj_e2299fd642e2;Minigolf Sportanlage;restaurant;Horn;Falsche Kategorie;freizeit;review
+dj_f663c0f7a885;pro linguis;restaurant;Rotherbaum;Falsche Kategorie;sprachschule;review
+dj_f6a53343a762;why not Café;restaurant;Ottensen;Falsche Kategorie;cafe;review
+dj_ce9155669b04;Kita Feldahornweg;spielplatz;Winterhude;Kita, kein Spielplatz;kita;review
+dj_1dd17168653a;Spielhaus Allermöhe;spielplatz;Neuallermöhe;Spielhaus;spielhaus;review
+dj_0082466d1fb9;Spielhaus Eidelstedt;spielplatz;Eidelstedt;Spielhaus;spielhaus;review
+dj_d0fcc76fd9a5;Spielhaus Galaxie;spielplatz;Rahlstedt;Spielhaus;spielhaus;review
+dj_3ab3497606bd;Spielhaus und Bauspielplatz Essener Straße;spielplatz;Langenhorn;Spielhaus;spielhaus;review
+dj_2154a67c3307;Sportpark Lurup;spielplatz;Rissen;Sportanlage;sportstaette;review
+dj_5554820746f9;Treffpunkt Pogwischrund;spielplatz;Rahlstedt;Nachbarschaftstreff;treffpunkt;review
+dj_e03d52bae8bd;Praxis für Massage & Krankengymnastik Dieter Jährling;sportstaette;Rahlstedt;Physiotherapie-Praxis;physio;review
+dj_a387ca6bf278;Abenteuerspielplatz Wegenkamp e.V.;treffpunkt;Stellingen;Abenteuerspielplatz;abenteuer;review
+dj_a9052dc72847;Abenteuerspielplatz am Brunnenhof e.V.;treffpunkt;St. Pauli;Abenteuerspielplatz;abenteuer;review
+dj_b891be056a13;Bahrenfelder Turnverein von 1898 e.V.;treffpunkt;Bahrenfeld;Sportverein;sportverein;review
+dj_fbb34ae4e6f3;Baltische Seglervereinigung Hamburg;treffpunkt;Allermöhe;Sportverein;sportverein;review
+dj_3643dcab4a6e;Bauspielplatz Berne;treffpunkt;Farmsen-Berne;Abenteuerspielplatz;abenteuer;review
+dj_0e03ec022de0;Bauspielplatz Tweeltenmoor;treffpunkt;Langenhorn;Abenteuerspielplatz;abenteuer;review
+dj_207c3f17e5b8;Bauspielplatz und Spielhaus Damerowsweg;treffpunkt;Barmbek-Süd;Abenteuerspielplatz;abenteuer;review
+dj_19e46acafd0c;Bauspielplatz und Spielhaus Eppendorfer Park;treffpunkt;Eppendorf;Abenteuerspielplatz;abenteuer;review
+dj_d503c3bbc90a;Borstelbeker Sportverein;treffpunkt;Heimfeld;Sportverein;sportverein;review
+dj_93ebbdcc63f7;Clubhaus Komet Blankenese;treffpunkt;Iserbrook;Sportverein;sportverein;review
+dj_5050c674b487;DRK Kita Regenbogen;treffpunkt;Lohbrügge;Kita;kita;review
+dj_649b6f7d1728;ESV Einigkeit Wilhelmsburg von 1908 e.V.;treffpunkt;Wilhelmsburg;Sportverein;sportverein;review
+dj_e041a143a541;Elbkinder-Kita Eddelbüttelstraße mit EKiZ;treffpunkt;Harburg;Kita;kita;review
+dj_954aed2a2806;Ev. Kita Emmaus;treffpunkt;Wilhelmsburg;Kita;kita;review
+dj_99bf888b5b62;Ev. Kita Maria Magdalena;treffpunkt;Osdorf;Kita;kita;review
+dj_d6aa82744ae7;Ev. Kita St. Petrus;treffpunkt;Heimfeld;Kita;kita;review
+dj_3c98a847f13a;FC Bergedorf 85;treffpunkt;Lohbrügge;Sportverein;sportverein;review
+dj_d5656d89ac2b;Frosch-Kita;treffpunkt;Billwerder;Kita;kita;review
+dj_4ef783d03d26;Grasbrookpark;treffpunkt;HafenCity;Park;park;review
+dj_ee2d9448d5f2;Harburger -Sport-Club e.V.;treffpunkt;Wilstorf;Sportverein;sportverein;review
+dj_63d9a99d1133;Harburger-Sport-Club e.V. Borussia RasenSport 1904/07;treffpunkt;Wilstorf;Sportverein;sportverein;review
+dj_65e21f936176;Kindertierwiese;treffpunkt;Neugraben-Fischbek;Kindertierwiese;tierhof;review
+dj_a8e90aff6f08;Kirchliche Beratungsstelle für Erziehungs-, Ehe- und Lebensfragen;treffpunkt;Lohbrügge;Beratungsstelle;beratung;review
+dj_61d795824194;Kita An der Falkenbek;treffpunkt;Neugraben-Fischbek;Kita;kita;review
+dj_6e52debc7098;Kita Bengelsdorfstraße;treffpunkt;Bramfeld;Kita;kita;review
+dj_923586e118f1;Kita Berner Heerweg;treffpunkt;Farmsen-Berne;Kita;kita;review
+dj_1ecbccbfe5ad;Kita Bluma Mekler;treffpunkt;Schnelsen;Kita;kita;review
+dj_8920d5cb119c;Kita Boberg;treffpunkt;Lohbrügge;Kita;kita;review
+dj_2cc610c69a0b;Kita Dahlemer Ring;treffpunkt;Jenfeld;Kita;kita;review
+dj_90cf75255b1f;Kita Dortmunder Straße;treffpunkt;Langenhorn;Kita;kita;review
+dj_2289c808799f;Kita Druckerstraße;treffpunkt;Billstedt;Kita;kita;review
+dj_f2603b45672e;Kita Eiffestraße;treffpunkt;Borgfelde;Kita;kita;review
+dj_d1c4f99917b7;Kita Grüne Insel/Dr. Ernst-Hinze-Haus;treffpunkt;Hausbruch;Kita;kita;review
+dj_e00755cf62be;Kita Hartzloh;treffpunkt;Barmbek-Nord;Kita;kita;review
+dj_68077f46811a;Kita Hermannstal;treffpunkt;Horn;Kita;kita;review
+dj_170fb6e91f0f;Kita Iserbrook;treffpunkt;Iserbrook;Kita;kita;review
+dj_35dc38f852f5;Kita Jenfelder Au;treffpunkt;Jenfeld;Kita;kita;review
+dj_89496b567ca3;Kita Johanna-Kirchner-Haus;treffpunkt;Neuallermöhe;Kita;kita;review
+dj_9086c7ba93af;Kita Lelka Birnbaum;treffpunkt;St. Pauli;Kita;kita;review
+dj_6ecd5d76d75c;Kita Leuchtturm;treffpunkt;Billstedt;Kita;kita;review
+dj_da7a0d808257;Kita Lohkampstraße;treffpunkt;Eidelstedt;Kita;kita;review
+dj_2f2998c01861;Kita Lothringer Straße;treffpunkt;Dulsberg;Kita;kita;review
+dj_eb673054e2f2;Kita Löwenzahn;treffpunkt;Poppenbüttel;Kita;kita;review
+dj_cc5ca6215685;Kita Neuer Mohnhof;treffpunkt;Bergedorf;Kita;kita;review
+dj_00a893a2a203;Kita Osterbrook;treffpunkt;Hamm;Kita;kita;review
+dj_c017f6d62da7;Kita Prassekstraße;treffpunkt;Wilhelmsburg;Kita;kita;review
+dj_e99dc990a747;Kita Rappelkiste;treffpunkt;Rahlstedt;Kita;kita;review
+dj_8d0be7831c16;Kita Sandfoort;treffpunkt;Langenhorn;Kita;kita;review
+dj_95197dfbefe6;Kita Scheplerstraße;treffpunkt;Altona-Altstadt;Kita;kita;review
+dj_63411040e15a;Kita Spitzbergenweg;treffpunkt;Rahlstedt;Kita;kita;review
+dj_862ce445591e;Kita Sportini Poppenbüttel;treffpunkt;Poppenbüttel;Kita;kita;review
+dj_27d151bcb730;Kita Steilshooper Allee;treffpunkt;Steilshoop;Kita;kita;review
+dj_3025253b08b2;Kita Storchenwiese;treffpunkt;Neugraben-Fischbek;Kita;kita;review
+dj_826352902176;Kita Uffelnsweg;treffpunkt;Veddel;Kita;kita;review
+dj_1c072f375e39;Kita an der Trabrennbahn;treffpunkt;Bahrenfeld;Kita;kita;review
+dj_fcdf73ce22f2;Kita der Ev. Luther-Kirchengemeinde;treffpunkt;Bahrenfeld;Kita;kita;review
+dj_ee0d752b8c9f;Mühlenberger Segel-Club e.V.;treffpunkt;Nienstedten;Sportverein;sportverein;review
+dj_7327dfc06275;Neugrabener Tennis-Club e.V.;treffpunkt;Neugraben-Fischbek;Sportverein;sportverein;review
+dj_59b5fa80d43f;Norddeutscher Regatta Verein;treffpunkt;Uhlenhorst;Sportverein;sportverein;review
+dj_1c621b9be578;Ordu Çay Evi;treffpunkt;Eimsbüttel;Teehaus;cafe;review
+dj_2d2e20b9af1d;Ruder-Gesellschaft HANSA;treffpunkt;Uhlenhorst;Sportverein;sportverein;review
+dj_97132efefd1e;SV Bergedorf-West;treffpunkt;Bergedorf;Sportverein;sportverein;review
+dj_ab906234beb4;SV Lurup-Hamburg von 1923 e.V.;treffpunkt;Lurup;Sportverein;sportverein;review
+dj_622b7d62b97d;SV Uhlenhorst-Adler;treffpunkt;Barmbek-Süd;Sportverein;sportverein;review
+dj_4f81039c9d50;SV West-Eimsbüttel von 1923 e.V. / TSV Stellingen von 1888 e.V.;treffpunkt;Stellingen;Sportverein;sportverein;review
+dj_a5e81130123c;Schwangerschaftsberatung Iserbrook, Osdorf, Lurup;treffpunkt;Altona-Altstadt;Beratungsstelle;beratung;review
+dj_2ec4b9f6ec99;Segel und Motoryacht Club Elbe e.V.;treffpunkt;Allermöhe;Sportverein;sportverein;review
+dj_7d75d625151d;Seglervereinigung Reiherstieg;treffpunkt;Wilhelmsburg;Sportverein;sportverein;review
+dj_01aff05f0ad4;"Spielhaus ""Kiebitz""";treffpunkt;Neuallermöhe;Spielhaus;spielhaus;review
+dj_2d000eda66e6;Spielhaus Alsenpark;treffpunkt;Altona-Nord;Spielhaus;spielhaus;review
+dj_8bbae78de912;Spielhaus Danziger Straße;treffpunkt;St. Georg;Spielhaus;spielhaus;review
+dj_437e54656a34;Spielhaus Dulsberg;treffpunkt;Dulsberg;Spielhaus;spielhaus;review
+dj_4d655c29dd32;Spielhaus Eimsbütteler Marktplatz;treffpunkt;Eimsbüttel;Spielhaus;spielhaus;review
+dj_f7089129118c;Spielhaus Essener Straße;treffpunkt;Langenhorn;Spielhaus;spielhaus;review
+dj_512878386aac;Spielhaus Fahrenort;treffpunkt;Lurup;Spielhaus;spielhaus;review
+dj_43fc2580cda0;Spielhaus Farmsen;treffpunkt;Farmsen-Berne;Spielhaus;spielhaus;review
+dj_cf857ec6f04e;Spielhaus Friedrich-Frank-Bogen;treffpunkt;Bergedorf;Spielhaus;spielhaus;review
+dj_a95e1cf92115;Spielhaus Hohenhorst;treffpunkt;Rahlstedt;Spielhaus;spielhaus;review
+dj_891abe07ddd4;Spielhaus Horner Geest;treffpunkt;Horn;Spielhaus;spielhaus;review
+dj_f8f62dbcd506;Spielhaus Horner Landstraße;treffpunkt;Horn;Spielhaus;spielhaus;review
+dj_e4220e2b0d2a;Spielhaus Horner Rennbahn;treffpunkt;Horn;Spielhaus;spielhaus;review
+dj_bcf44bacf792;Spielhaus Katenweide;treffpunkt;Veddel;Spielhaus;spielhaus;review
+dj_253c970dae8e;Spielhaus Langenfort;treffpunkt;Barmbek-Nord;Spielhaus;spielhaus;review
+dj_02c361056c64;Spielhaus Lohbrügger Landstraße;treffpunkt;Lohbrügge;Spielhaus;spielhaus;review
+dj_a35fed85a52b;Spielhaus Lohmühlenpark;treffpunkt;St. Georg;Spielhaus;spielhaus;review
+dj_1cd678541cf4;Spielhaus Neuallermöhe-Ost;treffpunkt;Neuallermöhe;Spielhaus;spielhaus;review
+dj_fbdf53c54367;Spielhaus Neuwiedenthal;treffpunkt;Neugraben-Fischbek;Spielhaus;spielhaus;review
+dj_977c77120d34;Spielhaus Osdorfer Born;treffpunkt;Osdorf;Spielhaus;spielhaus;review
+dj_1aeaba95b2b1;Spielhaus Sara Goldfinger;treffpunkt;Schnelsen;Spielhaus;spielhaus;review
+dj_4038ca335bb3;Spielhaus Sonnenland;treffpunkt;Billstedt;Spielhaus;spielhaus;review
+dj_392a9638127f;Spielhaus Speckenreye;treffpunkt;Horn;Spielhaus;spielhaus;review
+dj_25239c5f571a;Spielhaus St. Georgs Kirchhof;treffpunkt;St. Georg;Spielhaus;spielhaus;review
+dj_f605aa04b2a0;Spielhaus Trauns Park;treffpunkt;Rothenburgsort;Spielhaus;spielhaus;review
+dj_130e4e8474e2;Spielhaus Wagrierweg;treffpunkt;Niendorf;Spielhaus;spielhaus;review
+dj_6abec3f79253;Spielhaus Wiebelstraße;treffpunkt;Eidelstedt;Spielhaus;spielhaus;review
+dj_7c4ebe99b6ed;Spielhaus Zeiseweg;treffpunkt;Altona-Nord;Spielhaus;spielhaus;review
+dj_8f5b89ea1b9b;Spielhaus und Bauspielplatz Rotenhäuser Feld;treffpunkt;Wilhelmsburg;Spielhaus;spielhaus;review
+dj_cb260ea31c50;Spielplatzhaus Wandsbek;treffpunkt;Wandsbek;Spielhaus;spielhaus;review
+dj_3e097ef9c27e;Traumatherapiezentrum;treffpunkt;Hoheluft-Ost;Traumatherapie;therapie;review
+dj_8fd9659893fc;Vereinshaus Biller Ruder Club;treffpunkt;Rothenburgsort;Sportverein;sportverein;review
+dj_3677508607d0;Vereinshaus Yachtclub Hansa Harburg;treffpunkt;Harburg;Sportverein;sportverein;review
+dj_4d4e539b6361;Vereinsheim Hamburg-Horner TV von 1905 e.V.;treffpunkt;Horn;Sportverein;sportverein;review
+dj_6ef91b1b5966;Vereinsheim SV Wilhelmsburg;treffpunkt;Wilhelmsburg;Sportverein;sportverein;review
+dj_dab1fd436467;Vereinsheim VfL 93;treffpunkt;Winterhude;Sportverein;sportverein;review
+dj_6f6446ce6af8;VfL Lohbrügge;treffpunkt;Lohbrügge;Sportverein;sportverein;review
+dj_c2c5cd83ac5e;Wassersport-Verein Süderelbe von 1921 e.V.;treffpunkt;Wilhelmsburg;Sportverein;sportverein;review
+dj_3f699da62de7;Apotheke am Eckhoffplatz;windeln;Lurup;Apotheke;apotheke;review
+dj_e63d0e1a443c;Bootsvermietung auf der Liebesinsel;windeln;Winterhude;Bootsverleih;freizeit;review
+dj_b2b9f38aeb11;Fundus Jacke wie Hose;windeln;Ottensen;Second-Hand-Kleidung;laden;review
+dj_108d9681a36a;Galeria Rahlstedt;windeln;Rahlstedt;Kaufhaus;laden;review
+dj_ab39effd3a1b;Verhaltenstherapie Falkenried - Prof. Dr. Helmut Peter;zahnarzt;Hoheluft-Ost;Psychotherapie, kein Zahnarzt;therapie;review

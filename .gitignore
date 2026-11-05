@@ -2,3 +2,5 @@ data/raw/
 data/djuu.db*
 data/*.tmp
 __pycache__/
+data/cleaning/datenschutz.csv
+data/backups/

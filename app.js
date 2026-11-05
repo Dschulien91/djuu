@@ -1,4 +1,4 @@
-/* Djuu v0.15 – family map for Hamburg.
+/* Djuu v0.16 – family map for Hamburg.
    The map owns the screen: one chip row floats on top, map buttons on the right, the sheet starts as a slim bar.
    The chip row drills down one level at a time: Erleben or Service, then categories, then the tags of a category.
    A tapped pin opens a small card; search and favorites live in the bottom bar. Default view: playgrounds.
@@ -7,7 +7,7 @@
    User input is stored on this device only until the server exists (server-ready shape, see STORE). */
 'use strict';
 
-const VERSION = '0.15';
+const VERSION = '0.16';
 // Logo on light backgrounds, as specified in the design PDF.
 const LOGO = `<span class="logo" role="img" aria-label="djuu"><span style="color:#6B4EE6">d</span><span style="color:#0E8F84">j</span><span style="color:#D6336C">u</span><span style="color:#CC6A00">u</span>
   <svg viewBox="18 92 78 34" style="position:absolute;right:.225em;top:.84em;width:.482em;height:.21em;overflow:visible" aria-hidden="true"><path d="M20 112 C38 130 66 114 92 97" fill="none" stroke="#0E8F84" stroke-width="9" stroke-linecap="round" stroke-dasharray="0.1 17"/></svg>
@@ -65,15 +65,15 @@ const svg = (name, cls = 'i') => `<svg class="${cls}" viewBox="0 0 24 24" aria-h
 const MODES = [{ id: 'erleben', label: 'Erleben' }, { id: 'service', label: 'Service' }];
 const GROUPS = [
   { id: 'tipps', mode: 'erleben', label: 'Djuu-Tipps', short: 'Djuu-Tipps', icon: 'star', color: '#CC6A00', cats: [], virtual: true },
-  { id: 'spielen', mode: 'erleben', label: 'Spielen & Toben', short: 'Spielen & Toben', icon: 'playground', color: '#0E8F84', cats: ['spielplatz', 'abenteuer', 'indoor', 'spielhaus', 'freizeit', 'spielstrasse', 'bolzplatz'] },
+  { id: 'spielen', mode: 'erleben', label: 'Spielen & Toben', short: 'Spielen & Toben', icon: 'playground', color: '#0E8F84', cats: ['spielplatz', 'abenteuer', 'indoor', 'spielhaus', 'freizeit', 'spielstrasse', 'bolzplatz', 'tischtennis', 'sportstaette', 'sportverein', 'reiten', 'rodeln'] },
   { id: 'gastro', mode: 'erleben', label: 'Gastro', short: 'Gastro', icon: 'cup', color: '#9C36B5', cats: ['cafe', 'restaurant', 'imbiss', 'eis'] },
-  { id: 'entdecken', mode: 'erleben', label: 'Entdecken', short: 'Entdecken', icon: 'tree', color: '#2F9E44', cats: ['park', 'picknick', 'grillplatz', 'hundeauslauf', 'baden', 'museum', 'kultur', 'ausflug', 'buecherei'] },
+  { id: 'entdecken', mode: 'erleben', label: 'Entdecken', short: 'Entdecken', icon: 'tree', color: '#2F9E44', cats: ['park', 'picknick', 'grillplatz', 'hundeauslauf', 'baden', 'museum', 'kultur', 'ausflug', 'buecherei', 'garten', 'naturschutz', 'tierhof', 'brunnen', 'buecherschrank', 'faehre', 'bootsverleih', 'camping'] },
   { id: 'kurse', mode: 'erleben', label: 'Kurse & Gruppen', short: 'Kurse & Gruppen', icon: 'group', color: '#C2255C', cats: [], offers: ['kurs', 'gruppe'] },
   { id: 'events', mode: 'erleben', label: 'Events', short: 'Events', icon: 'cal', color: '#D9480F', cats: [], offers: ['termin'] },
-  { id: 'gesundheit', mode: 'service', label: 'Notfall & Gesundheit', short: 'Notfall & Gesundheit', icon: 'cross', color: '#E03131', cats: ['kinderarzt', 'klinik', 'apotheke', 'babyklappe', 'hebamme', 'geburtshaus'] },
+  { id: 'gesundheit', mode: 'service', label: 'Notfall & Gesundheit', short: 'Notfall & Gesundheit', icon: 'cross', color: '#E03131', cats: ['kinderarzt', 'klinik', 'apotheke', 'babyklappe', 'hebamme', 'geburtshaus', 'zahnarzt', 'frauenarzt', 'hno', 'augenarzt', 'kinderpsychologie', 'physio', 'therapie'] },
   { id: 'sanitaer', mode: 'service', label: 'Sanitär', short: 'Sanitär', icon: 'baby', color: '#0C8599', cats: ['wc', 'wickel', 'familienfreundlich', 'trinkwasser'], extra: p => p.tags.has('wickeln') || p.tags.has('stillen') },
   { id: 'laeden', mode: 'service', label: 'Läden', short: 'Läden', icon: 'bag', color: '#1971C2', cats: ['windeln', 'laden', 'wochenmarkt'] },
-  { id: 'familie', mode: 'service', label: 'Familie & Beratung', short: 'Familie & Beratung', icon: 'people', color: '#6741D9', cats: ['treffpunkt', 'beratung', 'kita', 'kurs', 'schule'] },
+  { id: 'familie', mode: 'service', label: 'Familie & Beratung', short: 'Familie & Beratung', icon: 'people', color: '#6741D9', cats: ['treffpunkt', 'beratung', 'kita', 'kurs', 'schule', 'musikschule', 'tanzschule', 'sprachschule', 'kreativschule', 'nachhilfe', 'jugend', 'pfadfinder'] },
   { id: 'mobil', mode: 'service', label: 'Mobilität', short: 'Mobilität', icon: 'elevator', color: '#5C677D', cats: ['haltestelle', 'bahnhof', 'aufzug'] },
 ];
 const GROUP = Object.fromEntries(GROUPS.map(g => [g.id, g]));
@@ -82,18 +82,18 @@ const GROUP = Object.fromEntries(GROUPS.map(g => [g.id, g]));
 const T = (id, label, p) => ({ id, label, p: p ? 1 : 0 });
 const TAGS = {
   spielen: [T('spielplatz', 'Spielplatz'), T('abenteuer', 'Abenteuerspielplatz'), T('indoorspielplatz', 'Indoor-Spielplatz'), T('klettern', 'Klettern & Bouldern'),
-    T('trampolin', 'Trampolin'), T('spielhaus', 'Spielhaus'), T('spielstrasse', 'Spielstraße'), T('bolzplatz', 'Ballspielfeld'), T('minigolf', 'Minigolf'), T('skaten', 'Skaten'), T('eislaufen', 'Eislaufen'),
+    T('trampolin', 'Trampolin'), T('spielhaus', 'Spielhaus'), T('spielstrasse', 'Spielstraße'), T('bolzplatz', 'Bolzplatz'), T('tischtennis', 'Tischtennis'), T('sportstaette', 'Sportanlagen'), T('sportverein', 'Sportvereine'), T('reiten', 'Reiten'), T('rodeln', 'Rodeln'), T('minigolf', 'Minigolf'), T('skaten', 'Skaten'), T('eislaufen', 'Eislaufen'),
     T('bewegung', 'Sport & Bewegung'), T('wasserspiel', 'Wasserspiel', 1)],
   gastro: [T('cafe', 'Café'), T('restaurant', 'Restaurant'), T('imbiss', 'Imbiss'), T('eis', 'Eis'), T('kindercafe', 'Kindercafé', 1),
     T('fruehstueck', 'Frühstück', 1), T('kuchen', 'Kuchen', 1), T('vegan', 'Vegan', 1), T('vegetarisch', 'Vegetarisch', 1), T('terrasse', 'Draußen sitzen', 1),
     T('italienisch', 'Pizza & Pasta', 1), T('asiatisch', 'Asiatisch', 1), T('burger', 'Burger', 1)],
   entdecken: [T('natur', 'Natur'), T('kultur', 'Kultur'), T('tiere', 'Tiere'), T('baden', 'Baden'), T('museum', 'Museen'), T('theater', 'Theater & Kino'),
-    T('buecherei', 'Bücherhallen'), T('picknick', 'Picknick & Grillen'), T('hundeauslauf', 'Hundeauslauf'), T('aussicht', 'Aussicht'), T('ausflugsziel', 'Ausflugsziele')],
-  gesundheit: [T('kinderarzt', 'Kinderarzt'), T('apotheke', 'Apotheke'), T('klinik', 'Klinik'), T('hebamme', 'Hebamme'), T('geburtshaus', 'Geburtshaus'), T('babyklappe', 'Babyklappe')],
+    T('buecherei', 'Bücherhallen'), T('picknick', 'Picknick & Grillen'), T('hundeauslauf', 'Hundeauslauf'), T('aussicht', 'Aussicht'), T('brunnen', 'Brunnen'), T('buecherschrank', 'Bücherschränke'), T('faehre', 'Fähren'), T('bootsverleih', 'Boot fahren'), T('camping', 'Camping'), T('ausflugsziel', 'Ausflugsziele')],
+  gesundheit: [T('kinderarzt', 'Kinderarzt'), T('apotheke', 'Apotheke'), T('klinik', 'Klinik'), T('hebamme', 'Hebamme'), T('geburtshaus', 'Geburtshaus'), T('zahnarzt', 'Zahnarzt'), T('frauenarzt', 'Frauenarzt'), T('hno', 'HNO'), T('augenarzt', 'Augenarzt'), T('kinderpsychologie', 'Kinderpsychologie'), T('physio', 'Physiotherapie'), T('therapie', 'Logopädie & Ergotherapie'), T('babyklappe', 'Babyklappe')],
   sanitaer: [T('wc', 'Toilette'), T('wickeln', 'Wickelplatz'), T('stillen', 'Stillen'), T('trinkwasser', 'Trinkwasser')],
   laeden: [T('drogerie', 'Drogerie'), T('supermarkt', 'Supermarkt'), T('spaeti', 'Späti & Kiosk'), T('tankstelle', 'Tankstelle'), T('baby', 'Babyausstattung'),
     T('wochenmarkt', 'Wochenmarkt'), T('kinderkleidung', 'Kinderkleidung'), T('spielzeug', 'Spielzeug'), T('buecher', 'Bücher'), T('secondhand', 'Secondhand')],
-  familie: [T('familienzentrum', 'Familienzentren'), T('elternschule', 'Elternschulen'), T('beratung', 'Beratung'), T('kita', 'Kitas'), T('schule', 'Schulen')],
+  familie: [T('familienzentrum', 'Familienzentren'), T('elternschule', 'Elternschulen'), T('beratung', 'Beratung'), T('kita', 'Kitas'), T('schule', 'Schulen'), T('musikschule', 'Musikschulen'), T('tanzschule', 'Tanzschulen'), T('sprachschule', 'Sprachschulen'), T('kreativschule', 'Kreativschulen'), T('nachhilfe', 'Nachhilfe'), T('jugend', 'Jugendhilfe'), T('pfadfinder', 'Pfadfinder')],
   mobil: [T('haltestelle', 'Haltestellen'), T('bahnhof', 'Bahnhöfe'), T('aufzug', 'Aufzüge')],
   kurse: [T('aud:kinder', 'Für Kinder'), T('aud:erwachsene', 'Für Erwachsene'), T('krabbelgruppe', 'Krabbel- & Spielgruppe'), T('pekip', 'PEKiP & Bewegung'),
     T('musik', 'Musik'), T('schwimmen', 'Babyschwimmen'), T('babymassage', 'Babymassage'), T('kreativ', 'Kreativ'), T('spiele', 'Spielen & Medien'),
@@ -105,7 +105,7 @@ const TAG_LABEL = {};
 for (const list of Object.values(TAGS)) for (const t of list) TAG_LABEL[t.id] = TAG_LABEL[t.id] || t.label;
 TAG_LABEL.drinnen = 'Drinnen'; TAG_LABEL.draussen = 'Draußen'; TAG_LABEL.groessere = 'Eher für Größere';
 const IO_GROUPS = ['tipps', 'spielen', 'gastro', 'entdecken'];
-const CAT_ICON = { museum: 'museum', kultur: 'museum', buecherei: 'museum', baden: 'waves', hundeauslauf: 'paw', kita: 'blocks', schule: 'blocks', wc: 'toilet', apotheke: 'pill' };
+const CAT_ICON = { museum: 'museum', kultur: 'museum', buecherei: 'museum', baden: 'waves', faehre: 'waves', bootsverleih: 'waves', brunnen: 'waves', hundeauslauf: 'paw', buecherschrank: 'museum', kita: 'blocks', schule: 'blocks', wc: 'toilet', apotheke: 'pill' };
 const CAT_LABEL = {
   spielplatz: 'Spielplatz', indoor: 'Drinnen spielen', spielhaus: 'Spielhaus', freizeit: 'Freizeit', cafe: 'Café',
   restaurant: 'Restaurant', imbiss: 'Imbiss', eis: 'Eis', windeln: 'Drogerie / Supermarkt / Späti', laden: 'Laden',
@@ -114,7 +114,10 @@ const CAT_LABEL = {
   kultur: 'Kultur', ausflug: 'Ausflugsziel', buecherei: 'Bücherhalle', baden: 'Baden', park: 'Park', picknick: 'Picknickplatz',
   grillplatz: 'Grillplatz', trinkwasser: 'Trinkwasser', hundeauslauf: 'Hundeauslaufzone', treffpunkt: 'Familienzentrum / Treffpunkt',
   beratung: 'Beratung', kita: 'Kita', aufzug: 'Aufzug', bahnhof: 'Bahnhof',
-  spielstrasse: 'Spielstraße (verkehrsberuhigt)', bolzplatz: 'Ballspielfeld', wochenmarkt: 'Wochenmarkt', schule: 'Schule', haltestelle: 'Haltestelle',
+  spielstrasse: 'Spielstraße (verkehrsberuhigt)', bolzplatz: 'Bolzplatz', tischtennis: 'Tischtennis', sportstaette: 'Sportanlage', sportverein: 'Sportverein', reiten: 'Reiten', rodeln: 'Rodelberg',
+  garten: 'Garten', naturschutz: 'Naturschutzgebiet', tierhof: 'Hof mit Tieren oder Hofladen', brunnen: 'Brunnen', buecherschrank: 'Bücherschrank', faehre: 'Fähranleger', bootsverleih: 'Bootsverleih', camping: 'Campingplatz',
+  zahnarzt: 'Zahnarzt', frauenarzt: 'Frauenarzt', hno: 'HNO-Arzt', augenarzt: 'Augenarzt', kinderpsychologie: 'Kinderpsychologie', physio: 'Physiotherapie', therapie: 'Logopädie / Ergotherapie',
+  musikschule: 'Musikschule', tanzschule: 'Tanzschule', sprachschule: 'Sprachschule', kreativschule: 'Kreativschule', nachhilfe: 'Nachhilfe', jugend: 'Jugendhilfe', pfadfinder: 'Pfadfinder', wochenmarkt: 'Wochenmarkt', schule: 'Schule', haltestelle: 'Haltestelle',
   kurs: 'Elternschule / Familienzentrum', geburtshaus: 'Geburtshaus', abenteuer: 'Abenteuer- / Bauspielplatz',
 };
 const GROUP_OF = {};
@@ -867,6 +870,8 @@ function cardView(id) {
       <button type="button" class="btn" data-detail="${id}">Details</button></div>`;
 }
 const CUISINE = { italian: 'Italienisch', pizza: 'Pizza', pasta: 'Pasta', asian: 'Asiatisch', german: 'Deutsch', regional: 'Regional', kebab: 'Döner', burger: 'Burger', sushi: 'Sushi', vietnamese: 'Vietnamesisch', greek: 'Griechisch', turkish: 'Türkisch', indian: 'Indisch', chinese: 'Chinesisch', japanese: 'Japanisch', korean: 'Koreanisch', thai: 'Thailändisch', coffee_shop: 'Kaffee', cake: 'Kuchen', ice_cream: 'Eis', sandwich: 'Sandwiches', fish: 'Fisch', seafood: 'Meeresfrüchte', portuguese: 'Portugiesisch', french: 'Französisch', spanish: 'Spanisch', mexican: 'Mexikanisch', international: 'International', breakfast: 'Frühstück', steak_house: 'Steak', salad: 'Salat', mediterranean: 'Mediterran', american: 'Amerikanisch', arab: 'Arabisch', persian: 'Persisch', bagel: 'Bagels', crepe: 'Crêpes', tapas: 'Tapas' };
+const SPORT = { soccer: 'Fußball', basketball: 'Basketball', multi: 'Mehrere Sportarten', table_tennis: 'Tischtennis', tennis: 'Tennis', swimming: 'Schwimmen', climbing: 'Klettern', equestrian: 'Reiten', gymnastics: 'Turnen', handball: 'Handball', volleyball: 'Volleyball', beachvolleyball: 'Beachvolleyball', athletics: 'Leichtathletik', hockey: 'Hockey', skateboard: 'Skaten', rowing: 'Rudern', sailing: 'Segeln', canoe: 'Kanu' };
+const sportText = v => (v || '').split(';').map(c => SPORT[c.trim().toLowerCase()]).filter(Boolean).join(', ');
 const cuisineText = v => (v || '').split(';').map(c => CUISINE[c.trim().toLowerCase()]).filter(Boolean).join(', ');
 async function photoTags(ids) {
   const out = [];
@@ -897,6 +902,7 @@ async function detailView(id) {
     f.services && esc(f.services[0]).slice(0, 280),
     f.transit && p.cat === 'haltestelle' && `<b>Linien:</b> ${esc(f.transit[0])}`,
     f.stop_near && `Nächste Haltestelle: ${esc(f.stop_near[0].split('|')[1])} (${esc(f.stop_near[0].split('|')[0])} m)`,
+    sportText(f.sport?.[0]) && `<b>Sport:</b> ${esc(sportText(f.sport[0]))}`,
     f.season && `<b>Saison:</b> ${esc(f.season[0])}`,
     f.fee_text && `<b>Preis:</b> ${esc(f.fee_text[0])}`,
     cuisineText(f.cuisine?.[0]) && `<b>Küche:</b> ${esc(cuisineText(f.cuisine[0]))}`,

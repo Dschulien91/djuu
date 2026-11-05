@@ -14,6 +14,7 @@ import re
 from collections import defaultdict
 
 from common import ROOT, connect, now
+from flags import ensure as ensure_flags, flagged_offers
 from tags import drop, place_tags
 from tipps import auto_reason, editorial_match
 
@@ -21,13 +22,15 @@ SKIP_CATS = {'spielplatz_privat', 'geraet'}
 STOP_NEAR_M = 400
 # Places where the nearest stop helps: everything parents travel to, not the stops themselves.
 STOP_CATS = {'spielplatz', 'abenteuer', 'indoor', 'spielhaus', 'freizeit', 'cafe', 'restaurant', 'eis', 'park', 'baden', 'museum', 'kultur', 'ausflug',
-             'buecherei', 'kurs', 'treffpunkt', 'geburtshaus', 'klinik', 'kinderarzt', 'hundeauslauf', 'bolzplatz', 'wochenmarkt', 'schule'}
+             'buecherei', 'kurs', 'treffpunkt', 'geburtshaus', 'klinik', 'kinderarzt', 'hundeauslauf', 'bolzplatz', 'wochenmarkt', 'schule',
+             'sportstaette', 'sportverein', 'reiten', 'tierhof', 'garten', 'naturschutz', 'musikschule', 'tanzschule', 'sprachschule', 'kreativschule', 'jugend',
+             'physio', 'therapie', 'zahnarzt', 'frauenarzt', 'hno', 'augenarzt', 'kinderpsychologie', 'hebamme', 'apotheke'}
 KEYS = ['changing_table', 'changing_table_location', 'highchair', 'kids_area', 'kids_menu', 'dog', 'dog_rule', 'wheelchair',
         'stroller', 'toilets', 'baby_feeding', 'babyccino', 'indoor', 'fee', 'opening_hours', 'website', 'phone', 'address',
         'street', 'housenumber', 'for_baby', 'for_toddler', 'fenced', 'shade', 'water_play', 'device_count', 'bench_count',
         'description', 'image', 'age_groups', 'type', 'operator', 'water_status', 'water_quality_eu', 'season', 'services',
         'maternity', 'emergency', 'rating', 'review_text', 'drinking_water', 'cuisine', 'care_types', 'transit',
-        'min_age', 'max_age', 'toilets_children', 'fee_text', 'area_ha', 'unisex', 'table_tennis_count', 'picnic_count', 'soccer', 'basketball']
+        'sport', 'min_age', 'max_age', 'toilets_children', 'fee_text', 'area_ha', 'unisex', 'table_tennis_count', 'picnic_count', 'soccer', 'basketball']
 WC_NEAR_M = 300
 
 # Category refinement: official sources and clear names beat the generic OSM category.
@@ -82,7 +85,24 @@ def run():
     for pid, raw in con.execute("SELECT place_id, raw FROM source_records WHERE source_id = 'osm' AND place_id IS NOT NULL AND raw IS NOT NULL"):
         for k, v in json.loads(raw).items(): osm_raw[pid].setdefault(k, v)
 
+    # reversible cleaning (db/flags.py): flagged places stay in the database but leave the app
+    ensure_flags(con)
+    flags = con.execute('SELECT place_id, status, duplicate_of FROM place_flags').fetchall()
+    hidden = {i for i, st, _ in flags if st != 'kategorie'}
+    new_cat = {i: c for i, st, c in flags if st == 'kategorie' and c}
+    # a duplicate hands its facts and sources to the place that stays
+    dup_of = {i: k for i, st, k in flags if st == 'duplikat' and k}
+    for dup, keep in dup_of.items():
+        for k, v in facts.get(dup, {}).items(): facts[keep].setdefault(k, v)
+        gear[keep] |= gear.get(dup, set())
+        srcs[keep] |= srcs.get(dup, set()); srcnames[keep] |= srcnames.get(dup, set())
     rows = con.execute('SELECT id, name, category, lat, lon, district FROM places WHERE district IS NOT NULL').fetchall()
+    n_all = len(rows)
+    names = {i: n for i, n, *_ in rows}
+    for dup, keep in dup_of.items():
+        if not names.get(keep): names[keep] = names.get(dup)  # a duplicate may know the name
+    rows = [(i, names[i], new_cat.get(i, c), la, lo, d) for i, n, c, la, lo, d in rows if i not in hidden]
+    print(f'{n_all - len(rows)} places hidden by flags, {len(new_cat)} recategorised')
     rows = [(pid, name, refine(cat, name, srcnames[pid]), lat, lon, d) for pid, name, cat, lat, lon, d in rows if cat not in SKIP_CATS]
     dropped = [r for r in rows if drop(r[2], r[1], osm_raw[r[0]])]
     rows = [r for r in rows if not drop(r[2], r[1], osm_raw[r[0]])]
@@ -104,7 +124,7 @@ def run():
         return any(dist(la, lo, a, b) <= m for i in (-1, 0, 1) for j in (-1, 0, 1) for a, b, _ in stops.get((gi + i, gj + j), ()))
     rows = [r for r in rows if not (r[2] == 'bahnhof' and near_stop(r[3], r[4], 350))]
     for r in rows:
-        if r[2] == 'bahnhof' and r[1]: stops[(int(r[3] / 0.004), int(r[4] / 0.007))].append((r[3], r[4], r[1]))
+        if r[2] in ('bahnhof', 'faehre') and r[1]: stops[(int(r[3] / 0.004), int(r[4] / 0.007))].append((r[3], r[4], r[1]))
     wcs = [(r[3], r[4]) for r in rows if r[2] == 'wc' or facts[r[0]].get('toilets', [None])[0] == 'yes']
 
     places = []
@@ -134,7 +154,7 @@ def run():
     print('categories:', dict(Counter(p[2] for p in places).most_common()))
     print('tipps:', Counter(p[6]['tipp'][2] for p in places if 'tipp' in p[6]))
     print('tags:', dict(Counter(t for p in places for t in p[8]).most_common()))
-    export_offers(con, places, sidx)
+    export_offers(con, places, sidx, dup_of)
 
 
 OFFER_COLS = ['id', 'title', 'kind', 'topic', 'age_min_m', 'age_max_m', 'for_parents', 'weekday', 'time_from', 'time_to',
@@ -156,7 +176,7 @@ def audience(o):
     return 'erwachsene' if ADULT_TITLE.search(t) else 'kinder'
 
 
-def export_offers(con, places, sidx):
+def export_offers(con, places, sidx, dup_of=None):
     """Write data/offers.json: courses, groups and events, each linked to the nearest matching Djuu place."""
     from offers import ensure, topic_of
     from merge import similar
@@ -168,8 +188,11 @@ def export_offers(con, places, sidx):
     for p in places:
         grid[(int(p[3] / 0.002), int(p[4] / 0.0034))].append(p)
     out = []
+    hide = flagged_offers(con)
     for r in rows:
         o = dict(zip(cols, r))
+        if o['id'] in hide: continue
+        o['place_id'] = (dup_of or {}).get(o['place_id'], o['place_id'])
         if o['lat'] and not o['place_id']:
             best, bd = None, 150
             gi, gj = int(o['lat'] / 0.002), int(o['lon'] / 0.0034)

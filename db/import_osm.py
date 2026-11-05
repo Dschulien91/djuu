@@ -6,6 +6,8 @@ License: ODbL 1.0 – attribution "© OpenStreetMap-Mitwirkende" required, deriv
 """
 import json
 import re
+import sqlite3
+import time
 from datetime import datetime, timezone
 
 from common import RAW_DIR, connect, register_source, replace_records
@@ -36,6 +38,19 @@ area["name"="Hamburg"]["admin_level"="4"]->.hh;
   nwr["railway"="station"](area.hh);
   nwr["natural"="beach"](area.hh);
   nwr["landuse"="farmyard"]["name"~"Kinder|Jugend",i](area.hh);
+  // Further family data, see extra_category() for the exact narrowing (access, names, adult-only sports)
+  nwr["amenity"~"^(dentist|doctors|music_school|dancing_school|language_school|prep_school|dojo|public_bookcase|fountain|ferry_terminal|boat_rental|mobile_library|stables|youth_centre)$"](area.hh);
+  nwr["healthcare"~"^(dentist|doctor|physiotherapist|speech_therapist|occupational_therapist|psychotherapist|counselling)$"](area.hh);
+  nwr["leisure"~"^(pitch|sports_centre|horse_riding|garden|nature_reserve|dance|track|bowling_alley|escape_game|paddling_pool|firepit|disc_golf_course|fitness_station)$"](area.hh);
+  nwr["boundary"="national_park"](area.hh);
+  nwr["boundary"="protected_area"]["protect_class"="4"](area.hh);
+  nwr["club"~"^(sport|scout|sailing|rowing|life_saving|chess)$"](area.hh);
+  nwr["office"="association"](area.hh);
+  nwr["shop"="farm"](area.hh);
+  nwr["attraction"~"^(animal|maze|slide|carousel|kiddie_ride)$"](area.hh);
+  nwr["piste:type"="sled"](area.hh);
+  nwr["ferry"="yes"](area.hh);
+  nwr["tourism"="camp_site"](area.hh);
 );
 out center tags;
 """
@@ -143,6 +158,185 @@ def facts_from(t):
     return f
 
 
+# --- Further family data (extra_category) -------------------------------------------------------------------------
+NEW_CATEGORIES = ('physio', 'therapie', 'zahnarzt', 'frauenarzt', 'hno', 'augenarzt', 'kinderpsychologie', 'bolzplatz', 'tischtennis',
+                  'sportstaette', 'sportverein', 'reiten', 'tierhof', 'musikschule', 'nachhilfe', 'pfadfinder', 'jugend', 'garten',
+                  'naturschutz', 'buecherschrank', 'brunnen', 'rodeln', 'faehre', 'bootsverleih', 'camping')
+NO_ACCESS = {'private', 'no', 'permit', 'members', 'employees', 'residents', 'students', 'restricted', 'military', 'delivery',
+             'agricultural', 'forestry', 'emergency'}
+BALL = {'soccer', 'basketball', 'multi', 'football', 'streetball', 'futsal', 'beachsoccer'}
+RACKET = {'tennis', 'badminton', 'squash', 'padel'}
+# Open courts where a family can simply turn up; a nameless entry still tells them "there is a court here".
+OPEN_COURT = {'beachvolleyball', 'volleyball', 'handball', 'boules', 'chess', 'parkour', 'badminton'}
+SKATE = {'skateboard', 'roller_skating', 'bmx', 'scooter'}
+ADULT_SPORTS = {'fitness', 'yoga', 'pilates', 'shooting', 'billiards', 'darts', 'axe_throwing', 'model_aerodrome', 'horse_racing',
+                'dog_racing', '9pin', '10pin', 'bowling', 'scuba_diving', 'crossfit', 'motor', 'fishing', 'paintball', 'poker', 'sauna'}
+ADULT_NAME = re.compile(r'fit\b|fitness|\bgym\b|\bspa\b|sauna|yoga|pilates|kieser|mrs\.? sporty|miss sporty|kaifu lodge|aspria|'
+                        r'schütz|schuetz|billard|billiard|bundeswehr|führungsakademie|boxing|zur ritze|rennbahn|alsterr+unning|'
+                        r'motorboot|paintball|erotik', re.I)
+ADULT_DANCE = re.compile(r'tango|milonga|salsa|\bpole\b|swing time|casa cuba|la yumba|el abrazo|imperial club|after work|tanzpalast|'
+                         r'airobics|movimientos', re.I)
+SCHOOL_HALL = re.compile(r'\bschule\b|gymnasium|^(kleine |große |neue |alte )?(sporthalle|turnhalle|schulsporthalle|mehrzweckhalle)( \d+| w\d.*)?$|^vereinshaus$', re.I)
+CHILD_DOCTOR = re.compile(r'kinder[- ]?(und jugend)?[- ]?(arzt|ärzt|medizin|mediziner|heilkunde|chirurg|kardiolog|orthop|radiolog)|'
+                          r'kinder- und jugend(arzt|ärzt|medizin)|pädiatr|paediatr', re.I)
+CHILD_PSY = re.compile(r'(kind|jugend).*(psych|seel|sucht)|schreibaby|eltern-kleinkind', re.I)
+FAMILY_ADVICE = re.compile(r'famil|mütter|mutter|eltern|schwanger|kinder|jugend|baby', re.I)
+KID_SHOP = re.compile(r'kinder|kids|\bbaby|babys', re.I)
+KID_SHOP_TYPES = {'clothes', 'shoes', 'boutique', 'games', 'interior_decoration', 'medical_supply', 'beauty', 'fabric', 'sports', 'bicycle'}
+CLUB_NAME = re.compile(r'turn(verein|erschaft|erbund|verband|gesellschaft)|sportverein|sport-verein|sportclub|sport-club|schwimm|\b[A-Z]?[TS]V\b|\bTSG\b|\bSC\b|\bFC\b|dlrg', re.I)
+FARM_NAME = re.compile(r'streichel|kinderbauernhof|bauernhof|bauernof|erlebnishof|tiergehege|wildgehege|tierhaus|hof ?laden|gut wulfsdorf|gut karlshöhe', re.I)
+RIDING_NAME = re.compile(r'reitstall|reiterhof|ponyhof|ponys\b|reitverein|reiterverein|reitanlage|reithalle|fahrverein', re.I)
+ART_SCHOOL = re.compile(r'musikschule|ballett|balett|tanzschule|malschule|kunstschule', re.I)
+# Radius (m) within which two objects with the same name in the same category are one place (node + building + relation).
+DEDUP_M = {'naturschutz': 5000, 'faehre': 400}
+DEDUP_DEFAULT_M = 200
+
+
+def tokens(v):
+    return {x.strip().lower() for x in re.split('[;,]', v or '') if x.strip()}
+
+
+def extra_category(t):
+    """Category for further family data, or None. Decides access, adult-only filtering and which objects may stay unnamed."""
+    g = t.get
+    n = g('name') or ''
+    if (g('access') or '').lower() in NO_ACCESS: return None
+    a, lei, hc, shop = g('amenity'), g('leisure'), g('healthcare'), g('shop')
+    spec = (g('healthcare:speciality') or '').lower()
+    sport = tokens(g('sport'))
+
+    # Places where a name does not matter: the pin itself is the information.
+    if lei == 'pitch':
+        if g('indoor') == 'yes' or re.search(r'(sport|turn)halle', n, re.I): return None  # a school or club hall, not a court to walk onto
+        if 'climbing' in sport or sport & SKATE: return 'freizeit'
+        if sport & RACKET and sport & BALL: return 'sportstaette' if n else None  # indoor courts of a commercial hall
+        if sport & BALL: return 'bolzplatz'
+        if 'table_tennis' in sport: return 'tischtennis'
+        if sport & OPEN_COURT: return 'sportstaette'
+        if 'equestrian' in sport: return 'reiten' if n else None
+        if sport & ADULT_SPORTS or 'laser_tag' in sport: return None
+        return 'sportstaette' if n and sport else None  # club-only courts (tennis, hockey, athletics) only when named
+    if a == 'fountain': return 'brunnen'
+    if a == 'public_bookcase': return 'buecherschrank'
+    if g('piste:type') == 'sled' or (re.search(r'rodel|schlitten', n, re.I) and not g('highway') and not g('public_transport')): return 'rodeln'
+    if lei == 'paddling_pool': return 'baden'
+    if not n: return None
+
+    # Ferries: only piers a family can board (no works piers, no cruise terminals, no Cuxhaven/Helgoland far ends).
+    if a == 'ferry_terminal' or g('ferry') == 'yes':
+        if g('public_transport') == 'stop_area' or re.search(r'airbus|betriebsangehör|cruise center|cuxhaven|brunsbüttel|helgol', n, re.I): return None
+        return 'faehre'
+    if g('highway') or g('public_transport'): return None
+
+    # Health
+    if a == 'dentist' or hc == 'dentist': return 'zahnarzt'
+    if hc in ('speech_therapist', 'occupational_therapist'): return 'therapie'
+    if hc == 'physiotherapist' or (g('office') == 'therapist' and re.search(r'physio', n, re.I)):
+        return 'therapie' if re.search(r'ergo|logop', n, re.I) else 'physio'
+    if g('office') == 'therapist' and re.search(r'ergo|logop', n, re.I): return 'therapie'
+    if hc == 'counselling' and FAMILY_ADVICE.search(n): return 'beratung'
+    if a in ('doctors', 'clinic') or hc in ('doctor', 'centre', 'clinic', 'psychotherapist') or g('office') == 'therapist':
+        if re.search(r'paediatric|pediatric', spec) or (CHILD_DOCTOR.search(n) and 'forschung' not in n.lower()): return 'kinderarzt'
+        if 'child_psychiatry' in spec or CHILD_PSY.search(n): return 'kinderpsychologie'
+        if re.search(r'gyn[a]?ecolog|obstetric', spec) or re.search(r'frauen(arzt|ärzt|aerzt)|gynäkolog', n, re.I): return 'frauenarzt'
+        if re.search(r'otolaryngolog|orolaryngolog', spec) or re.search(r'\bHNO\b', n): return 'hno'
+        if 'ophthalmology' in spec or re.search(r'augen(arzt|ärzt|heil)', n, re.I): return 'augenarzt'
+        return None
+
+    # Help for families and young people
+    if a == 'social_facility':
+        served, kind = tokens(g('social_facility:for')), tokens(g('social_facility'))
+        homes = kind and kind <= {'group_home', 'assisted_living', 'nursing_home'}
+        if served & {'family', 'parent', 'mother', 'baby', 'pupil'} and not homes: return 'beratung'
+        if served & {'juvenile', 'youth', 'girl', 'boy'} and not homes and not re.search(r'wohn', n, re.I): return 'jugend'
+        return None
+    if a == 'youth_centre': return 'jugend'
+    if g('club') == 'scout' or re.search(r'pfadfinder|\bDPSG\b|\bVCP\b', n): return 'pfadfinder'
+
+    # Riding and animals (before sports: many riding stables are also tagged as sports grounds)
+    if lei == 'horse_riding' or a == 'stables' or 'equestrian' in sport or RIDING_NAME.search(n):
+        if 'horse_racing' in sport or re.search(r'rennbahn|polo|^reitplatz \d', n, re.I): return None
+        return 'reiten'
+    if shop == 'farm' or g('attraction') == 'animal' or g('tourism') == 'trail_riding_station' or g('landuse') == 'animal_keeping': return 'tierhof'
+    if FARM_NAME.search(n) and not (shop or g('office') or hc or g('tourism') or a): return 'tierhof'
+
+    # Sport
+    if lei == 'sports_centre' or a == 'dojo':
+        if sport & {'ice_skating', 'miniature_golf', 'laser', 'laser_tag'} or re.search(r'lasertag|bewegungsinsel', n, re.I): return 'freizeit'
+        if sport & SKATE or re.search(r'skate', n, re.I): return 'freizeit'
+        if (sport and sport <= ADULT_SPORTS) or ADULT_NAME.search(n) or SCHOOL_HALL.search(n): return None
+        return 'sportstaette'
+    if lei == 'fitness_station': return 'freizeit' if re.search(r'bewegungsinsel', n, re.I) else None
+    if lei == 'disc_golf_course': return 'sportstaette'
+    if lei == 'track': return 'freizeit' if re.search(r'bmx|pump', n, re.I) else None
+    if lei in ('bowling_alley', 'escape_game'): return 'freizeit'
+    if g('club') in ('sport', 'sailing', 'rowing', 'life_saving', 'chess') or (g('office') == 'association' and (sport or CLUB_NAME.search(n))):
+        if (sport and sport <= ADULT_SPORTS) or ADULT_NAME.search(n) or SCHOOL_HALL.search(n): return None
+        return 'sportverein'
+
+    # Courses
+    edu = g('education')
+    if lei == 'dance' or a == 'dancing_school' or edu == 'dancing_school':
+        return None if ADULT_DANCE.search(n) or a == 'nightclub' else 'musikschule'
+    if a in ('music_school', 'language_school') or edu in ('music_school', 'language_school'): return 'musikschule'
+    if a == 'school' and ART_SCHOOL.search(n): return 'musikschule'
+    if g('craft') == 'atelier' and ART_SCHOOL.search(n): return 'musikschule'
+    if a == 'prep_school' or edu == 'prep_school': return 'nachhilfe'
+
+    # Outdoors and outings
+    if lei == 'garden' or a == 'Themengarten':
+        if g('garden:type') in ('residential', 'private') or n.isdigit() or re.search(r'^station |hochbeet', n, re.I): return None
+        return 'garten'
+    if lei == 'nature_reserve' or g('boundary') == 'national_park' or (g('boundary') == 'protected_area' and g('protect_class') == '4'): return 'naturschutz'
+    if a == 'boat_rental': return None if re.search(r'marina|yacht', n, re.I) else 'bootsverleih'
+    if g('tourism') == 'camp_site': return None if re.search(r'fkk', n, re.I) else 'camping'
+    if lei == 'firepit': return 'grillplatz'
+    if g('attraction') in ('maze', 'slide', 'carousel', 'kiddie_ride'): return 'ausflug'
+    if a == 'mobile_library': return 'buecherei'
+
+    # Children's shops by name (shops tagged clothes=children were already imported)
+    if shop in KID_SHOP_TYPES and KID_SHOP.search(n): return 'laden'
+    if shop == 'games': return 'laden'
+    return None
+
+
+def type_fact(cat, t):
+    """Existing 'type' fact for freizeit/buecherei, which db/tags.py already understands (skaten, klettern)."""
+    sport, n = tokens(t.get('sport')), t.get('name') or ''
+    if cat == 'freizeit':
+        if 'bmx' in sport or re.search(r'bmx|pump', n, re.I): return 'BMX-Bahn'
+        if sport & SKATE or re.search(r'skate', n, re.I): return 'Skateanlage'
+        if 'climbing' in sport: return 'Kletteranlage'
+        if re.search(r'bewegungsinsel', n, re.I): return 'Bewegungsinsel'
+    if cat == 'buecherei' and t.get('amenity') == 'mobile_library': return 'Bücherbus'
+    return None
+
+
+def extra_facts(cat, t):
+    """New fact keys. Only returned when the object carries them, so existing categories stay small."""
+    g = t.get
+    n = g('name') or ''
+    spec = g('healthcare:speciality')
+    f = {'sport': g('sport'), 'capacity': g('capacity'), 'covered': yn(g('covered')), 'hoops': g('hoops'),
+         'speciality': spec if cat in NEW_CATEGORIES else None, 'dance_style': g('dance:style'), 'rental': g('rental'),
+         'route_ref': g('route_ref') if cat == 'faehre' else None, 'fountain_type': g('fountain'),
+         'sled_difficulty': g('piste:difficulty'), 'garden_type': g('garden:type'),
+         'protection_title': g('protection_title') if cat == 'naturschutz' else None, 'type': type_fact(cat, t)}
+    if cat in ('zahnarzt', 'physio', 'therapie') and re.search(r'kinder|kids|paediatric|pädiatr|zahnfee|zauberzähne', f"{n} {spec or ''}", re.I):
+        f['for_children'] = 'yes'
+    if cat == 'zahnarzt' and 'orthodontics' in (spec or ''): f['orthodontics'] = 'yes'
+    if cat == 'therapie':
+        hc = g('healthcare')
+        f['therapy_type'] = ('speech' if hc == 'speech_therapist' or re.search(r'logop|sprach|sprech', n, re.I) else 'occupational')
+    if cat == 'musikschule':
+        a, edu = g('amenity'), g('education')
+        f['school_type'] = ('dance' if g('leisure') == 'dance' or 'dancing_school' in (a, edu) or re.search(r'tanz|ballett|balett', n, re.I)
+                            else 'language' if 'language_school' in (a, edu)
+                            else 'art' if re.search(r'mal|kunst', n, re.I) and a != 'music_school' else 'music')
+    if cat == 'tierhof': f['farm_type'] = 'hofladen' if g('shop') == 'farm' else 'tiere'
+    return {k: v for k, v in f.items() if v}
+
+
 FAMILY_TAGS = ('changing_table', 'highchair', 'kids_area', 'baby_feeding', 'toilets:children', 'indoor_play', 'drink:babyccino')
 
 
@@ -150,12 +344,14 @@ def wanted(t):
     """Category for a tag set, applying the same narrowing filters as the Overpass query."""
     g = t.get
     if g('leisure') == 'swimming_pool' and (g('access') in ('private', 'customers', 'no') or g('location') == 'indoor'): return None
-    if g('leisure') == 'sports_centre' and not any(x in (g('sport') or '') for x in ('swimming', 'climbing', 'trampoline', 'bouldering')): return None
-    if g('shop') == 'clothes' and not any(x in (g('clothes') or '') for x in ('children', 'babies')): return None
-    if g('landuse') == 'farmyard' and not re.search('kinder|jugend', g('name') or '', re.I): return None
-    if g('amenity') == 'social_facility' and 'child' not in (g('social_facility:for') or '') and 'famil' not in (g('social_facility:for') or ''): return None
-    if g('amenity') == 'clinic' and 'paediatrics' not in (g('healthcare:speciality') or ''): return None
+    narrowed = (g('leisure') == 'sports_centre' and not any(x in (g('sport') or '') for x in ('swimming', 'climbing', 'trampoline', 'bouldering'))
+                or g('shop') == 'clothes' and not any(x in (g('clothes') or '') for x in ('children', 'babies'))
+                or g('landuse') == 'farmyard' and not re.search('kinder|jugend', g('name') or '', re.I)
+                or g('amenity') == 'social_facility' and 'child' not in (g('social_facility:for') or '') and 'famil' not in (g('social_facility:for') or '')
+                or g('amenity') == 'clinic' and 'paediatrics' not in (g('healthcare:speciality') or ''))
+    if narrowed: return extra_category(t)
     cat = categorize(t)
+    if cat in (None, 'wickel'): cat = extra_category(t) or cat  # a dentist with a changing table stays a dentist
     if cat is None and any(k in t for k in FAMILY_TAGS): cat = 'familienfreundlich'
     return cat
 
@@ -166,22 +362,71 @@ def centroid(points):
     return sum(p[0] for p in pts) / len(pts), sum(p[1] for p in pts) / len(pts)
 
 
-def run(pbf=RAW_DIR / 'hamburg-latest.osm.pbf'):
-    """Read the Geofabrik Hamburg extract (download: tools/download-osm.sh)."""
+def zone_kind(t):
+    """Grounds that say something about the objects inside them."""
+    g = t.get
+    if g('leisure') in ('sports_centre', 'stadium') or g('landuse') == 'recreation_ground': return 'sportanlage'
+    if g('amenity') in ('school', 'college', 'university') or g('landuse') == 'education': return 'schule'
+    if g('tourism') == 'zoo': return 'zoo'
+    return None
+
+
+def apply_zones(recs, zones):
+    """Mark pitches on club or school grounds (not freely usable) and drop single enclosures inside a zoo (the zoo is the place)."""
+    from shapely.geometry import Point, Polygon
+    from shapely.strtree import STRtree
+    polys, kinds = [], []
+    for kind, pts in zones:
+        if len(pts) < 4: continue
+        poly = Polygon([(lo, la) for la, lo in pts])
+        if not poly.is_valid: poly = poly.buffer(0)
+        if not poly.is_empty: polys.append(poly); kinds.append(kind)
+    tree = STRtree(polys)
+    out = []
+    for r in recs:
+        leisure, attraction = r['raw'].get('leisure'), r['raw'].get('attraction')
+        if leisure == 'pitch' or attraction == 'animal':
+            pt = Point(r['lon'], r['lat'])
+            inside = {kinds[i] for i in tree.query(pt) if polys[i].contains(pt)}
+            if r['category'] == 'tierhof' and 'zoo' in inside: continue
+            if leisure == 'pitch':
+                setting = 'sportanlage' if 'sportanlage' in inside else 'schule' if 'schule' in inside else None
+                if setting: r['facts']['pitch_setting'] = setting
+        out.append(r)
+    return out
+
+
+def dedupe(recs, extra):
+    """One record per real place among the new data: the same name in one category close together is node + building + relation.
+    Ferry piers: one per pier, with the OSM helper words removed from the name."""
+    from merge import dist
+    kept, out = {}, []
+    for r in sorted(recs, key=lambda r: -sum(1 for v in r['facts'].values() if v)):
+        if r['ref'] not in extra or not r['name']:
+            out.append(r); continue
+        if r['category'] == 'faehre':
+            r['name'] = re.sub(r'\s*\((Schiffsanleger|Fähre)\)$|\s+Brücke \d+$', '', r['name'])
+            r['facts']['name'] = r['name']
+        key = (r['category'], r['name'].lower())
+        radius = DEDUP_M.get(r['category'], DEDUP_DEFAULT_M)
+        if any(dist(r['lat'], r['lon'], la, lo) <= radius for la, lo in kept.get(key, ())): continue
+        kept.setdefault(key, []).append((r['lat'], r['lon']))
+        out.append(r)
+    return out
+
+
+def collect(pbf=RAW_DIR / 'hamburg-latest.osm.pbf'):
+    """Read the Geofabrik Hamburg extract (download: tools/download-osm.sh). Returns (records, devices) without touching the database."""
     import osmium
-    con = connect()
-    register_source(con, 'osm', 'OpenStreetMap', 'https://www.openstreetmap.org', 'ODbL 1.0',
-                    '© OpenStreetMap-Mitwirkende', priority=60)
-    register_source(con, 'osm_geraete', 'OpenStreetMap Spielgeräte', 'https://www.openstreetmap.org', 'ODbL 1.0',
-                    '© OpenStreetMap-Mitwirkende', priority=60)
     observed = datetime.fromtimestamp(pbf.stat().st_mtime, timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
-    recs, devices = [], []
+    recs, devices, zones, extra = [], [], [], set()
     def add(kind, oid, t, latlon):
         cat = wanted(t)
         if not cat or not latlon: return
         ref = f'{kind}/{oid}'
+        if cat in NEW_CATEGORIES or extra_category(t) == cat: extra.add(ref)
         recs.append({'ref': ref, 'category': cat, 'name': t.get('name'), 'lat': latlon[0], 'lon': latlon[1],
-                     'url': f'https://www.openstreetmap.org/{ref}', 'raw': t, 'facts': facts_from(t), 'observed_at': observed})
+                     'url': f'https://www.openstreetmap.org/{ref}', 'raw': t, 'facts': {**facts_from(t), **extra_facts(cat, t)}, 'observed_at': observed})
     for o in osmium.FileProcessor(str(pbf)).with_locations().with_areas():
         if not o.tags: continue
         t = {tag.k: tag.v for tag in o.tags}
@@ -193,11 +438,42 @@ def run(pbf=RAW_DIR / 'hamburg-latest.osm.pbf'):
         elif o.is_way():
             pts = [(n.lat, n.lon) for n in o.nodes if n.location.valid()]
             add('way', o.id, t, centroid(pts))
+            if (kind := zone_kind(t)) and len(pts) >= 4 and pts[0] == pts[-1]: zones.append((kind, pts))
         elif o.is_area() and not o.from_way():
-            pts = [(n.lat, n.lon) for ring in o.outer_rings() for n in ring if n.location.valid()]
-            add('relation', o.orig_id(), t, centroid(pts))
-    print('OSM:', replace_records(con, 'osm', recs), 'records')
-    print('OSM Geräte:', replace_records(con, 'osm_geraete', devices))
+            rings = [[(n.lat, n.lon) for n in ring if n.location.valid()] for ring in o.outer_rings()]
+            add('relation', o.orig_id(), t, centroid([p for ring in rings for p in ring]))
+            if kind := zone_kind(t): zones += [(kind, ring) for ring in rings]
+    return dedupe(apply_zones(recs, zones), extra), devices
+
+
+def with_retry(work, attempts=40, wait=15):
+    """Other importers share the database: on a lock roll back, wait and start the short transaction again."""
+    for attempt in range(attempts):
+        con = None
+        try:
+            con = connect()
+            return work(con)
+        except sqlite3.OperationalError as e:
+            if 'locked' not in str(e) and 'busy' not in str(e): raise
+            print(f'  database locked, retry in {wait}s ({attempt + 1}/{attempts})')
+            if con is not None: con.rollback()
+            time.sleep(wait)
+        finally:
+            if con is not None: con.close()
+    raise RuntimeError('database stayed locked')
+
+
+def run(pbf=RAW_DIR / 'hamburg-latest.osm.pbf'):
+    # The extract is read first, with no database connection open, so the write lock is only held for the final replace.
+    recs, devices = collect(pbf)
+    def register(con):
+        register_source(con, 'osm', 'OpenStreetMap', 'https://www.openstreetmap.org', 'ODbL 1.0',
+                        '© OpenStreetMap-Mitwirkende', priority=60)
+        register_source(con, 'osm_geraete', 'OpenStreetMap Spielgeräte', 'https://www.openstreetmap.org', 'ODbL 1.0',
+                        '© OpenStreetMap-Mitwirkende', priority=60)
+    with_retry(register)
+    print('OSM:', with_retry(lambda con: replace_records(con, 'osm', recs)), 'records')
+    print('OSM Geräte:', with_retry(lambda con: replace_records(con, 'osm_geraete', devices)))
 
 
 if __name__ == '__main__':

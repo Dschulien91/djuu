@@ -47,7 +47,6 @@ CANDIDATES = [
     ('hh_hamm', 'Hamm (hh-hamm.de)', 'https://hh-hamm.de', None, None),
     ('kulturwerk_rahlstedt', 'KulturWerk Rahlstedt', 'https://www.kulturwerk-rahlstedt.de', 'Kulturwerk', 'Boizenburger Weg 7, 22143 Hamburg'),
     ('kulturhof_dulsberg', 'Kulturhof Dulsberg', 'https://kulturhof-dulsberg.de', 'Kulturhof Dulsberg', None),
-    ('motte', 'Motte Altona', 'https://www.diemotte.de', 'Motte', None),
     ('kulturhaus_eidelstedt', 'Kulturhaus Eidelstedt', 'https://kulturhaus-eidelstedt.de', None, None),
     ('sasel_haus', 'Sasel-Haus', 'https://sasel-haus.de', None, None),
     ('brakula', 'BraKuLa Bramfeld', 'https://www.brakula.de', None, None),
@@ -56,19 +55,15 @@ CANDIDATES = [
     ('kulturpalast_harburg', 'Kulturpalast Harburg', 'https://www.kulturpalast-harburg.com', None, None),
     ('buergerhaus_bornheide', 'Bürgerhaus Bornheide', 'https://buergerhaus-bornheide.de', None, None),
     ('buewi', 'Bürgerhaus Wilhelmsburg', 'https://buewi.de', None, None),
-    ('ella', 'ella Kulturhaus Langenhorn', 'https://www.ella-kulturhaus.de', None, None),
-    ('hornerfreiheit', 'Horner Freiheit', 'https://www.hornerfreiheit.de', None, None),
     ('kulturhaus_serrahn', 'Kulturhaus Serrahn', 'https://www.kulturhaus-serrahn.de', None, None),
     ('buergerhaus_allermoehe', 'Bürgerhaus Allermöhe', 'https://www.buergerhaus-allermoehe.de', None, None),
     ('buergerhaus_lokstedt', 'Bürgerhaus Lokstedt', 'https://www.buergerhaus-lokstedt.de', None, None),
-    ('stadtteilhaus_lurup', 'Stadtteilhaus Lurup', 'https://www.stadtteilhaus-lurup.de', None, None),
     ('kulturklinker', 'Kulturklinker Barmbek', 'https://kulturklinker-barmbek.de', None, None),
     ('kulturmix_langenhorn', 'Kulturmix Langenhorn', 'https://www.kulturmix-in-langenhorn.de', None, None),
     ('koppel66', 'Koppel 66', 'https://koppel66.de', None, None),
     ('kulturwerkstatt_harburg', 'KulturWerkstatt Harburg', 'https://www.kulturwerkstatt-harburg.de', None, None),
     ('dreiundsiebzig', 'Dreiundsiebzig', 'https://www.dreiundsiebzig.de', None, None),
     ('kulturschloss_wandsbek', 'Kulturschloss Wandsbek', 'https://www.kulturschloss-wandsbek.de', None, None),
-    ('buntekuh', 'Bunte Kuh', 'https://www.buntekuh-hamburg.de', None, None),
 ]
 GOLDBEK_MARKETS = ['/maerkte/bobbycar-kidsklamotte/', '/maerkte/indoorflohmarkt/', '/maerkte/flohmarkt-auf-dem-hof/']
 
