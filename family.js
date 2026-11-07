@@ -169,7 +169,7 @@ const hostOf = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } 
 function titleFromUrl(u) {
   try {
     const parts = decodeURIComponent(new URL(u).pathname).split('/').filter(x => /[a-zäöüß]{3}/i.test(x) && !/^(p|dp|product|produkt|artikel|item|de|shop)$/i.test(x));
-    const t = (parts.pop() || '').replace(/\.[a-z]{2,5}$/i, '').replace(/[-_+]+/g, ' ').replace(/[0-9a-f]{8,}|\d{6,}/gi, '').trim();
+    const t = (parts.pop() || '').replace(/\.[a-z]{2,5}$/i, '').replace(/[-_+]+/g, ' ').replace(/\b[0-9a-f]{8,}\b|\b\d{5,}\b/gi, '').replace(/\s+/g, ' ').trim();
     return t.length >= 3 ? t.charAt(0).toUpperCase() + t.slice(1, 70) : hostOf(u);
   } catch (e) { return hostOf(u); }
 }

@@ -185,3 +185,14 @@ end $$;
 alter publication supabase_realtime add table shop_items, errands, saved_offers, pings;
 
 -- positions are not kept: run daily (Supabase cron) -> delete from pings where created_at < now() - interval '24 hours';
+
+-- a member creates an invite link; the plain token only ever exists in that link
+create or replace function create_invite() returns text
+language plpgsql security definer set search_path = public as $$
+declare me members; tok text := encode(gen_random_bytes(18), 'hex');
+begin
+  select * into me from members where user_id = auth.uid() limit 1;
+  if not found then raise exception 'not in a family'; end if;
+  insert into invites (token_hash, family_id, created_by) values (encode(digest(tok, 'sha256'), 'hex'), me.family_id, me.id);
+  return tok;
+end $$;
