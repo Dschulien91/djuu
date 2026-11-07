@@ -83,7 +83,7 @@ routerAdd("GET", "/api/djuu/cal/{token}", (e) => {
   const saved = e.app.findRecordsByFilter("saved_offers", "family = {:f}", "-created", 500, 0, { f: fam.id });
   e.response.header().set("Content-Type", "text/calendar; charset=utf-8");
   e.response.header().set("Cache-Control", "private, max-age=900");
-  return e.string(200, u.ics(fam.get("name"), saved.map((r) => ({ id: r.get("offer_id"), snap: r.get("snap") }))));
+  return e.string(200, u.ics(fam.get("name"), saved.map((r) => ({ id: r.getString("offer_id"), snap: u.parseJson(r.getString("snap")) }))));
 });
 
 // Positions are not kept: pings older than 24 hours are deleted every hour.

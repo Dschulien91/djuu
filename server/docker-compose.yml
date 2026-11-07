@@ -1,0 +1,16 @@
+# Djuu API next to Materialis: own container and data volume; joins Materialis' network only so its Caddy can forward a subdomain.
+services:
+  api:
+    build: .
+    container_name: djuu-api
+    restart: unless-stopped
+    volumes:
+      - pb_data:/pb/pb_data
+    networks:
+      - app_default
+    mem_limit: 256m
+volumes:
+  pb_data: {}
+networks:
+  app_default:
+    external: true

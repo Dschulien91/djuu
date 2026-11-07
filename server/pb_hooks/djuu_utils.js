@@ -53,4 +53,7 @@ function ics(name, items) {
   return L.map(fold).join("\r\n") + "\r\n";
 }
 
-module.exports = { memberOf, ics };
+// JSON fields come back as raw text in hooks
+function parseJson(t) { try { return JSON.parse(t || "{}"); } catch (e) { return {}; } }
+
+module.exports = { memberOf, ics, parseJson };
