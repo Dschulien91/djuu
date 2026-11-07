@@ -13,4 +13,4 @@ COPY pb_hooks /pb/pb_hooks
 RUN adduser -D -H pb && mkdir -p /pb/pb_data && chown -R pb /pb
 USER pb
 EXPOSE 8090
-CMD ["/pb/pocketbase", "serve", "--http=0.0.0.0:8090", "--dir=/pb/pb_data", "--origins=https://dschulien91.github.io,http://localhost:8765"]
+CMD ["/pb/pocketbase", "serve", "--http=0.0.0.0:8090", "--dir=/pb/pb_data", "--origins=https://dschulien91.github.io,https://djuu.de,https://www.djuu.de,http://localhost:8765"]

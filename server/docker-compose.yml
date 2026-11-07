@@ -1,4 +1,8 @@
-# Djuu API next to Materialis: own container and data volume; joins Materialis' network only so its Caddy can forward a subdomain.
+# Djuu API, strictly separated from Materialis on the same server:
+# - own network (djuu_net): Djuu cannot reach Materialis containers, Materialis cannot reach Djuu except through one port
+# - that port is bound to the host's address inside Materialis' network (172.18.0.1) only, never to the internet;
+#   Materialis' Caddy forwards the Djuu hostname there (one block in /root/app/Caddyfile)
+# - hard limits on memory, CPU, processes and log size so Djuu can never slow Materialis down
 services:
   api:
     build: .
@@ -7,10 +11,21 @@ services:
     volumes:
       - pb_data:/pb/pb_data
     networks:
-      - app_default
+      - djuu_net
+    ports:
+      - "172.18.0.1:8090:8090"
     mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 200
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 volumes:
   pb_data: {}
 networks:
-  app_default:
-    external: true
+  djuu_net:
+    name: djuu_net
