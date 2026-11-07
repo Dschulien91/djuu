@@ -489,3 +489,43 @@ h2, h3, h4, .ph h2, .item h3, .pinmain h3, .sec h4, .stylesec { font-family: var
 .calmenu .btn { justify-content: flex-start; }
 .hero .datebox { flex: none; }
 b.yes { color: var(--yes); }
+
+/* v0.20 Familie, Einkauf, Besorgungen */
+.famseg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; padding: 3px; margin: 0 0 14px; border-radius: 14px; background: var(--surface-2); }
+.famseg button { min-height: 44px; border: 0; border-radius: 11px; background: transparent; font: 600 15px var(--font-display); color: var(--ink); }
+.famseg button.on { background: var(--surface); box-shadow: var(--shadow-sm); color: var(--brand); }
+.famseg .n { font: 700 12px var(--font-body); color: var(--muted); }
+.shadd { display: flex; gap: 8px; margin: 0 0 10px; }
+.shadd input { flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; background: var(--surface); font-size: 16px; }
+.shadd .btn { min-width: 48px; justify-content: center; }
+.shoften { margin: 0 -2px 6px; padding-bottom: 4px; }
+.shoften .chip svg.i { width: 14px; height: 14px; }
+.shcat { margin: 16px 0 4px; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.shlist, .erlist { list-style: none; margin: 0; padding: 0; }
+.shrow { display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--line); min-height: 52px; }
+.shname { flex: 1; min-width: 0; text-align: left; border: 0; background: none; padding: 12px 0; font-size: 16px; color: var(--ink); }
+.shcheck { flex: none; width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--brand); background: var(--surface); display: grid; place-items: center; color: #fff; padding: 0; }
+.shcheck svg.i { width: 16px; height: 16px; }
+.shrow.done .shcheck, .ercard.done .shcheck { background: var(--brand); }
+.shrow.done .shname { color: var(--muted); text-decoration: line-through; }
+.shmenu { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 0 12px; border-bottom: 1px solid var(--line); }
+.round.sm { width: 36px; height: 36px; font-size: 18px; }
+.by { display: inline-block; margin-left: 8px; font-size: 12px; font-weight: 700; color: var(--c); }
+.by::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--c); margin-right: 4px; vertical-align: 1px; }
+.dupcard { padding: 12px 14px; margin: 0 0 10px; border-radius: 14px; background: #FFF3D6; }
+.dupcard .fgrid { margin-top: 8px; }
+.ercard { padding: 10px 0 12px; border-bottom: 1px solid var(--line); }
+.erhead { display: flex; align-items: flex-start; gap: 10px; }
+.erhead .shcheck { margin-top: 2px; }
+.ertitle { flex: 1; min-width: 0; display: grid; gap: 2px; overflow-wrap: anywhere; }
+.ermeta { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 13px; color: var(--muted); }
+.ermeta .by { margin-left: 0; }
+.ercard.done .ertitle b { text-decoration: line-through; color: var(--muted); }
+.erstates { display: flex; gap: 6px; margin: 8px 0 0 38px; }
+.eredit { display: grid; gap: 8px; margin: 10px 0 0 38px; }
+.eredit input, .eredit select, .kidmore input { min-width: 0; border: 1px solid var(--line); border-radius: 12px; padding: 10px; background: var(--surface); font-size: 15px; }
+.kidmore { grid-column: 1 / -1; }
+.kidmore summary { cursor: pointer; font-size: 14px; color: var(--brand); font-weight: 700; padding: 4px 0; }
+.kidmore[open] { display: grid; gap: 8px; }
+.kidrow .wide { grid-column: 1 / -1; }
+.toastbtn { margin-left: 10px; border: 0; background: none; color: var(--sun, #FFD166); font-weight: 800; text-decoration: underline; }

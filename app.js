@@ -1,4 +1,4 @@
-/* Djuu v0.19 – family map for Hamburg.
+/* Djuu v0.20 – family map for Hamburg.
    The map owns the screen: one chip row floats on top, map buttons on the right, the sheet starts as a slim bar.
    The chip row drills down one level at a time: Erleben or Service, then categories, then the tags of a category.
    A tapped pin opens a small card; search and favorites live in the bottom bar. Default view: playgrounds.
@@ -7,7 +7,7 @@
    User input is stored on this device only until the server exists (server-ready shape, see STORE). */
 'use strict';
 
-const VERSION = '0.19';
+const VERSION = '0.20';
 const CONTACT = window.DJUU_CONTACT || {}; // config.js: reports and feedback stay hidden until an address is set
 // Logo on light backgrounds, as specified in the design PDF.
 const LOGO = `<span class="logo" role="img" aria-label="djuu"><span style="color:#6B4EE6">d</span><span style="color:#0E8F84">j</span><span style="color:#D6336C">u</span><span style="color:#CC6A00">u</span>
@@ -823,7 +823,7 @@ async function renderPanel() {
   else if (v.type === 'favs') body.innerHTML = favsView();
   else if (v.type === 'offer') body.innerHTML = offerView(v.id);
   else if (v.type === 'evfilters') body.innerHTML = evFiltersView();
-  else if (v.type === 'me') body.innerHTML = savedView();
+  else if (v.type === 'me') body.innerHTML = familyView();
   else if (v.type === 'rate') { body.innerHTML = rateView(v.id); bindRate(v.id); }
   else if (v.type === 'report') body.innerHTML = reportView(v.id);
   else if (v.type === 'wizard') { renderWizard(); return; }
@@ -1604,14 +1604,13 @@ const DATA_AT = { offers: null };
 function savedView() {
   const pr = store.profile, now = new Date();
   const maxYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  return `<div class="melogo">${LOGO}</div>${head('Meins', 'Nur auf diesem Gerät gespeichert', false)}
-    <div class="sec"><h4>Unsere Familie</h4>
+  return `<div class="sec"><h4>Kinder</h4>
       <p class="muted text">Mit dem Alter deiner Kinder zeigt Djuu passende Gruppen, Kurse und Orte. Der Tag ist freiwillig, Monat und Jahr reichen.</p>
       <div id="kids">${pr.kids.map((k, i) => `<div class="kidrow">
         <input id="kidName${i}" data-kid="${i}" data-k="name" value="${esc(k.name || '')}" placeholder="Name (optional)" maxlength="20" aria-label="Name von Kind ${i + 1}">
         <button type="button" class="round" data-delkid="${i}" aria-label="Kind entfernen">${svg('close')}</button>
         <input id="kidYm${i}" data-kid="${i}" data-k="ym" type="month" value="${esc(k.ym || '')}" max="${maxYm}" aria-label="Geburtsmonat von Kind ${i + 1}">
-        <select id="kidD${i}" data-kid="${i}" data-k="d" aria-label="Geburtstag (Tag, optional) von Kind ${i + 1}"><option value="">Tag (optional)</option>${Array.from({ length: 31 }, (_, j) => `<option${+k.d === j + 1 ? ' selected' : ''}>${j + 1}</option>`).join('')}</select></div>`).join('')}</div>
+        <select id="kidD${i}" data-kid="${i}" data-k="d" aria-label="Geburtstag (Tag, optional) von Kind ${i + 1}"><option value="">Tag (optional)</option>${Array.from({ length: 31 }, (_, j) => `<option${+k.d === j + 1 ? ' selected' : ''}>${j + 1}</option>`).join('')}</select>${kidMoreHtml(k, i)}</div>`).join('')}</div>
       <button type="button" class="btn" data-addkid="1">${svg('plus')}Kind hinzufügen</button>
       <div class="field"><label for="expecting">Baby unterwegs? Errechneter Termin (optional)</label><input id="expecting" type="date" value="${esc(pr.expecting || '')}" min="${ymd(today0())}"></div>
       <div class="field"><label for="fedState">Bundesland (für eure Schulferien)</label><select id="fedState">${Object.entries(STATES).map(([c, n]) => `<option value="${c}"${(pr.state || 'DE-HH') === c ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select></div>
@@ -1821,7 +1820,7 @@ const TABS = [
   { id: 'search', label: 'Suchen', icon: 'search' },
   { id: 'events', label: 'Termine', icon: 'cal' },
   { id: 'favs', label: 'Gemerkt', icon: 'heart' },
-  { id: 'me', label: 'Meins', icon: 'user' },
+  { id: 'me', label: 'Familie', icon: 'user' },
 ];
 function setTab(id) {
   state.tab = id;
@@ -1901,7 +1900,7 @@ document.addEventListener('click', async e => {
   else if (ds.offerurl) window.open(ds.offerurl, '_blank', 'noopener');
   else if (ds.mapstyle) { setMapStyle(ds.mapstyle); renderPanel(); toast(`Kartenstil: ${mapStyle().label}`); }
   else if (ds.wx) { if (ds.wx === 'rain') { state.io = state.io === 'drinnen' ? null : 'drinnen'; state.preset = null; refresh(); } else { const pr = PRESETS.find(x => x.id === 'hitze'); state.preset = pr.id; state.groups = new Set(pr.groups); state.tags = new Set(pr.tags); state.cats.clear(); state.level = 1; refresh(); home(desktop() ? 'full' : 'peek'); } }
-  else if (ds.addkid) { store.profile.kids.push({ name: '', ym: '' }); save(); renderPanel(); setTimeout(() => $('#kidYm' + (store.profile.kids.length - 1))?.focus(), 50); }
+  else if (ds.addkid) { store.profile.kids.push({ id: uid('k_'), name: '', ym: '' }); save(); renderPanel(); setTimeout(() => $('#kidYm' + (store.profile.kids.length - 1))?.focus(), 50); }
   else if (ds.delkid) { store.profile.kids.splice(+ds.delkid, 1); save(); renderPanel(); }
   else if (ds.dogs) { store.profile.dogs = Math.max(0, Math.min(9, (store.profile.dogs || 0) + +ds.dogs)); save(); $('#dogsN').textContent = store.profile.dogs; renderTop(); }
   else if (ds.report) { store.reports.push({ targetType: 'review', targetId: ds.report, at: Date.now() }); save(); toast('Auf diesem Gerät ausgeblendet.'); renderPanel(); }
