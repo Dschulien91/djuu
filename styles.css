@@ -529,3 +529,10 @@ b.yes { color: var(--yes); }
 .kidmore[open] { display: grid; gap: 8px; }
 .kidrow .wide { grid-column: 1 / -1; }
 .toastbtn { margin-left: 10px; border: 0; background: none; color: var(--sun, #FFD166); font-weight: 800; text-decoration: underline; }
+/* v0.22 map style picker folded */
+.stylefold summary { display: flex; align-items: center; gap: 12px; padding: 8px; border: 1px solid var(--line); border-radius: 14px; cursor: pointer; list-style: none; }
+.stylefold summary::-webkit-details-marker { display: none; }
+.stylefold summary img { width: 60px; height: 40px; border-radius: 8px; object-fit: cover; }
+.stylefold summary span { display: grid; }
+.stylefold summary small { color: var(--brand); font-weight: 700; }
+.stylefold[open] summary { margin-bottom: 8px; }

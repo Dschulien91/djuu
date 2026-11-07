@@ -1,4 +1,4 @@
-/* Djuu v0.21 – family map for Hamburg.
+/* Djuu v0.22 – family map for Hamburg.
    The map owns the screen: one chip row floats on top, map buttons on the right, the sheet starts as a slim bar.
    The chip row drills down one level at a time: Erleben or Service, then categories, then the tags of a category.
    A tapped pin opens a small card; search and favorites live in the bottom bar. Default view: playgrounds.
@@ -7,7 +7,7 @@
    User input is stored on this device only until the server exists (server-ready shape, see STORE). */
 'use strict';
 
-const VERSION = '0.21';
+const VERSION = '0.22';
 const CONTACT = window.DJUU_CONTACT || {}; // config.js: reports and feedback stay hidden until an address is set
 // Logo on light backgrounds, as specified in the design PDF.
 const LOGO = `<span class="logo" role="img" aria-label="djuu"><span style="color:#6B4EE6">d</span><span style="color:#0E8F84">j</span><span style="color:#D6336C">u</span><span style="color:#CC6A00">u</span>
@@ -1619,8 +1619,9 @@ function savedView() {
         <div class="stepper"><button type="button" data-dogs="-1" aria-label="Weniger">–</button><b id="dogsN">${pr.dogs || 0}</b><button type="button" data-dogs="1" aria-label="Mehr">+</button></div></div>
       <p class="note">Wenn ihr einen Hund habt, steht „Hunde erlaubt“ im Filter gleich oben.</p>
     </div>
-    <div class="sec"><h4>Kartenstil</h4>
-      ${MAP_STYLES.map(m => m.sec ? `<p class="stylesec">${esc(m.sec)}</p>` : `<button type="button" class="stylecard${mapStyle().id === m.id ? ' on' : ''}" data-mapstyle="${m.id}"><img src="icons/maps/${m.id}.jpg" alt="" loading="lazy" width="150" height="100"><span>${esc(m.label)}</span></button>`).join('')}
+    <div class="sec"><h4>Karte</h4>
+      <details class="stylefold"${state.styleOpen ? ' open' : ''}><summary><img src="icons/maps/${mapStyle().id}.jpg" alt="" width="60" height="40"><span><b>Kartenstil: ${esc(mapStyle().label)}</b><small>Ändern</small></span></summary>
+      ${MAP_STYLES.map(m => m.sec ? `<p class="stylesec">${esc(m.sec)}</p>` : `<button type="button" class="stylecard${mapStyle().id === m.id ? ' on' : ''}" data-mapstyle="${m.id}"><img src="icons/maps/${m.id}.jpg" alt="" loading="lazy" width="150" height="100"><span>${esc(m.label)}</span></button>`).join('')}</details>
       <p class="note">Alle Kartenstile sind kostenlos und brauchen kein Konto. Die Wetteranzeige stammt vom Deutschen Wetterdienst über Bright Sky. Schulferien: Ferienordnung Hamburg, andere Bundesländer über OpenHolidays (ODbL). Die Spracheingabe in der Suche nutzt den Sprachdienst deines Browsers, dabei kann der Ton an dessen Anbieter gehen.</p>
     </div>
     <div class="sec"><h4>Über Djuu</h4>
@@ -1898,7 +1899,7 @@ document.addEventListener('click', async e => {
   else if (ds.ef) { EV.art = EV.art === ds.ef ? '' : ds.ef; EV.limit = 60; renderPanel(); }
   else if (ds.emore) { EV.limit += 60; renderPanel(); }
   else if (ds.offerurl) window.open(ds.offerurl, '_blank', 'noopener');
-  else if (ds.mapstyle) { setMapStyle(ds.mapstyle); renderPanel(); toast(`Kartenstil: ${mapStyle().label}`); }
+  else if (ds.mapstyle) { setMapStyle(ds.mapstyle); state.styleOpen = false; renderPanel(); toast(`Kartenstil: ${mapStyle().label}`); }
   else if (ds.wx) { if (ds.wx === 'rain') { state.io = state.io === 'drinnen' ? null : 'drinnen'; state.preset = null; refresh(); } else { const pr = PRESETS.find(x => x.id === 'hitze'); state.preset = pr.id; state.groups = new Set(pr.groups); state.tags = new Set(pr.tags); state.cats.clear(); state.level = 1; refresh(); home(desktop() ? 'full' : 'peek'); } }
   else if (ds.addkid) { store.profile.kids.push({ id: uid('k_'), name: '', ym: '' }); save(); renderPanel(); setTimeout(() => $('#kidYm' + (store.profile.kids.length - 1))?.focus(), 50); }
   else if (ds.delkid) { store.profile.kids.splice(+ds.delkid, 1); save(); renderPanel(); }

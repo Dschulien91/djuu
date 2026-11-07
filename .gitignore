@@ -5,3 +5,5 @@ __pycache__/
 data/cleaning/datenschutz.csv
 data/backups/
 data/refresh.log
+server/pb_data/
+server/bin/
