@@ -1,4 +1,4 @@
-/* Djuu v0.22 – family map for Hamburg.
+/* Djuu v0.23 – family map for Hamburg.
    The map owns the screen: one chip row floats on top, map buttons on the right, the sheet starts as a slim bar.
    The chip row drills down one level at a time: Erleben or Service, then categories, then the tags of a category.
    A tapped pin opens a small card; search and favorites live in the bottom bar. Default view: playgrounds.
@@ -7,7 +7,7 @@
    User input is stored on this device only until the server exists (server-ready shape, see STORE). */
 'use strict';
 
-const VERSION = '0.22';
+const VERSION = '0.23';
 const CONTACT = window.DJUU_CONTACT || {}; // config.js: reports and feedback stay hidden until an address is set
 // Logo on light backgrounds, as specified in the design PDF.
 const LOGO = `<span class="logo" role="img" aria-label="djuu"><span style="color:#6B4EE6">d</span><span style="color:#0E8F84">j</span><span style="color:#D6336C">u</span><span style="color:#CC6A00">u</span>
@@ -1444,7 +1444,7 @@ const visitsOf = id => store.visits[id] || [];
 function toggleSaved(id) {
   const i = store.savedOffers.findIndex(x => x.id === id);
   if (i >= 0) store.savedOffers.splice(i, 1);
-  else { const o = OFFER_BY_ID.get(id); store.savedOffers.push({ id, at: Date.now(), snap: { title: o.title, url: o.url, venue: o.venue, start_date: o.start_date } }); }
+  else { const o = OFFER_BY_ID.get(id); store.savedOffers.push({ id, at: Date.now(), by: typeof meId === 'function' ? meId() : null, snap: { title: o.title, url: o.url, venue: o.venue, address: o.address, provider: o.provider, kind: o.kind, weekday: o.weekday, time_from: o.time_from, time_to: o.time_to, start_date: o.start_date, end_date: o.end_date } }); }
   save(); toast(i >= 0 ? 'Nicht mehr gemerkt.' : 'Gemerkt. Du findest es unter „Gemerkt“.');
 }
 // all dates in the next months, for the offer page
@@ -1554,7 +1554,7 @@ function favsView() {
   const offers = store.savedOffers.map(s => [OFFER_BY_ID.get(s.id), s]);
   const live = offers.filter(([x]) => x && nextDate(x)).map(([x]) => [nextDate(x), x]).sort((a, b) => a[0] - b[0]);
   const gone = offers.filter(([x]) => !x || !nextDate(x));
-  return `${head('Gemerkt', 'Nur auf diesem Gerät gespeichert', false)}
+  return `${head('Gemerkt', typeof auth !== 'undefined' && auth?.family ? 'Gemeinsam mit der Familie' : 'Nur auf diesem Gerät gespeichert', false)}
     ${!ps.length && !offers.length ? '<div class="empty"><b>Noch nichts gemerkt.</b>Tippe bei Terminen und Orten auf das Herz, dann sammelt sich hier alles Interessante.</div>' : ''}
     ${live.length ? `<div class="sec"><h4>Termine</h4><ol class="list">${live.map(([d, x]) => offerItem(x, d)).join('')}</ol>
       ${live.length > 1 ? `<button type="button" class="btn" data-ics="saved" style="margin-top:8px">${svg('cal')}Alle ${live.length} in den Kalender</button>` : ''}</div>` : ''}
@@ -1901,7 +1901,7 @@ document.addEventListener('click', async e => {
   else if (ds.offerurl) window.open(ds.offerurl, '_blank', 'noopener');
   else if (ds.mapstyle) { setMapStyle(ds.mapstyle); state.styleOpen = false; renderPanel(); toast(`Kartenstil: ${mapStyle().label}`); }
   else if (ds.wx) { if (ds.wx === 'rain') { state.io = state.io === 'drinnen' ? null : 'drinnen'; state.preset = null; refresh(); } else { const pr = PRESETS.find(x => x.id === 'hitze'); state.preset = pr.id; state.groups = new Set(pr.groups); state.tags = new Set(pr.tags); state.cats.clear(); state.level = 1; refresh(); home(desktop() ? 'full' : 'peek'); } }
-  else if (ds.addkid) { store.profile.kids.push({ id: uid('k_'), name: '', ym: '' }); save(); renderPanel(); setTimeout(() => $('#kidYm' + (store.profile.kids.length - 1))?.focus(), 50); }
+  else if (ds.addkid) { store.profile.kids.push({ id: pbId(), name: '', ym: '' }); save(); renderPanel(); setTimeout(() => $('#kidYm' + (store.profile.kids.length - 1))?.focus(), 50); }
   else if (ds.delkid) { store.profile.kids.splice(+ds.delkid, 1); save(); renderPanel(); }
   else if (ds.dogs) { store.profile.dogs = Math.max(0, Math.min(9, (store.profile.dogs || 0) + +ds.dogs)); save(); $('#dogsN').textContent = store.profile.dogs; renderTop(); }
   else if (ds.report) { store.reports.push({ targetType: 'review', targetId: ds.report, at: Date.now() }); save(); toast('Auf diesem Gerät ausgeblendet.'); renderPanel(); }

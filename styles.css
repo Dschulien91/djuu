@@ -536,3 +536,13 @@ b.yes { color: var(--yes); }
 .stylefold summary span { display: grid; }
 .stylefold summary small { color: var(--brand); font-weight: 700; }
 .stylefold[open] summary { margin-bottom: 8px; }
+/* v0.23 sync, pings */
+.syncbox { padding: 14px; border-radius: 16px; background: var(--lav, #F1ECFF); }
+.syncbox .shadd { margin-top: 10px; }
+.syfam { display: grid; gap: 8px; margin-top: 10px; }
+.syfam input { border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; background: var(--surface); font-size: 16px; }
+.syok { color: var(--yes); } .syoff { color: #CC6A00; }
+.pingbar { position: fixed; z-index: 2500; left: 12px; right: 12px; top: calc(env(safe-area-inset-top) + 64px); max-width: 520px; margin: 0 auto; padding: 14px; border-radius: 18px; background: var(--surface); box-shadow: 0 8px 30px rgba(31, 27, 77, .25); display: grid; gap: 10px; }
+.pingbar[hidden] { display: none; }
+.pingbar div { display: flex; gap: 8px; flex-wrap: wrap; }
+.pingdot { width: 34px; height: 34px; border-radius: 50%; background: var(--c); color: #fff; border: 3px solid #fff; box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 35%, transparent), 0 2px 8px rgba(0,0,0,.3); display: grid; place-items: center; font: 700 15px var(--font-display); }

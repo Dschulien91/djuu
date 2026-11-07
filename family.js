@@ -5,10 +5,12 @@
 'use strict';
 
 // ---------- Members ----------
+// ids in the server's format (15 lowercase letters and digits), so items need no renaming when the family is shared
+function pbId() { const a = 'abcdefghijklmnopqrstuvwxyz0123456789', b = crypto.getRandomValues(new Uint8Array(15)); return Array.from(b, x => a[x % 36]).join(''); }
 const MEMBER_COLORS = ['#6B4EE6', '#0E8F84', '#D6336C', '#CC6A00', '#1971C2', '#2F9E44', '#9C36B5'];
 store.profile.adults = store.profile.adults || [];
-for (const k of store.profile.kids) k.id = k.id || uid('k_');
-for (const a of store.profile.adults) a.id = a.id || uid('a_');
+for (const k of store.profile.kids) k.id = k.id || pbId();
+for (const a of store.profile.adults) a.id = a.id || pbId();
 save();
 function members() {
   const pr = store.profile;
@@ -27,10 +29,10 @@ function adultsHtml() {
       <p class="muted text">Alles freiwillig. Die Namen zeigen später, wer etwas auf die Liste gesetzt hat.</p>
       ${pr.adults.map((a, i) => `<div class="kidrow">
         <input data-adult="${i}" data-k="name" value="${esc(a.name || '')}" placeholder="Name" maxlength="20" aria-label="Name von Erwachsener ${i + 1}">
-        <button type="button" class="round" data-deladult="${i}" aria-label="Entfernen">${svg('close')}</button>
+        ${a.account ? '<span class="round" aria-hidden="true"></span>' : `<button type="button" class="round" data-deladult="${i}" aria-label="Entfernen">${svg('close')}</button>`}
         <input data-adult="${i}" data-k="work" value="${esc(a.work || '')}" placeholder="Arbeitszeiten (optional), z. B. Mo–Fr 8–16" maxlength="60" aria-label="Arbeitszeiten" class="wide"></div>`).join('')}
       <button type="button" class="btn" data-addadult="1">${svg('plus')}Erwachsene*n hinzufügen</button>
-      ${ms.length ? `<div class="field"><label for="meSel">Wer nutzt dieses Handy?</label><select id="meSel">${ms.filter(m => !m.kid || ms.every(x => x.kid)).map(m => `<option value="${m.id}"${meId() === m.id ? ' selected' : ''}>${esc(m.name)}</option>`).join('')}</select></div>` : ''}
+      ${ms.length && !(typeof auth !== 'undefined' && auth?.family) ? `<div class="field"><label for="meSel">Wer nutzt dieses Handy?</label><select id="meSel">${ms.filter(m => !m.kid || ms.every(x => x.kid)).map(m => `<option value="${m.id}"${meId() === m.id ? ' selected' : ''}>${esc(m.name)}</option>`).join('')}</select></div>` : ''}
     </div>`;
 }
 // extra, optional details per child (shown folded under each child in "Wir")
@@ -110,7 +112,7 @@ function addShopItem(text, force = false) {
   if (!name) return;
   const dup = !force && findDuplicate(name);
   if (dup) { SH.pending = { text, qty, name, dup: dup.id }; renderPanel(); return; }
-  store.shop.items.push({ id: uid('s_'), name, qty, cat: shopCat(name), by: meId(), at: Date.now(), done: false, later: false });
+  store.shop.items.push({ id: pbId(), name, qty, cat: shopCat(name), by: meId(), at: Date.now(), done: false, later: false });
   SH.pending = null; save(); renderPanel();
   setTimeout(() => $('#shIn')?.focus(), 30);
 }
@@ -176,7 +178,7 @@ function titleFromUrl(u) {
 function addErrand(text) {
   const t = text.trim(); if (!t) return;
   const url = /^(https?:\/\/|www\.)\S+$/i.test(t) ? cleanUrl(t) : null;
-  const e = { id: uid('b_'), title: url ? titleFromUrl(url) : t, link: url || '', for: '', note: '', price: '', state: 'idee', by: meId(), at: Date.now() };
+  const e = { id: pbId(), title: url ? titleFromUrl(url) : t, link: url || '', for: '', note: '', price: '', state: 'idee', by: meId(), at: Date.now() };
   store.errands.unshift(e); SH.editing = url ? e.id : null; save(); renderPanel();
 }
 function errandHtml() {
@@ -210,9 +212,9 @@ const FAM_SEGS = [['einkauf', 'Einkauf'], ['besorgungen', 'Besorgungen'], ['wir'
 function familyView() {
   const seg = state.famSeg || 'einkauf';
   const n = openItems().length, e = store.errands.filter(x => x.state !== 'gekauft').length;
-  return `${head('Familie', 'Bisher nur auf diesem Gerät', false)}
+  return `${head('Familie', typeof auth !== 'undefined' && auth?.family ? 'Geteilt mit ' + esc(auth.familyName || 'der Familie') : 'Bisher nur auf diesem Gerät', false)}
     <div class="famseg" role="tablist">${FAM_SEGS.map(([id, l]) => `<button type="button" role="tab" aria-selected="${seg === id}" class="${seg === id ? 'on' : ''}" data-famseg="${id}">${l}${id === 'einkauf' && n ? ` <span class="n">${n}</span>` : id === 'besorgungen' && e ? ` <span class="n">${e}</span>` : ''}</button>`).join('')}</div>
-    ${seg === 'einkauf' ? shopHtml() : seg === 'besorgungen' ? errandHtml() : `<div class="melogo">${LOGO}</div>${adultsHtml()}${savedView()}${connectHtml()}`}`;
+    ${seg === 'einkauf' ? shopHtml() : seg === 'besorgungen' ? errandHtml() : `<div class="melogo">${LOGO}</div>${syncHtml()}${adultsHtml()}${savedView()}`}`;
 }
 
 // ---------- Interaction ----------
@@ -242,7 +244,7 @@ document.addEventListener('click', e => {
   else if (d.erstate) { const [id, st] = d.erstate.split('|'); store.errands.find(r => r.id === id).state = st; save(); renderPanel(); }
   else if (d.eredit) { SH.editing = SH.editing === d.eredit ? null : d.eredit; renderPanel(); }
   else if (d.erdel) { store.errands = store.errands.filter(r => r.id !== d.erdel); SH.editing = null; save(); renderPanel(); }
-  else if (d.addadult) { store.profile.adults.push({ id: uid('a_'), name: '', work: '' }); save(); renderPanel(); }
+  else if (d.addadult) { store.profile.adults.push({ id: pbId(), name: '', work: '' }); save(); renderPanel(); }
   else if (d.deladult) { store.profile.adults.splice(+d.deladult, 1); save(); renderPanel(); }
 });
 document.addEventListener('submit', e => {
