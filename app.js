@@ -1,4 +1,4 @@
-/* Djuu v0.18 – family map for Hamburg.
+/* Djuu v0.19 – family map for Hamburg.
    The map owns the screen: one chip row floats on top, map buttons on the right, the sheet starts as a slim bar.
    The chip row drills down one level at a time: Erleben or Service, then categories, then the tags of a category.
    A tapped pin opens a small card; search and favorites live in the bottom bar. Default view: playgrounds.
@@ -7,7 +7,7 @@
    User input is stored on this device only until the server exists (server-ready shape, see STORE). */
 'use strict';
 
-const VERSION = '0.18';
+const VERSION = '0.19';
 const CONTACT = window.DJUU_CONTACT || {}; // config.js: reports and feedback stay hidden until an address is set
 // Logo on light backgrounds, as specified in the design PDF.
 const LOGO = `<span class="logo" role="img" aria-label="djuu"><span style="color:#6B4EE6">d</span><span style="color:#0E8F84">j</span><span style="color:#D6336C">u</span><span style="color:#CC6A00">u</span>
@@ -309,6 +309,8 @@ const STORE_KEY = 'djuu.v2';
 let store = { contributions: [], confirmations: [], reviews: [], reports: [], events: [], prompted: {}, favorites: [], profile: { kids: [], expecting: '', dogs: 0 } };
 try { Object.assign(store, JSON.parse(localStorage.getItem(STORE_KEY) || '{}')); } catch (e) { /* storage blocked */ }
 store.favorites = store.favorites || [];
+store.savedOffers = store.savedOffers || []; // [{ id, at, snap }]
+store.visits = store.visits || {}; // offer id -> ['YYYY-MM-DD', ...]
 // v0.8: expected date is a full date now; an old 'YYYY-MM' value becomes the middle of that month
 if (store.profile && /^\d{4}-\d{2}$/.test(store.profile.expecting || '')) store.profile.expecting += '-15';
 store.profile = Object.assign({ kids: [], expecting: '', dogs: 0, state: 'DE-HH' }, store.profile || {});
@@ -426,6 +428,7 @@ function addUserPlaces() {
 
 // ---------- Offers: courses, groups, events (data/offers.json) ----------
 let OFFERS = [];
+const OFFER_BY_ID = new Map();
 const offersByPlace = new Map();
 const TOPIC_LABEL = {
   geburtsvorbereitung: 'Geburtsvorbereitung', rueckbildung: 'Rückbildung', pekip: 'PEKiP & Bewegung', babymassage: 'Babymassage',
@@ -437,6 +440,7 @@ const WD = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 function loadOffers(data) {
   const cols = data.cols;
   OFFERS = data.offers.map(r => Object.fromEntries(cols.map((c, i) => [c, r[i]])));
+  for (const o of OFFERS) OFFER_BY_ID.set(o.id, o);
   for (const o of OFFERS) if (o.place_id) (offersByPlace.get(o.place_id) || offersByPlace.set(o.place_id, []).get(o.place_id)).push(o);
 }
 const today0 = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
@@ -489,15 +493,14 @@ const fmtDay = d => {
 };
 function offerItem(o, nd) {
   const place = o.place_id && byId.get(o.place_id);
-  const d = (o.lat && o.lon) || place ? dist(origin(), place ? [place.lat, place.lon] : [o.lat, o.lon]) : null;
-  const fits = offerFits(o);
-  const tags = [o.audience === 'erwachsene' ? 'für Erwachsene' : ageLabel(o.age_min_m, o.age_max_m), o.free ? 'kostenlos' : o.price, o.kind === 'gruppe' ? 'offene Gruppe' : o.kind === 'kurs' ? (o.sessions ? `Kurs, ${o.sessions}×` : 'Kurs') : '']
+  const d = state.me && ((o.lat && o.lon) || place) ? dist(origin(), place ? [place.lat, place.lon] : [o.lat, o.lon]) : null;
+  const fits = offerFits(o), n = o.id ? visitsOf(o.id).length : 0;
+  const tags = [o.audience === 'erwachsene' ? 'für Erwachsene' : ageLabel(o.age_min_m, o.age_max_m), o.free ? 'kostenlos' : o.price, o.kind === 'gruppe' ? (isRecurring(o) ? 'regelmäßig' : 'offenes Treffen') : o.kind === 'kurs' ? (o.sessions ? `Kurs, ${o.sessions}×` : 'Kurs') : '']
     .filter(Boolean).map(t => `<span>${esc(t)}</span>`).join('');
   const inner = `<span class="datebox"><b>${nd ? esc(fmtDay(nd)) : '–'}</b><span>${esc(o.time_from || '')}</span></span>
-    <span><h3>${esc(o.title)}</h3><span class="meta">${esc(TOPIC_LABEL[o.topic] || '')}${o.venue ? ' · ' + esc(o.venue) : ''}${d != null ? ' · ' + fmtDist(d) : ''}</span>
-    <span class="mini${fits === true ? ' fit' : ''}">${fits === true ? '<span class="fitchip">passt zu euch</span>' : ''}${tags}</span></span><span></span>`;
-  return place ? `<li><button type="button" class="item offer" data-id="${place.id}">${inner}</button></li>`
-    : `<li><a class="item offer" href="${esc(o.url)}" target="_blank" rel="noopener">${inner}</a></li>`;
+    <span><h3>${esc(o.title)}${o.id && isSaved(o.id) ? ` <span class="savedmark" title="Gemerkt">${svg('heart', '')}</span>` : ''}</h3><span class="meta">${esc(TOPIC_LABEL[o.topic] || '')}${o.venue ? ' · ' + esc(o.venue) : ''}${d != null ? ' · ' + fmtDist(d) : ''}</span>
+    <span class="mini${fits === true ? ' fit' : ''}">${fits === true ? '<span class="fitchip">passt zu euch</span>' : ''}${n ? `<span class="visitchip">${n === 1 ? 'wart ihr schon' : n + '× dabei'}</span>` : ''}${tags}</span></span><span></span>`;
+  return o.id ? `<li><button type="button" class="item offer" data-offer="${o.id}">${inner}</button></li>` : `<li><div class="item offer">${inner}</div></li>`;
 }
 
 // ---------- Map ----------
@@ -818,6 +821,8 @@ async function renderPanel() {
   else if (v.type === 'sos') body.innerHTML = sosView(v.kind);
   else if (v.type === 'events') body.innerHTML = eventsView();
   else if (v.type === 'favs') body.innerHTML = favsView();
+  else if (v.type === 'offer') body.innerHTML = offerView(v.id);
+  else if (v.type === 'evfilters') body.innerHTML = evFiltersView();
   else if (v.type === 'me') body.innerHTML = savedView();
   else if (v.type === 'rate') { body.innerHTML = rateView(v.id); bindRate(v.id); }
   else if (v.type === 'report') body.innerHTML = reportView(v.id);
@@ -892,7 +897,7 @@ function cardView(id) {
       <span class="meta">${esc(CAT_LABEL[p.cat] || '')}${ot ? ' · ' + ot : ''}${state.me ? ' · ' + fmtDist(d) : ''}</span>${yes ? `<span class="mini">${yes}</span>` : ''}</span></button>
     <button type="button" class="round" data-home="peek" aria-label="Schließen">${svg('close')}</button></div>
     <div class="pinacts"><a class="btn primary" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lon}&travelmode=walking" target="_blank" rel="noopener">${svg('route')}Route</a>
-      <button type="button" class="btn${fav ? ' on' : ''}" data-fav="${id}" aria-label="${fav ? 'Favorit' : 'Merken'}">${svg('heart')}</button>
+      <button type="button" class="btn${fav ? ' on' : ''}" data-fav="${id}" aria-label="${fav ? 'Gemerkt' : 'Merken'}">${svg('heart')}</button>
       <button type="button" class="btn" data-detail="${id}">Details</button></div>`;
 }
 const CUISINE = { italian: 'Italienisch', pizza: 'Pizza', pasta: 'Pasta', asian: 'Asiatisch', german: 'Deutsch', regional: 'Regional', kebab: 'Döner', burger: 'Burger', sushi: 'Sushi', vietnamese: 'Vietnamesisch', greek: 'Griechisch', turkish: 'Türkisch', indian: 'Indisch', chinese: 'Chinesisch', japanese: 'Japanisch', korean: 'Koreanisch', thai: 'Thailändisch', coffee_shop: 'Kaffee', cake: 'Kuchen', ice_cream: 'Eis', sandwich: 'Sandwiches', fish: 'Fisch', seafood: 'Meeresfrüchte', portuguese: 'Portugiesisch', french: 'Französisch', spanish: 'Spanisch', mexican: 'Mexikanisch', international: 'International', breakfast: 'Frühstück', steak_house: 'Steak', salad: 'Salat', mediterranean: 'Mediterran', american: 'Amerikanisch', arab: 'Arabisch', persian: 'Persisch', bagel: 'Bagels', crepe: 'Crêpes', tapas: 'Tapas' };
@@ -948,7 +953,7 @@ async function detailView(id) {
     </div></div>
     <div class="acts">
       <a class="act primary" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lon}&travelmode=walking" target="_blank" rel="noopener">${svg('route')}Route</a>
-      <button type="button" class="act${fav ? ' on' : ''}" data-fav="${id}">${svg('heart')}${fav ? 'Favorit' : 'Merken'}</button>
+      <button type="button" class="act${fav ? ' on' : ''}" data-fav="${id}">${svg('heart')}${fav ? 'Gemerkt' : 'Merken'}</button>
       <button type="button" class="act" data-share="${id}">${svg('share')}Teilen</button>
       <button type="button" class="act" data-addinfo="${id}">${svg('edit')}Ergänzen</button>
     </div>
@@ -989,7 +994,7 @@ function placeOffersHtml(id) {
   const list = (offersByPlace.get(id) || []).map(o => [nextDate(o), o]).filter(([d]) => d).sort((a, b) => a[0] - b[0]);
   if (!list.length) return '';
   const fitsFirst = list.sort((a, b) => (offerFits(b[1]) === true) - (offerFits(a[1]) === true) || a[0] - b[0]);
-  return `<div class="sec"><h4>Gruppen & Kurse</h4><ol class="list">${fitsFirst.slice(0, 8).map(([d, o]) => offerItem(o, d).replace('class="item offer" data-id', `class="item offer" data-offerurl="${esc(o.url)}" data-x`)).join('')}</ol>
+  return `<div class="sec"><h4>Gruppen & Kurse</h4><ol class="list">${fitsFirst.slice(0, 8).map(([d, o]) => offerItem(o, d)).join('')}</ol>
     ${list.length > 8 ? `<p class="note">und ${list.length - 8} weitere</p>` : ''}<p class="note">Anmeldung und aktuelle Infos beim Anbieter.</p></div>`;
 }
 function bindDetail(id) { /* actions handled by the global click handler */ }
@@ -1330,38 +1335,211 @@ const EXAMPLE_EVENTS = [
   { d: nextDow(0), time: '11:00', title: 'Familienkonzert: Klassik für Kleine', where: 'Konzertsaal', kind: 'Musik' },
   { d: nextDow(6, 1), time: '09:00–14:00', title: 'Kinderkleiderbasar Herbst/Winter', where: 'Winterhude', kind: 'Flohmarkt' },
 ];
+// ---------- Termine: time range, filters, Merken, visits, calendar ----------
+// Kept while the app is open, so a look at one offer does not reset the list.
+const EV = { range: '', from: '', to: '', art: '', f: new Set(), topics: new Set(), fam: null, limit: 60 };
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+const fmtLong = d => d.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
+function rangeOf(id = EV.range) {
+  const t = today0(), w = dayIdx(t);
+  if (id === 'heute') return [t, t];
+  if (id === 'morgen') return [addDays(t, 1), addDays(t, 1)];
+  if (id === 'wochenende') return w === 6 ? [t, t] : [addDays(t, 5 - Math.min(w, 5)), addDays(t, 6 - w)];
+  if (id === 'woche') return [t, addDays(t, 6 - w)];
+  if (id === 'naechste') return [addDays(t, 7 - w), addDays(t, 13 - w)];
+  if (id === 'ferien') { const b = nextBreak(); return b ? [b.running ? t : b.from, b.to] : null; }
+  if (id === 'eigen' && EV.from) { const a = new Date(EV.from + 'T00:00'), b = EV.to ? new Date(EV.to + 'T00:00') : a; return [a < t ? t : a, b < a ? a : b]; }
+  return null;
+}
+// first day in [a, b] the offer takes place
+function firstIn(o, a, b) {
+  for (let d = new Date(a), i = 0; d <= b && i < 200; d.setDate(d.getDate() + 1), i++) if (occursOn(o, d)) return new Date(d);
+  return null;
+}
+// weekly offers with more than one date (a group that meets once is not recurring)
+const isRecurring = o => o.kind !== 'termin' && o.weekday != null && !(o.start_date && o.start_date === o.end_date);
+const hourOf = o => o.time_from ? +o.time_from.slice(0, 2) : null;
+const ageIs = (x, y) => o => (o.age_min_m != null || o.age_max_m != null) && (o.age_min_m ?? 0) < y && (o.age_max_m ?? 999) > x;
+// Sections: inside one section any choice may match, across sections all must.
+const EV_FILTERS = [
+  { title: 'Uhrzeit', any: true, items: [['vormittag', 'Vormittags', o => hourOf(o) != null && hourOf(o) < 12], ['mittag', 'Mittags', o => hourOf(o) >= 12 && hourOf(o) < 15],
+    ['nachmittag', 'Nachmittags', o => hourOf(o) >= 15 && hourOf(o) < 18], ['abend', 'Abends', o => hourOf(o) >= 18]] },
+  { title: 'Für wen', any: true, items: [['kinder', 'Für Kinder', o => o.audience === 'kinder'], ['erwachsene', 'Für Erwachsene', o => o.audience === 'erwachsene']] },
+  { title: 'Alter', any: true, note: 'Nur Termine, bei denen der Anbieter ein Alter nennt.', items: [['a0', 'unter 1 Jahr', ageIs(0, 12)], ['a1', '1–3 Jahre', ageIs(12, 36)], ['a3', '3–6 Jahre', ageIs(36, 72)], ['a6', '6–10 Jahre', ageIs(72, 120)], ['a10', 'ab 10 Jahren', ageIs(120, 216)]] },
+  { title: 'Kosten und Anmeldung', items: [['frei', 'Kostenlos', o => o.free === 1], ['offen', 'Ohne Anmeldung', o => o.registration === 'offen']] },
+  { title: 'Für uns', items: [['neu', 'Waren wir noch nicht', o => !visitsOf(o.id).length, () => Object.keys(store.visits).length > 0], ['gemerkt', 'Nur Gemerkte', o => isSaved(o.id)]] },
+];
+const EV_LABEL = Object.fromEntries(EV_FILTERS.flatMap(s => s.items.map(([id, l]) => [id, l])));
+function evPass(o, skip) {
+  for (const sec of EV_FILTERS) {
+    if (sec === skip) continue;
+    const on = sec.items.filter(([id]) => EV.f.has(id));
+    if (on.length && !(sec.any ? on.some(([, , fn]) => fn(o)) : on.every(([, , fn]) => fn(o)))) return false;
+  }
+  return skip === 'topic' || !EV.topics.size || EV.topics.has(o.topic);
+}
+// offers in the chosen time range (or the next 8 weeks), area, kind and family fit, before the sheet filters
+function evBase() {
+  const t = today0(), r = rangeOf(), fam = EV.fam ?? hasFamily();
+  const own = store.events.map(e => ({ title: e.title, kind: 'termin', start_date: e.date, time_from: e.time, lat: e.lat, lon: e.lon, venue: 'von dir eingetragen', topic: 'sonstiges', own: true }));
+  let list = OFFERS.concat(own).map(o => [r ? firstIn(o, r[0], r[1]) : nextDate(o), o]).filter(([d]) => d && (r || d - t < 56 * 864e5));
+  list = list.filter(([, o]) => o.own || offerInArea(o));
+  if (EV.art) list = list.filter(([, o]) => o.kind === EV.art);
+  if (fam && hasFamily() && !EV.f.has('erwachsene')) list = list.filter(([, o]) => offerFits(o) !== false);
+  return list;
+}
+function rangeText() {
+  const r = rangeOf();
+  if (!r) return 'Gruppen, Kurse und Veranstaltungen in den nächsten 8 Wochen';
+  return +r[0] === +r[1] ? 'am ' + fmtLong(r[0]) : `${fmtLong(r[0])} bis ${fmtLong(r[1])}`;
+}
 function eventsView() {
-  const v = view(), when = v.when || '', art = v.art || '', aud = v.aud || '', fam = v.fam ?? hasFamily(), day = v.date ? new Date(v.date + 'T00:00') : null;
-  const t = today0(), sat = new Date(t); sat.setDate(t.getDate() + ((5 - dayIdx(t) + 7) % 7)); const sun = new Date(sat); sun.setDate(sat.getDate() + 1);
-  const own = store.events.map(e => ({ title: e.title, kind: 'termin', start_date: e.date, time_from: e.time, lat: e.lat, lon: e.lon, venue: 'von dir eingetragen', url: '#', topic: 'sonstiges' }));
-  let list = day ? OFFERS.concat(own).filter(o => occursOn(o, day)).map(o => [day, o])
-    : OFFERS.concat(own).map(o => [nextDate(o), o]).filter(([d]) => d && d - t < 56 * 864e5);
-  list = list.filter(([, o]) => o.venue === 'von dir eingetragen' || offerInArea(o));
-  if (!day && when === 'heute') list = list.filter(([d]) => +d === +t);
-  if (!day && when === 'wochenende') list = list.filter(([d]) => +d === +sat || +d === +sun);
-  if (art) list = list.filter(([, o]) => o.kind === art);
-  if (aud) list = list.filter(([, o]) => o.audience === aud);
-  if (fam && hasFamily() && aud !== 'erwachsene') list = list.filter(([, o]) => offerFits(o) !== false);
-  const o0 = origin();
+  const base = evBase(), o0 = origin();
+  const list = base.filter(([, o]) => o.own || evPass(o));
   const near = o => { const pl = o.place_id && byId.get(o.place_id); return pl ? dist(o0, [pl.lat, pl.lon]) : o.lat ? dist(o0, [o.lat, o.lon]) : 9e9; };
   list.sort((a, b) => a[0] - b[0] || near(a[1]) - near(b[1]));
-  const chipRow = (key, cur, items) => items.map(([id, l]) => `<button type="button" class="chip${cur === id ? ' on' : ''}" data-ef="${key}" data-efv="${id}">${l}</button>`).join('');
-  const whenChips = day ? '' : chipRow('when', when, [['heute', 'Heute'], ['wochenende', 'Wochenende']]);
-  const artChips = chipRow('art', art, [['gruppe', 'Offene Gruppen'], ['kurs', 'Kurse'], ['termin', 'Veranstaltungen']]);
-  const audChips = chipRow('aud', aud, [['kinder', 'Für Kinder'], ['erwachsene', 'Für Erwachsene']]);
-  const kids = familyAges();
-  return `${head('Termine', day ? 'am ' + day.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' }) : 'Gruppen, Kurse und Veranstaltungen in den nächsten 8 Wochen', false)}
-    <div class="datepick"><label for="evDate">${svg('cal')}Datum</label><input id="evDate" type="date" value="${esc(v.date || '')}" min="${ymd(t)}">${v.date ? `<button type="button" class="round" data-evdateclear="1" aria-label="Datum zurücksetzen">${svg('close')}</button>` : ''}
-      <button type="button" class="tool${state.area.type !== 'all' ? ' on' : ''}" data-open="area">${svg('pin')}<span>${esc(areaLabel())}</span></button></div>
-    ${schoolHoliday(day || t) ? `<p class="note" style="margin:0 0 10px">${esc(schoolHoliday(day || t))}: Viele Kurse pausieren, bitte beim Anbieter nachsehen.</p>` : ''}
-    <div class="row evrow">${whenChips}${whenChips ? '<i class="sep"></i>' : ''}${audChips}</div>
-    <div class="row evrow">${artChips}</div>
+  const b = nextBreak(), t = today0();
+  const ranges = [['heute', 'Heute'], ['morgen', 'Morgen'], ['wochenende', 'Wochenende'], ['woche', 'Diese Woche'], ['naechste', 'Nächste Woche']]
+    .concat(b && (b.running || b.days <= 56) ? [['ferien', b.name.replace(/ ?\d{4}.*$/, '')]] : []).concat([['eigen', 'Zeitraum …']]);
+  const chip = (attr, on, label) => `<button type="button" class="chip${on ? ' on' : ''}" ${attr}>${label}</button>`;
+  const nf_ = EV.f.size + EV.topics.size;
+  const active = [...EV.f].map(id => chip(`data-evf="${id}"`, true, esc(EV_LABEL[id]) + ' ' + svg('close'))).concat([...EV.topics].map(id => chip(`data-evtopic="${id}"`, true, esc(TOPIC_LABEL[id]) + ' ' + svg('close'))));
+  const kids = familyAges(), fam = EV.fam ?? hasFamily();
+  return `${head('Termine', esc(rangeText()), false)}
+    <div class="row evrow">${ranges.map(([id, l]) => chip(`data-er="${id}"`, EV.range === id, esc(l))).join('')}</div>
+    ${EV.range === 'eigen' ? `<div class="evrange"><label>von <input id="evFrom" type="date" value="${esc(EV.from)}" min="${ymd(t)}"></label><label>bis <input id="evTo" type="date" value="${esc(EV.to)}" min="${esc(EV.from || ymd(t))}"></label></div>` : ''}
+    <div class="row evrow">${[['gruppe', 'Regelmäßige Gruppen'], ['kurs', 'Kurse'], ['termin', 'Einzeltermine']].map(([id, l]) => chip(`data-ef="${id}"`, EV.art === id, l)).join('')}</div>
+    <div class="tools"><button type="button" class="tool${state.area.type !== 'all' ? ' on' : ''}" data-open="area">${svg('pin')}<span>${esc(areaLabel())}</span></button>
+      <button type="button" class="tool${nf_ ? ' on' : ''}" data-open="evfilters">${svg('filter')}<span>Filter${nf_ ? ' · ' + nf_ : ''}</span></button></div>
+    ${active.length ? `<div class="active">${active.join('')}</div>` : ''}
     ${hasFamily() ? `<label class="switch" for="famSwitch" style="margin:0 0 10px">Nur passend für ${esc(kids.map(k => `${k.name} (${kidLabel(k.months)})`).join(', ') || 'unser Baby')} <input type="checkbox" id="famSwitch" ${fam ? 'checked' : ''}></label>` : ''}
-    ${ferienCard(14, true)}
-    ${list.length ? `<ol class="list">${list.slice(0, v.limit || 60).map(([d, o]) => offerItem(o, d)).join('')}</ol>${list.length > (v.limit || 60) ? '<button type="button" class="more" data-emore="1">Mehr anzeigen</button>' : ''}`
-      : `<div class="empty"><b>${OFFERS.length ? 'Nichts gefunden.' : 'Noch keine Termine geladen.'}</b>${OFFERS.length ? 'Probier einen anderen Filter.' : ''}</div>`}
+    ${EV.range === 'ferien' ? '' : ferienCard(14, true)}
+    ${schoolHoliday(rangeOf()?.[0] || t) ? `<p class="note" style="margin:0 0 10px">${esc(schoolHoliday(rangeOf()?.[0] || t))}: Viele Kurse pausieren, bitte beim Anbieter nachsehen.</p>` : ''}
+    <p class="note" style="margin:0 0 6px">${nf.format(list.length)} ${list.length === 1 ? 'Termin' : 'Termine'}</p>
+    ${list.length ? `<ol class="list">${list.slice(0, EV.limit).map(([d, o]) => offerItem(o, d)).join('')}</ol>${list.length > EV.limit ? '<button type="button" class="more" data-emore="1">Mehr anzeigen</button>' : ''}`
+      : `<div class="empty"><b>${OFFERS.length ? 'Nichts gefunden.' : 'Noch keine Termine geladen.'}</b>${OFFERS.length ? 'Probier einen anderen Zeitraum oder weniger Filter.' : ''}</div>`}
     <button type="button" class="btn" data-addevent="1" style="margin-top:14px">${svg('plus')}Veranstaltung eintragen</button>
     <p class="note">Quellen: Eltern-Kind-Zentren, Elternschulen, Familienbildung, Bücherhallen, Bäderland u. a. Anmeldung immer beim Anbieter.</p>`;
+}
+function evFiltersView() {
+  const base = evBase().filter(([, o]) => !o.own);
+  const block = sec => {
+    const pool = base.filter(([, o]) => evPass(o, sec));
+    const items = sec.items.filter(([id, , , show]) => !show || show() || EV.f.has(id)).map(([id, l, fn]) => [id, l, pool.filter(([, o]) => fn(o)).length]).filter(([id, , n]) => n || EV.f.has(id));
+    return items.length ? `<div class="sec"><h4>${sec.title}</h4><div class="fgrid">${items.map(([id, l, n]) => `<button type="button" class="chip${EV.f.has(id) ? ' on' : ''}" data-evf="${id}">${esc(l)} <span class="n">${nf.format(n)}</span></button>`).join('')}</div>${sec.note ? `<p class="note">${sec.note}</p>` : ''}</div>` : '';
+  };
+  const tpool = base.filter(([, o]) => evPass(o, 'topic')), tn = {};
+  for (const [, o] of tpool) tn[o.topic] = (tn[o.topic] || 0) + 1;
+  const topics = Object.keys(TOPIC_LABEL).filter(k => k !== 'sonstiges' && (tn[k] || EV.topics.has(k))).sort((a, b) => (tn[b] || 0) - (tn[a] || 0));
+  const total = base.filter(([, o]) => evPass(o)).length;
+  return `${head('Filter für Termine', esc(rangeText()))}
+    ${EV_FILTERS.map(block).join('')}
+    ${topics.length ? `<div class="sec"><h4>Thema</h4><div class="fgrid">${topics.map(k => `<button type="button" class="chip${EV.topics.has(k) ? ' on' : ''}" data-evtopic="${k}">${esc(TOPIC_LABEL[k])} <span class="n">${nf.format(tn[k] || 0)}</span></button>`).join('')}</div></div>` : ''}
+    <div class="sticky-bar"><button type="button" class="btn" data-evreset="1">Zurücksetzen</button><button type="button" class="btn big primary" data-back="1">${nf.format(total)} Termine zeigen</button></div>`;
+}
+
+// Merken and "waren wir schon" for offers; a snapshot keeps a saved offer readable after it leaves the data.
+const isSaved = id => store.savedOffers.some(x => x.id === id);
+const visitsOf = id => store.visits[id] || [];
+function toggleSaved(id) {
+  const i = store.savedOffers.findIndex(x => x.id === id);
+  if (i >= 0) store.savedOffers.splice(i, 1);
+  else { const o = OFFER_BY_ID.get(id); store.savedOffers.push({ id, at: Date.now(), snap: { title: o.title, url: o.url, venue: o.venue, start_date: o.start_date } }); }
+  save(); toast(i >= 0 ? 'Nicht mehr gemerkt.' : 'Gemerkt. Du findest es unter „Gemerkt“.');
+}
+// all dates in the next months, for the offer page
+function upcoming(o, max = 6) {
+  const out = [], t = today0();
+  for (let d = new Date(t), i = 0; i < 200 && out.length < max; d.setDate(d.getDate() + 1), i++) if (occursOn(o, d)) out.push(new Date(d));
+  return out;
+}
+const REG_TEXT = { 'nötig': 'Anmeldung nötig', offen: 'Ohne Anmeldung', Warteliste: 'Warteliste', geschlossen: 'Anmeldung geschlossen' };
+function offerView(id) {
+  const o = OFFER_BY_ID.get(id);
+  if (!o) {
+    const s = store.savedOffers.find(x => x.id === id);
+    return `${head('Termin')}<div class="empty"><b>Diesen Termin finden wir nicht mehr.</b>Vielleicht ist er vorbei oder wurde abgesagt.</div>
+      ${s ? `<p class="text">${esc(s.snap.title)}</p><a class="btn" href="${esc(s.snap.url)}" target="_blank" rel="noopener">Beim Anbieter nachsehen</a>
+      <button type="button" class="btn" data-saveoffer="${esc(id)}" style="margin-top:8px">Nicht mehr merken</button>` : ''}`;
+  }
+  const v = view(), place = o.place_id && byId.get(o.place_id), dates = upcoming(o), saved = isSaved(id), visits = visitsOf(id), fits = offerFits(o);
+  const d = state.me && (place || o.lat) ? dist(origin(), place ? [place.lat, place.lon] : [o.lat, o.lon]) : null;
+  const time = o.time_from ? `${o.time_from}${o.time_to ? '–' + o.time_to : ''} Uhr` : 'Uhrzeit beim Anbieter';
+  const who = o.audience === 'erwachsene' ? 'Für Erwachsene' : ageLabel(o.age_min_m, o.age_max_m) ? 'Für Kinder ' + ageLabel(o.age_min_m, o.age_max_m) : 'Alter beim Anbieter nachsehen';
+  return `<div class="ph"><button type="button" class="round" data-back="1" aria-label="Zurück">${svg('back')}</button><span style="flex:1"></span>
+      <button type="button" class="round" data-home="1" aria-label="Schließen">${svg('close')}</button></div>
+    <div class="hero"><span class="datebox"><b>${dates[0] ? esc(fmtDay(dates[0])) : '–'}</b><span>${esc(o.time_from || '')}</span></span><div style="min-width:0">
+      <h2 style="margin:0;font:600 23px/1.15 var(--font-display);text-wrap:balance">${esc(o.title)}</h2>
+      <div class="status-line"><span>${esc(TOPIC_LABEL[o.topic] || '')}${o.provider ? ' · ' + esc(o.provider) : ''}</span></div></div></div>
+    <div class="acts">
+      <button type="button" class="act${saved ? ' on' : ''}" data-saveoffer="${id}">${svg('heart')}${saved ? 'Gemerkt' : 'Merken'}</button>
+      <button type="button" class="act${v.cal ? ' on' : ''}" data-calmenu="1">${svg('cal')}Kalender</button>
+      <button type="button" class="act" data-shareoffer="${id}">${svg('share')}Teilen</button>
+      <button type="button" class="act${visits.length ? ' on' : ''}" data-visit="${id}">${svg('check')}${visits.length ? 'Wieder dabei' : 'Waren dabei'}</button>
+    </div>
+    ${v.cal ? `<div class="calmenu"><button type="button" class="btn" data-ics="${id}">${svg('cal')}Kalender-Datei (iPhone, Outlook, Android)</button>
+      <a class="btn" href="${esc(gcalUrl(o))}" target="_blank" rel="noopener">${svg('cal')}Google Kalender</a>
+      <p class="note">Tipp: Lege in deinem Kalender einen Kalender „Familie“ an und wähle ihn beim Eintragen aus. Djuu speichert dabei nichts.</p></div>` : ''}
+    ${visits.length ? `<p class="note">${visits.length === 1 ? 'Ihr wart schon dabei' : `Ihr wart ${visits.length}× dabei`}, zuletzt eingetragen am ${esc(new Date(visits[visits.length - 1] + 'T00:00').toLocaleDateString('de-DE', { day: 'numeric', month: 'long' }))}. <button type="button" class="linkbtn" data-unvisit="${id}">Letzten Eintrag löschen</button></p>` : ''}
+    <div class="sec"><h4>Wann</h4><p class="text"><b>${esc(time)}</b>${o.kind === 'gruppe' ? (isRecurring(o) ? ' · regelmäßige Gruppe' : ' · offenes Treffen') : o.kind === 'kurs' ? ` · Kurs${o.sessions ? ', ' + o.sessions + ' Termine' : ''}` : ''}</p>
+      ${dates.length ? `<p class="text">${dates.map(x => esc(fmtLong(x))).join('<br>')}${o.kind !== 'termin' && dates.length === 6 ? '<br>und weitere' : ''}</p>` : '<p class="muted text">Keine weiteren Termine bekannt.</p>'}
+      ${o.schedule ? `<p class="note">Laut Anbieter: ${esc(o.schedule)}</p>` : ''}</div>
+    <div class="sec"><h4>Wo</h4><p class="text">${esc(o.venue || '')}${o.address ? `<br>${esc(o.address)}` : ''}${d != null ? `<br><span class="muted">${fmtDist(d)} von dir</span>` : ''}</p>
+      ${place ? `<button type="button" class="btn" data-id="${place.id}">${svg('pin')}Auf der Karte</button>` : ''}</div>
+    <div class="sec"><h4>Für wen</h4><p class="text">${esc(who)}${fits === true ? ' · <b class="yes">passt zu euch</b>' : ''}</p></div>
+    <div class="sec"><h4>Kosten und Anmeldung</h4><p class="text">${o.free ? 'Kostenlos' : o.price ? esc(o.price) : 'Preis beim Anbieter'}${o.registration ? ' · ' + esc(REG_TEXT[o.registration] || o.registration) : ''}</p></div>
+    <a class="btn big primary" href="${esc(o.url)}" target="_blank" rel="noopener" style="margin-top:16px">Zum Anbieter${o.registration === 'nötig' ? ' und anmelden' : ''}</a>
+    <p class="note">Angaben vom Anbieter, ohne Gewähr. Änderungen und Absagen erfährst du dort.</p>`;
+}
+
+// Calendar: a file any calendar app can import, or Google's own form. Weekly groups repeat, at most 12 weeks.
+const BYDAY = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'];
+const icsText = s => String(s || '').replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/([,;])/g, '\\$1');
+const compact = d => ymd(d).replace(/-/g, '');
+function calParts(o) {
+  const day = nextDate(o) || today0(), hm = s => s.replace(':', '') + '00';
+  const end = o.time_to && o.time_to > (o.time_from || '') ? o.time_to : o.time_from ? `${String(Math.min(23, +o.time_from.slice(0, 2) + 1)).padStart(2, '0')}${o.time_from.slice(2)}` : null;
+  let rrule = null;
+  if (isRecurring(o)) {
+    const cap = addDays(day, 7 * 11), until = o.end_date && new Date(o.end_date + 'T00:00') < cap ? new Date(o.end_date + 'T00:00') : cap;
+    rrule = `FREQ=WEEKLY;BYDAY=${BYDAY[o.weekday]};UNTIL=${compact(until)}${o.time_from ? 'T225959Z' : ''}`;
+  }
+  const desc = [o.provider, o.free ? 'Kostenlos' : o.price, REG_TEXT[o.registration], o.url, rrule && !o.end_date ? 'Wiederholung von Djuu auf 12 Wochen begrenzt.' : '', 'Ohne Gewähr, bitte beim Anbieter prüfen.'].filter(Boolean).join('\n');
+  return { day, start: o.time_from ? `${compact(day)}T${hm(o.time_from)}` : compact(day), end: end ? `${compact(day)}T${hm(end)}` : compact(addDays(day, 1)), timed: !!o.time_from, rrule, desc, where: [o.venue, o.address].filter(Boolean).join(', ') };
+}
+function gcalUrl(o) {
+  const c = calParts(o), q = new URLSearchParams({ action: 'TEMPLATE', text: o.title, dates: `${c.start}/${c.end}`, details: c.desc, location: c.where });
+  if (c.timed) q.set('ctz', 'Europe/Berlin');
+  if (c.rrule) q.set('recur', 'RRULE:' + c.rrule);
+  return 'https://calendar.google.com/calendar/render?' + q;
+}
+function icsFile(list) {
+  const stamp = new Date().toISOString().replace(/[-:]/g, '').slice(0, 15) + 'Z';
+  const fold = l => { const out = []; while (l.length > 60) { out.push(l.slice(0, 60)); l = ' ' + l.slice(60); } out.push(l); return out.join('\r\n'); };
+  const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Djuu//Termine//DE', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
+    'BEGIN:VTIMEZONE', 'TZID:Europe/Berlin', 'BEGIN:DAYLIGHT', 'TZOFFSETFROM:+0100', 'TZOFFSETTO:+0200', 'TZNAME:CEST', 'DTSTART:19700329T020000', 'RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU', 'END:DAYLIGHT',
+    'BEGIN:STANDARD', 'TZOFFSETFROM:+0200', 'TZOFFSETTO:+0100', 'TZNAME:CET', 'DTSTART:19701025T030000', 'RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU', 'END:STANDARD', 'END:VTIMEZONE'];
+  for (const o of list) {
+    const c = calParts(o), tz = c.timed ? ';TZID=Europe/Berlin' : ';VALUE=DATE';
+    lines.push('BEGIN:VEVENT', `UID:${o.id}@djuu`, `DTSTAMP:${stamp}`, `DTSTART${tz}:${c.start}`, `DTEND${tz}:${c.end}`, `SUMMARY:${icsText(o.title)}`,
+      `LOCATION:${icsText(c.where)}`, `DESCRIPTION:${icsText(c.desc)}`, `URL:${o.url}`);
+    if (c.rrule) lines.push('RRULE:' + c.rrule);
+    lines.push('END:VEVENT');
+  }
+  lines.push('END:VCALENDAR');
+  return lines.map(fold).join('\r\n') + '\r\n';
+}
+function downloadIcs(list, name) {
+  const url = URL.createObjectURL(new Blob([icsFile(list)], { type: 'text/calendar;charset=utf-8' }));
+  const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  toast('Kalender-Datei erstellt. Öffne sie, um die Termine einzutragen.');
+}
+function shareOffer(id) {
+  const o = OFFER_BY_ID.get(id), d = nextDate(o), url = location.origin + location.pathname + '#o=' + id;
+  const text = `${o.title}${d ? ', ' + fmtDay(d) : ''}${o.time_from ? ' ' + o.time_from + ' Uhr' : ''}${o.venue ? ', ' + o.venue : ''}`;
+  if (navigator.share) navigator.share({ title: o.title, text, url }).catch(() => {});
+  else navigator.clipboard?.writeText(text + ' ' + url).then(() => toast('Link kopiert.'), () => toast(url));
 }
 // does the offer take place on this day? (single date, weekly group within its run, or course period)
 function occursOn(o, day) {
@@ -1373,9 +1551,15 @@ function occursOn(o, day) {
 function favsView() {
   const o = origin();
   const ps = store.favorites.map(id => byId.get(id)).filter(Boolean);
-  return `${head('Favoriten', 'Nur auf diesem Gerät gespeichert', false)}
-    ${ps.length ? `<ol class="list">${ps.map(p => itemHtml(p, dist(o, [p.lat, p.lon]))).join('')}</ol>`
-    : `<div class="empty">Noch keine Favoriten. Tippe bei einem Ort auf das Herz.</div>`}`;
+  const offers = store.savedOffers.map(s => [OFFER_BY_ID.get(s.id), s]);
+  const live = offers.filter(([x]) => x && nextDate(x)).map(([x]) => [nextDate(x), x]).sort((a, b) => a[0] - b[0]);
+  const gone = offers.filter(([x]) => !x || !nextDate(x));
+  return `${head('Gemerkt', 'Nur auf diesem Gerät gespeichert', false)}
+    ${!ps.length && !offers.length ? '<div class="empty"><b>Noch nichts gemerkt.</b>Tippe bei Terminen und Orten auf das Herz, dann sammelt sich hier alles Interessante.</div>' : ''}
+    ${live.length ? `<div class="sec"><h4>Termine</h4><ol class="list">${live.map(([d, x]) => offerItem(x, d)).join('')}</ol>
+      ${live.length > 1 ? `<button type="button" class="btn" data-ics="saved" style="margin-top:8px">${svg('cal')}Alle ${live.length} in den Kalender</button>` : ''}</div>` : ''}
+    ${gone.length ? `<div class="sec"><h4>Vorbei oder nicht mehr gefunden</h4><ol class="list">${gone.map(([x, s]) => `<li><button type="button" class="item offer" data-offer="${esc(s.id)}"><span class="datebox"><b>–</b></span><span><h3>${esc(s.snap.title)}</h3><span class="meta">${esc(s.snap.venue || '')}</span></span><span></span></button></li>`).join('')}</ol></div>` : ''}
+    ${ps.length ? `<div class="sec"><h4>Orte</h4><ol class="list">${ps.map(p => itemHtml(p, dist(o, [p.lat, p.lon]))).join('')}</ol></div>` : ''}`;
 }
 // ---------- Holiday ideas: what fits the next school break, the season and the children's ages ----------
 const fmtD = d => d.toLocaleDateString('de-DE', { day: 'numeric', month: 'long' });
@@ -1636,7 +1820,7 @@ const TABS = [
   { id: 'map', label: 'Karte', icon: 'map' },
   { id: 'search', label: 'Suchen', icon: 'search' },
   { id: 'events', label: 'Termine', icon: 'cal' },
-  { id: 'favs', label: 'Favoriten', icon: 'heart' },
+  { id: 'favs', label: 'Gemerkt', icon: 'heart' },
   { id: 'me', label: 'Meins', icon: 'user' },
 ];
 function setTab(id) {
@@ -1664,6 +1848,7 @@ document.addEventListener('click', async e => {
   else if (ds.preset) { const p = PRESETS.find(x => x.id === ds.preset); state.preset = p.id; state.groups = new Set(p.groups); state.cats = new Set(p.cats || []); state.tags = new Set(p.tags || []); state.io = p.io || null; state.filters = new Set(p.filters); if (p.groups[0]) state.mode = GROUP[p.groups[0]].mode; state.level = 2; state.q = ''; state.sq = ''; refresh(); home('peek'); }
   else if (ds.open === 'filters') go({ type: 'filters' });
   else if (ds.open === 'area') go({ type: 'area' });
+  else if (ds.open === 'evfilters') go({ type: 'evfilters' });
   else if (ds.open === 'ferien') go({ type: 'ferien' });
   else if (ds.area === 'all') { setArea({ type: 'all' }, false); renderPanel(); }
   else if (ds.radius) { const a = state.area; setArea({ type: 'radius', r: +ds.radius, center: a.type === 'radius' ? a.center : state.me ? 'me' : [map.getCenter().lat, map.getCenter().lng] }); renderPanel(); }
@@ -1674,7 +1859,17 @@ document.addEventListener('click', async e => {
   else if (ds.drawundo) { state.drawing.pop(); drawArea(); renderPanel(); }
   else if (ds.drawcancel) { state.drawing = null; drawArea(); back(); }
   else if (ds.drawdone) { const pts = state.drawing; state.drawing = null; setArea({ type: 'poly', pts }); stack = [{ type: 'list' }]; renderPanel(); setSize(desktop() ? 'full' : 'half'); }
-  else if (ds.evdateclear) { view().date = ''; renderPanel(); }
+  else if (ds.er) { EV.range = EV.range === ds.er ? '' : ds.er; if (EV.range === 'eigen' && !EV.from) EV.from = ymd(today0()); EV.limit = 60; renderPanel(); }
+  else if (ds.evf) { toggle(EV.f, ds.evf); EV.limit = 60; renderPanel(); }
+  else if (ds.evtopic) { toggle(EV.topics, ds.evtopic); EV.limit = 60; renderPanel(); }
+  else if (ds.evreset) { EV.f.clear(); EV.topics.clear(); renderPanel(); }
+  else if (ds.offer) go({ type: 'offer', id: ds.offer }, 'full');
+  else if (ds.saveoffer) { toggleSaved(ds.saveoffer); renderPanel(); }
+  else if (ds.visit) { const k = ymd(today0()), l = store.visits[ds.visit] || (store.visits[ds.visit] = []); if (l[l.length - 1] !== k) l.push(k); save(); toast('Eingetragen: ihr wart dabei.'); renderPanel(); }
+  else if (ds.unvisit) { const l = store.visits[ds.unvisit] || []; l.pop(); if (!l.length) delete store.visits[ds.unvisit]; save(); renderPanel(); }
+  else if (ds.calmenu) { view().cal = !view().cal; renderPanel(); }
+  else if (ds.ics) { const list = ds.ics === 'saved' ? store.savedOffers.map(s => OFFER_BY_ID.get(s.id)).filter(o => o && nextDate(o)) : [OFFER_BY_ID.get(ds.ics)]; downloadIcs(list, ds.ics === 'saved' ? 'djuu-gemerkte-termine.ics' : 'djuu-termin.ics'); }
+  else if (ds.shareoffer) shareOffer(ds.shareoffer);
   else if (ds.clearq) { state.q = ''; state.sq = ''; refresh(); }
   else if (ds.mic) toggleMic();
   else if (ds.unk) { state.showUnknown = !state.showUnknown; refresh(); }
@@ -1689,7 +1884,7 @@ document.addEventListener('click', async e => {
     else if (ds.tab === 'add') startWizard();
     else { stack = [{ type: 'list' }]; go({ type: ds.tab }, 'full'); setTab(ds.tab); }
   }
-  else if (ds.fav) { const i = store.favorites.indexOf(ds.fav); i >= 0 ? store.favorites.splice(i, 1) : store.favorites.push(ds.fav); save(); toast(i >= 0 ? 'Aus den Favoriten entfernt.' : 'Zu den Favoriten hinzugefügt.'); renderPanel(); }
+  else if (ds.fav) { const i = store.favorites.indexOf(ds.fav); i >= 0 ? store.favorites.splice(i, 1) : store.favorites.push(ds.fav); save(); toast(i >= 0 ? 'Nicht mehr gemerkt.' : 'Gemerkt. Du findest es unter „Gemerkt“.'); renderPanel(); }
   else if (ds.share) {
     const p = byId.get(ds.share), url = location.origin + location.pathname + '#' + p.id;
     if (navigator.share) navigator.share({ title: p.name, text: p.name + ' auf Djuu', url }).catch(() => {});
@@ -1701,8 +1896,8 @@ document.addEventListener('click', async e => {
   else if (ds.reportplace) go({ type: 'report', id: ds.reportplace });
   else if (ds.reason) { view().reason = ds.reason; $('#panelBody').querySelectorAll('[data-reason]').forEach(b => b.classList.toggle('on', b === t)); $('#repErr').hidden = true; }
   else if (ds.reportsend) sendPlaceReport();
-  else if (ds.ef) { const v = view(); v[ds.ef] = v[ds.ef] === ds.efv ? '' : ds.efv; v.limit = 60; renderPanel(); }
-  else if (ds.emore) { view().limit = (view().limit || 60) + 60; renderPanel(); }
+  else if (ds.ef) { EV.art = EV.art === ds.ef ? '' : ds.ef; EV.limit = 60; renderPanel(); }
+  else if (ds.emore) { EV.limit += 60; renderPanel(); }
   else if (ds.offerurl) window.open(ds.offerurl, '_blank', 'noopener');
   else if (ds.mapstyle) { setMapStyle(ds.mapstyle); renderPanel(); toast(`Kartenstil: ${mapStyle().label}`); }
   else if (ds.wx) { if (ds.wx === 'rain') { state.io = state.io === 'drinnen' ? null : 'drinnen'; state.preset = null; refresh(); } else { const pr = PRESETS.find(x => x.id === 'hitze'); state.preset = pr.id; state.groups = new Set(pr.groups); state.tags = new Set(pr.tags); state.cats.clear(); state.level = 1; refresh(); home(desktop() ? 'full' : 'peek'); } }
@@ -1716,8 +1911,9 @@ document.addEventListener('input', e => { if (e.target.id === 'distQ') $('#distL
 document.addEventListener('change', e => {
   if (e.target.matches('[data-kid], #expecting')) saveProfileField(e.target);
   if (e.target.id === 'fedState') { store.profile.state = e.target.value; save(); loadBreaks().then(renderPanel); }
-  if (e.target.id === 'famSwitch') { view().fam = e.target.checked; renderPanel(); }
-  if (e.target.id === 'evDate') { view().date = e.target.value; view().limit = 60; renderPanel(); }
+  if (e.target.id === 'famSwitch') { EV.fam = e.target.checked; renderPanel(); }
+  if (e.target.id === 'evFrom') { EV.from = e.target.value; if (EV.to && EV.to < EV.from) EV.to = ''; EV.limit = 60; renderPanel(); }
+  if (e.target.id === 'evTo') { EV.to = e.target.value; EV.limit = 60; renderPanel(); }
 });
 $('#sos').innerHTML = svg('bolt');
 $('#sos').onclick = () => { stack = [{ type: 'list' }]; go({ type: 'sos' }, 'full'); locate(false); };
@@ -1793,6 +1989,7 @@ $('#panelBody').innerHTML = '<div class="ph"><h2>Lade Orte …</h2></div>';
     (window.requestIdleCallback || setTimeout)(searchIndex); // first search answers at once
     const hash = location.hash.slice(1);
     if (byId.has(hash)) { const p = byId.get(hash); map.setView([p.lat, p.lon], 17); showPlace(hash); }
+    else if (hash.startsWith('o=')) { setTab('events'); stack = [{ type: 'list' }, { type: 'events' }]; go({ type: 'offer', id: hash.slice(2) }, 'full'); }
     hideSplash();
   } catch (err) {
     hideSplash();

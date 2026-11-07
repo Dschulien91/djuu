@@ -478,3 +478,14 @@ h2, h3, h4, .ph h2, .item h3, .pinmain h3, .sec h4, .stylesec { font-family: var
 .evrow .sep { flex: none; width: 1px; align-self: stretch; margin: 6px 2px; background: var(--line); }
 .melinks { display: flex; flex-wrap: wrap; gap: 8px 18px; }
 .melinks a { padding: 10px 0; font-weight: 700; }
+
+/* v0.19 Termine */
+.evrange { display: flex; gap: 10px; flex-wrap: wrap; margin: 0 0 10px; }
+.evrange label { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; }
+.evrange input { border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; background: var(--surface); }
+.savedmark svg { width: 14px; height: 14px; fill: var(--brand); stroke: var(--brand); vertical-align: -2px; }
+.mini .visitchip { background: var(--lav, #F1ECFF); color: var(--brand); }
+.calmenu { display: grid; gap: 8px; margin: 4px 0 8px; }
+.calmenu .btn { justify-content: flex-start; }
+.hero .datebox { flex: none; }
+b.yes { color: var(--yes); }
