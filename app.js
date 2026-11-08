@@ -1,4 +1,4 @@
-/* Djuu v0.23 – family map for Hamburg.
+/* Djuu v0.24 – family map for Hamburg.
    The map owns the screen: one chip row floats on top, map buttons on the right, the sheet starts as a slim bar.
    The chip row drills down one level at a time: Erleben or Service, then categories, then the tags of a category.
    A tapped pin opens a small card; search and favorites live in the bottom bar. Default view: playgrounds.
@@ -7,7 +7,7 @@
    User input is stored on this device only until the server exists (server-ready shape, see STORE). */
 'use strict';
 
-const VERSION = '0.23';
+const VERSION = '0.24';
 const CONTACT = window.DJUU_CONTACT || {}; // config.js: reports and feedback stay hidden until an address is set
 // Logo on light backgrounds, as specified in the design PDF.
 const LOGO = `<span class="logo" role="img" aria-label="djuu"><span style="color:#6B4EE6">d</span><span style="color:#0E8F84">j</span><span style="color:#D6336C">u</span><span style="color:#CC6A00">u</span>
@@ -1406,6 +1406,7 @@ function eventsView() {
   const active = [...EV.f].map(id => chip(`data-evf="${id}"`, true, esc(EV_LABEL[id]) + ' ' + svg('close'))).concat([...EV.topics].map(id => chip(`data-evtopic="${id}"`, true, esc(TOPIC_LABEL[id]) + ' ' + svg('close'))));
   const kids = familyAges(), fam = EV.fam ?? hasFamily();
   return `${head('Termine', esc(rangeText()), false)}
+    ${freshHtml()}
     <div class="row evrow">${ranges.map(([id, l]) => chip(`data-er="${id}"`, EV.range === id, esc(l))).join('')}</div>
     ${EV.range === 'eigen' ? `<div class="evrange"><label>von <input id="evFrom" type="date" value="${esc(EV.from)}" min="${ymd(t)}"></label><label>bis <input id="evTo" type="date" value="${esc(EV.to)}" min="${esc(EV.from || ymd(t))}"></label></div>` : ''}
     <div class="row evrow">${[['gruppe', 'Regelmäßige Gruppen'], ['kurs', 'Kurse'], ['termin', 'Einzeltermine']].map(([id, l]) => chip(`data-ef="${id}"`, EV.art === id, l)).join('')}</div>
@@ -1601,6 +1602,14 @@ function ferienView() {
     <p class="note">${state === 'Hamburg' ? '' : 'Die Ferien gelten für euer Bundesland, die Orte liegen in Hamburg. '}Sortiert nach Djuu-Tipps und Entfernung${kids.length ? ', passend zum Alter, soweit bekannt' : ''}.</p>`;
 }
 const DATA_AT = { offers: null };
+// "Termine aktualisiert heute, 05:12 Uhr": when the events were last collected
+function freshText() {
+  if (!DATA_AT.offers) return '';
+  const d = new Date(DATA_AT.offers), days = Math.round((today0() - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 864e5);
+  const time = d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+  return days === 0 ? `heute, ${time} Uhr` : days === 1 ? `gestern, ${time} Uhr` : `am ${d.toLocaleDateString('de-DE', { day: 'numeric', month: 'long' })}`;
+}
+const freshHtml = () => DATA_AT.offers ? `<p class="fresh">${svg('check')}Termine aktualisiert ${esc(freshText())}</p>` : '';
 function savedView() {
   const pr = store.profile, now = new Date();
   const maxYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -1625,8 +1634,8 @@ function savedView() {
       <p class="note">Alle Kartenstile sind kostenlos und brauchen kein Konto. Die Wetteranzeige stammt vom Deutschen Wetterdienst über Bright Sky. Schulferien: Ferienordnung Hamburg, andere Bundesländer über OpenHolidays (ODbL). Die Spracheingabe in der Suche nutzt den Sprachdienst deines Browsers, dabei kann der Ton an dessen Anbieter gehen.</p>
     </div>
     <div class="sec"><h4>Über Djuu</h4>
-      <div class="melinks">${CONTACT.email ? `<a href="mailto:${esc(CONTACT.email)}?subject=${encodeURIComponent('Feedback zu Djuu')}">Feedback geben</a>` : ''}<a href="legal.html#impressum" target="_blank" rel="noopener">Impressum</a><a href="legal.html#datenschutz" target="_blank" rel="noopener">Datenschutz</a><a href="legal.html#daten" target="_blank" rel="noopener">Daten und Lizenzen</a></div>
-      <p class="note">${DATA_AT.offers ? `Termine zuletzt aktualisiert am ${esc(new Date(DATA_AT.offers).toLocaleDateString('de-DE', { day: 'numeric', month: 'long', year: 'numeric' }))}. ` : ''}Version ${VERSION}</p></div>
+      <div class="melinks">${CONTACT.email ? `<a href="mailto:${esc(CONTACT.email)}?subject=${encodeURIComponent('Feedback zu Djuu')}">Feedback geben</a>` : ''}<a href="legal.html#impressum" target="_blank" rel="noopener">Impressum</a><a href="legal.html#agb" target="_blank" rel="noopener">Nutzungsbedingungen</a><a href="legal.html#datenschutz" target="_blank" rel="noopener">Datenschutz</a><a href="legal.html#daten" target="_blank" rel="noopener">Daten und Lizenzen</a></div>
+      <p class="note">${DATA_AT.offers ? `Termine zuletzt aktualisiert ${esc(freshText())}. ` : ''}Version ${VERSION}</p></div>
 `;
 }
 function saveProfileField(el) {
@@ -1983,7 +1992,9 @@ $('#panelBody').innerHTML = '<div class="ph"><h2>Lade Orte …</h2></div>';
     for (const row of data.places) { const p = buildPlace(row); places.push(p); byId.set(p.id, p); }
     addUserPlaces();
     if (store.area && store.area.type) { state.area = store.area; drawArea(); if (state.area.center === 'me') locate(false); }
-    try { const ro = await fetch('data/offers.json'); if (ro.ok) { const od = await ro.json(); DATA_AT.offers = od.generated; loadOffers(od); } } catch (e) { /* offers optional */ }
+    // events are refreshed every night on the Djuu server; the copy shipped with the app is the fallback
+    const getOffers = async url => { const r = await fetch(url); if (!r.ok) throw new Error(r.status); return r.json(); };
+    try { const od = await getOffers(window.DJUU_API ? window.DJUU_API + '/data/offers.json' : 'data/offers.json').catch(() => getOffers('data/offers.json')); DATA_AT.offers = od.generated; loadOffers(od); } catch (e) { /* offers optional */ }
     refresh();
     renderPanel();
     (window.requestIdleCallback || setTimeout)(searchIndex); // first search answers at once

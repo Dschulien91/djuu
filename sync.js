@@ -375,7 +375,7 @@ function syncHtml() {
         ? `<form id="syCode" class="shadd"><input id="syCodeIn" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="Code aus der E-Mail" aria-label="Code"><button type="submit" class="btn primary"${SY.busy ? ' disabled' : ''}>Anmelden</button></form>
            <p class="note">Wir haben einen 6-stelligen Code an ${esc(SY.email)} geschickt. Er gilt 10 Minuten. Schau auch im Spam-Ordner. <button type="button" class="linkbtn" data-syback="1">Andere E-Mail</button></p>`
         : `<form id="syEmail" class="shadd"><input id="syEmailIn" type="email" autocomplete="email" placeholder="deine@email.de" aria-label="E-Mail"><button type="submit" class="btn primary"${SY.busy ? ' disabled' : ''}>Code senden</button></form>`}
-      ${err}<p class="note">Wir speichern nur, was ihr für die Familie eintragt. Details: <a href="legal.html#datenschutz" target="_blank" rel="noopener">Datenschutz</a>.</p></div>`;
+      ${err}<p class="note">Mit der Anmeldung gelten die <a href="legal.html#agb" target="_blank" rel="noopener">Nutzungsbedingungen</a>. Wir speichern nur, was ihr für die Familie eintragt: <a href="legal.html#datenschutz" target="_blank" rel="noopener">Datenschutz</a>.</p></div>`;
   }
   if (!auth.family) {
     return `<div class="sec syncbox"><h4>${SY.invite ? 'Familie beitreten' : 'Familie gründen'}</h4>

@@ -546,3 +546,6 @@ b.yes { color: var(--yes); }
 .pingbar[hidden] { display: none; }
 .pingbar div { display: flex; gap: 8px; flex-wrap: wrap; }
 .pingdot { width: 34px; height: 34px; border-radius: 50%; background: var(--c); color: #fff; border: 3px solid #fff; box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 35%, transparent), 0 2px 8px rgba(0,0,0,.3); display: grid; place-items: center; font: 700 15px var(--font-display); }
+/* v0.24 freshness */
+.fresh { display: flex; align-items: center; gap: 6px; margin: -4px 0 10px; font-size: 13px; font-weight: 700; color: var(--yes); }
+.fresh svg.i { width: 15px; height: 15px; }

@@ -1,7 +1,7 @@
-# Djuu API, strictly separated from Materialis on the same server:
+# Djuu on the Materialis server, strictly separated from Materialis:
 # - own network (djuu_net): Djuu cannot reach Materialis containers, Materialis cannot reach Djuu except through one port
 # - that port is bound to the host's address inside Materialis' network (172.18.0.1) only, never to the internet;
-#   Materialis' Caddy forwards the Djuu hostname there (one block in /root/app/Caddyfile)
+#   Materialis' Caddy forwards api.djuu.de there (one block in /root/app/Caddyfile)
 # - hard limits on memory, CPU, processes and log size so Djuu can never slow Materialis down
 services:
   api:
@@ -10,6 +10,7 @@ services:
     restart: unless-stopped
     volumes:
       - pb_data:/pb/pb_data
+      - ./public:/pb/pb_public:ro   # nightly events: https://api.djuu.de/data/offers.json
     networks:
       - djuu_net
     ports:
@@ -24,6 +25,26 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+  # nightly event refresh, started by /etc/cron.d/djuu-refresh through refresh.sh (not a running service)
+  refresh:
+    build: ./refresh
+    profiles: ["jobs"]
+    volumes:
+      - ./pipeline:/work
+    networks:
+      - djuu_net
+    mem_limit: 512m
+    cpus: 0.5
+    pids_limit: 100
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "2"
+
 volumes:
   pb_data: {}
 networks:
