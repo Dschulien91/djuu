@@ -214,7 +214,7 @@ function familyView() {
   const n = openItems().length, e = store.errands.filter(x => x.state !== 'gekauft').length;
   return `${head('Familie', typeof auth !== 'undefined' && auth?.family ? 'Geteilt mit ' + esc(auth.familyName || 'der Familie') : 'Bisher nur auf diesem Gerät', false)}
     <div class="famseg" role="tablist">${FAM_SEGS.map(([id, l]) => `<button type="button" role="tab" aria-selected="${seg === id}" class="${seg === id ? 'on' : ''}" data-famseg="${id}">${l}${id === 'einkauf' && n ? ` <span class="n">${n}</span>` : id === 'besorgungen' && e ? ` <span class="n">${e}</span>` : ''}</button>`).join('')}</div>
-    ${seg === 'einkauf' ? shopHtml() : seg === 'besorgungen' ? errandHtml() : `<div class="melogo">${LOGO}</div>${syncHtml()}${adultsHtml()}${savedView()}`}`;
+    ${seg === 'einkauf' ? shopHtml() : seg === 'besorgungen' ? errandHtml() : `<div class="melogo">${LOGO}</div>${meineInfosHtml()}${syncHtml()}${adultsHtml()}${savedView()}`}`;
 }
 
 // ---------- Interaction ----------

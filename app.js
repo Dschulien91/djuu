@@ -1,4 +1,4 @@
-/* Djuu v0.26 – family map for Hamburg.
+/* Djuu v0.27 – family map for Hamburg.
    The map owns the screen: one chip row floats on top, map buttons on the right, the sheet starts as a slim bar.
    The chip row drills down one level at a time: Erleben or Service, then categories, then the tags of a category.
    A tapped pin opens a small card; search and favorites live in the bottom bar. Default view: playgrounds.
@@ -7,7 +7,7 @@
    User input is stored on this device only until the server exists (server-ready shape, see STORE). */
 'use strict';
 
-const VERSION = '0.26';
+const VERSION = '0.27';
 const CONTACT = window.DJUU_CONTACT || {}; // config.js: reports and feedback stay hidden until an address is set
 // Logo on light backgrounds, as specified in the design PDF.
 const LOGO = `<span class="logo" role="img" aria-label="djuu"><span style="color:#6B4EE6">d</span><span style="color:#0E8F84">j</span><span style="color:#D6336C">u</span><span style="color:#CC6A00">u</span>
@@ -846,6 +846,7 @@ async function renderPanel() {
   else if (v.type === 'offer') body.innerHTML = offerView(v.id);
   else if (v.type === 'evfilters') body.innerHTML = evFiltersView();
   else if (v.type === 'evtopics') body.innerHTML = evTopicsView();
+  else if (v.type === 'evdistricts') body.innerHTML = evDistrictsView();
   else if (v.type === 'me') body.innerHTML = familyView();
   else if (v.type === 'rate') { body.innerHTML = rateView(v.id); bindRate(v.id); }
   else if (v.type === 'report') body.innerHTML = reportView(v.id);
@@ -1423,14 +1424,14 @@ function evPass(o, skip) {
 }
 // offers of the current page as [date, offer]: day pages one row per date in the range (or next 8 weeks), card pages one card per offer.
 // raw = without Wann/Wochentag, Ort and search (for which topics exist on this page at all)
-function evBase(raw = false) {
+function evBase(raw = false, skipPlace = false) {
   const t = today0(), r = raw ? null : rangeOf(), p = EV.page;
   const own = p === 'alle' || p === 'termin' ? store.events.map(e => ({ title: e.title, kind: 'termin', start_date: e.date, time_from: e.time, lat: e.lat, lon: e.lon, venue: 'von dir eingetragen', topic: 'sonstiges', own: true })) : [];
   let list = OFFERS.filter(o => p === 'alle' || o.kind === p).concat(own)
     .map(o => [r ? firstIn(o, r[0], r[1]) : nextDate(o), o]).filter(([d]) => d && (r || d - t < (cardPage() ? 120 : 56) * 864e5));
   if (raw) return list;
   if (cardPage() && EV.days.size) list = list.filter(([, o]) => EV.days.has(o.weekday));
-  list = list.filter(([, o]) => o.own || offerInArea(o));
+  if (!skipPlace) list = list.filter(([, o]) => evPlaceOk(o));
   const q = words(EV.q).filter(w => !STOP.has(w));
   if (q.length) list = list.filter(([, o]) => { const n = norm([o.title, o.venue, o.provider, TOPIC_LABEL[o.topic]].filter(Boolean).join(' ')); return q.every(w => n.includes(w)); });
   // what is over today is gone: end time passed, or one hour after the start when no end is known
@@ -1440,7 +1441,7 @@ function evBase(raw = false) {
 }
 const evResults = () => evBase().filter(([, o]) => o.own || evPass(o));
 function evActiveCount() {
-  let n = (cardPage() ? EV.days.size : (EV.when ? 1 : 0)) + EV.topics.size + (state.area.type !== 'all' ? 1 : 0);
+  let n = (cardPage() ? EV.days.size : (EV.when ? 1 : 0)) + EV.topics.size + (EV.place.mode !== 'all' ? 1 : 0);
   for (const sec of EV_SECTIONS) if (sectionOn(sec)) n += sec.items.filter(it => EV.f.has(it[0]) && itemOn(it)).length;
   return n;
 }
@@ -1485,7 +1486,7 @@ const timeRange = o => o.time_from ? `${o.time_from}${o.time_to ? '–' + o.time
 function evRowHtml(o, d) {
   const fam = topicFam(o.topic), tags = evTags(o, true);
   const inner = `<span class="evtime">${o.time_from ? esc(o.time_from) : '<small>ganztags</small>'}</span>
-    <span><h3>${esc(o.title)}</h3><span class="meta"><span class="ticon" style="--c:${fam[2]}">${svg(fam[1])}</span>${esc(TOPIC_LABEL[o.topic] || 'Angebot')}${o.venue ? ' · ' + esc(o.venue) : ''}</span>
+    <span><h3>${esc(o.title)}</h3><span class="meta"><span class="ticon" style="--c:${fam[2]}">${svg(fam[1])}</span>${esc(TOPIC_LABEL[o.topic] || 'Angebot')}${o.venue ? ' · ' + esc(o.venue) : ''}${evDistText(o)}</span>
     ${tags ? `<span class="mini">${tags}</span>` : ''}</span>`;
   return o.id ? `<li class="offrow"><button type="button" class="item evrow" data-offer="${o.id}">${inner}</button>${saveBtn(o)}</li>` : `<li><div class="item evrow">${inner}</div></li>`;
 }
@@ -1497,7 +1498,7 @@ function evCardHtml(o, nd) {
     : `Einmal${time ? ' · ' + time : ''}`;
   return `<li class="offrow"><button type="button" class="evcard" data-offer="${o.id}">
       <span class="evicon" style="--c:${fam[2]}">${svg(fam[1])}</span>
-      <span class="evcbody"><h3>${esc(o.title)}</h3><span class="meta">${esc(TOPIC_LABEL[o.topic] || 'Angebot')}${o.venue ? ' · ' + esc(o.venue) : ''}</span>
+      <span class="evcbody"><h3>${esc(o.title)}</h3><span class="meta">${esc(TOPIC_LABEL[o.topic] || 'Angebot')}${o.venue ? ' · ' + esc(o.venue) : ''}${evDistText(o)}</span>
         <span class="rec">${svg('repeat')}${esc(rec)}</span>
         <span class="next">Nächster Termin: ${esc(fmtShort(nd))}${o.sessions ? ` · ${o.sessions} Termine` : ''}</span>
         <span class="mini">${evTags(o, false)}</span></span></button>${saveBtn(o)}</li>`;
@@ -1539,11 +1540,7 @@ function evFiltersView() {
   const topic = all.length ? `<div class="sec"><div class="sechead"><h4>Thema</h4><span>${EV.topics.size ? `${EV.topics.size} gewählt` : 'Mehrere möglich'}</span></div>
       <div class="fgrid">${top.map(t => topicChip(t, live[t] || 0)).join('')}</div>
       ${all.length > top.length ? `<button type="button" class="morelink" data-open="evtopics">Alle ${all.length} Themen ${svg('back')}</button>` : ''}</div>` : '';
-  const a = state.area;
-  const place = `<div class="sec"><h4>Ort</h4><div class="fgrid">
-      <button type="button" class="chip${a.type === 'all' ? ' on' : ''}" data-evarea="all" aria-pressed="${a.type === 'all'}">${a.type === 'all' ? svg('check') : svg('pin')}Ganz Hamburg</button>
-      <label class="chip select${a.type === 'district' ? ' on' : ''}">${a.type === 'district' ? svg('check') : ''}<select id="evDistrict" aria-label="Stadtteil wählen"><option value="">Stadtteil wählen</option>${districtList().map(d => `<option${a.type === 'district' && a.name === d ? ' selected' : ''}>${esc(d)}</option>`).join('')}</select></label>
-      ${a.type === 'radius' || a.type === 'poly' ? `<button type="button" class="chip on" data-evarea="all" aria-label="${esc(areaLabel())} entfernen">${svg('check')}${esc(areaLabel())} ${svg('close')}</button>` : ''}</div></div>`;
+  const place = evPlaceHtml();
   return `<div class="ph sheethead"><h2>Filter</h2><button type="button" class="round" data-back="1" aria-label="Schließen">${svg('close')}</button></div>
     ${when}${section(EV_SECTIONS[0])}${section(EV_SECTIONS[1])}${section(EV_SECTIONS[2])}${topic}${section(EV_SECTIONS[3])}${place}
     ${evSheetFoot()}`;
@@ -1557,8 +1554,131 @@ function evTopicsView() {
       <div class="fgrid">${ts.map(t => topicChip(t, live[t] || 0)).join('')}</div></div>`; }).join('')}
     ${evSheetFoot()}`;
 }
+// ---------- Ort for the Termine filter: own setting, independent of the map ----------
+// Ganz Hamburg, several Stadtteile (by the coordinates of the offer), or a radius around home (or, for one search, the current position).
+// Home is kept on this phone only, as the centre of a postcode or Stadtteil, and never goes to the server or the family.
+let GEO = { stadtteile: [], plz: [] };
+const GEO_BEZ = {}, GEO_POS = {};
+async function loadGeo() {
+  try { GEO = await (await fetch('data/geo.json')).json(); } catch (e) { return; }
+  for (const [n, bz, la, lo] of GEO.stadtteile) { GEO_BEZ[n] = bz; GEO_POS[n] = [la, lo]; }
+}
+const BEZIRKE = ['Hamburg-Mitte', 'Altona', 'Eimsbüttel', 'Hamburg-Nord', 'Wandsbek', 'Bergedorf', 'Harburg'];
+const DISTRICT_ALIAS = { Altstadt: 'Hamburg-Altstadt', Stove: 'Kirchwerder' }; // OSM names on places -> official names
+const offerPos = o => { const pl = o.place_id && byId.get(o.place_id); return pl ? [pl.lat, pl.lon] : o.lat ? [o.lat, o.lon] : null; };
+const offerDistrict = o => { if (o.district) return o.district; const pl = o.place_id && byId.get(o.place_id); return pl?.district ? DISTRICT_ALIAS[pl.district] || pl.district : null; };
+EV.place = { mode: 'all', districts: new Set(), km: 5, gps: null };
+EV.placeTab = 'stadtteil';
+EV.pending = new Set(); EV.dq = '';
+const KMS = [1, 2, 5, 10, 20];
+const homeOf = () => store.profile.home && store.profile.home.lat ? store.profile.home : null;
+const radiusOrigin = () => EV.place.gps || (homeOf() ? [homeOf().lat, homeOf().lon] : null);
+function evPlaceOk(o) {
+  const P = EV.place;
+  if (P.mode === 'districts') return P.districts.has(offerDistrict(o));
+  if (P.mode === 'radius') { const c = radiusOrigin(), p = offerPos(o); return !!(c && p && dist(c, p) <= P.km * 1000); }
+  return true;
+}
+const kmText = km => String(km).replace('.', ',') + ' km';
+// distance shown in lists and cards while the radius is on
+const evDistText = o => { if (EV.place.mode !== 'radius') return ''; const c = radiusOrigin(), p = offerPos(o); return c && p ? ' · ' + fmtDist(dist(c, p)) : ''; };
+
+// "20535", "Hamm" or an address with a postcode in it -> the centre of that postcode or Stadtteil
+function parseHome(text) {
+  const t = String(text || '').trim();
+  const plz = (t.match(/\b(2[0-2]\d{3})\b/) || [])[1];
+  if (plz) { const p = GEO.plz.find(x => x[0] === plz); return p ? { label: `${p[0]} ${p[3]}`, lat: p[1], lon: p[2] } : null; }
+  const n = norm(t.replace(/\s*\(.*\)$/, ''));
+  const s = GEO.stadtteile.find(x => norm(x[0]) === n) || GEO.stadtteile.find(x => norm(x[0]).startsWith(n) && n.length >= 3);
+  return s ? { label: s[0], lat: s[2], lon: s[3] } : null;
+}
+function homeFieldHtml(id) {
+  const h = homeOf();
+  return `<div class="field"><label for="${id}">Zuhause</label>
+    <input id="${id}" data-home="1" list="homeList" autocomplete="off" placeholder="PLZ oder Stadtteil, z. B. 20535" value="${esc(h?.label || '')}">
+    <datalist id="homeList">${GEO.plz.map(p => `<option value="${p[0]} (${esc(p[3])})"></option>`).join('')}${GEO.stadtteile.map(s => `<option value="${esc(s[0])}"></option>`).join('')}</datalist>
+    <p class="note">PLZ oder Stadtteil reicht. Gespeichert wird nur der Mittelpunkt, nur auf diesem Handy.</p></div>`;
+}
+function meineInfosHtml() {
+  const h = homeOf();
+  return `<div class="sec"><h4>Meine Infos</h4>
+    <p class="muted text">Nur auf diesem Handy. Wird nicht mit der Familie geteilt.</p>
+    ${homeFieldHtml('meHome')}
+    ${h ? `<p class="note">Zuhause: ${esc(h.label)}. Djuu nutzt es für „Umkreis von zu Hause“ bei den Terminen. <button type="button" class="linkbtn" data-homeclear="1">Entfernen</button></p>` : ''}</div>`;
+}
+function setHome(value) {
+  if (!String(value || '').trim()) return;
+  const h = parseHome(value);
+  if (!h) return toast('Nicht gefunden. Bitte eine Hamburger PLZ oder einen Stadtteil eingeben.');
+  store.profile.home = h; save();
+  toast(`Zuhause: ${h.label}`);
+  renderPanel();
+}
+
+// the Ort section of the filter sheet
+function evPlaceHtml() {
+  const P = EV.place, origin = radiusOrigin();
+  const tab = `<div class="minitoggle" role="tablist" aria-label="Ort wählen über">${[['stadtteil', 'Stadtteil'], ['umkreis', 'Umkreis']].map(([id, l]) =>
+    `<button type="button" role="tab" aria-selected="${EV.placeTab === id}" class="${EV.placeTab === id ? 'on' : ''}" data-evplacetab="${id}">${l}</button>`).join('')}</div>`;
+  const all = `<button type="button" class="chip${P.mode === 'all' ? ' on' : ''}" data-evplace="all" aria-pressed="${P.mode === 'all'}">${P.mode === 'all' ? svg('check') : svg('pin')}Ganz Hamburg</button>`;
+  let body;
+  if (EV.placeTab === 'stadtteil') {
+    body = `<div class="fgrid">${all}${P.mode === 'districts' ? [...P.districts].map(d => `<button type="button" class="chip on" data-evdistrictx="${esc(d)}" aria-label="${esc(d)} entfernen">${svg('check')}${esc(d)} ${svg('close')}</button>`).join('') : ''}
+      <button type="button" class="chip" data-open="evdistricts">${svg('pin')}Stadtteil wählen</button></div>`;
+  } else if (!origin) {
+    body = `<div class="fgrid">${all}</div>
+      <p class="text" style="margin-top:10px"><b>Umkreis von zu Hause</b></p>${homeFieldHtml('evHome')}
+      <button type="button" class="btn" data-evgps="1">${svg('locate')}Aktuellen Standort verwenden</button>
+      <p class="note">Der aktuelle Standort gilt nur für diese Suche und wird nicht gespeichert.</p>`;
+  } else {
+    const on = k => P.mode === 'radius' && P.km === k;
+    body = `<div class="fgrid">${all}${KMS.map(k => `<button type="button" class="chip${on(k) ? ' on' : ''}" data-evkm="${k}" aria-pressed="${on(k)}">${on(k) ? svg('check') : ''}${k} km</button>`).join('')}</div>
+      <div class="kmcustom${P.mode === 'radius' && !KMS.includes(P.km) ? ' on' : ''}"><label for="evKm">Eigene km</label>
+        <input id="evKm" type="number" min="0.5" max="50" step="0.5" inputmode="decimal" value="${P.mode === 'radius' && !KMS.includes(P.km) ? String(P.km) : ''}" placeholder="z. B. 3,5">
+        <input id="evKmRange" type="range" min="0.5" max="50" step="0.5" value="${P.km}" aria-label="Umkreis in Kilometern, ${kmText(P.km)}"></div>
+      <p class="note">Luftlinie, ${P.gps ? 'vom aktuellen Standort' : `von zu Hause: ${esc(homeOf().label)}`}.
+        ${P.gps ? (homeOf() ? ' <button type="button" class="linkbtn" data-evgpsoff="1">Zuhause verwenden</button>' : '') : ' <button type="button" class="linkbtn" data-evgps="1">Aktuellen Standort verwenden</button>'}</p>`;
+  }
+  return `<div class="sec"><div class="sechead"><h4>Ort</h4>${tab}</div>${body}</div>`;
+}
+function setKm(v) {
+  const km = Math.min(50, Math.max(0.5, Math.round(parseFloat(String(v).replace(',', '.')) * 2) / 2));
+  if (!km) return;
+  EV.place.km = km; EV.place.mode = 'radius'; EV.place.districts.clear();
+}
+
+// the Stadtteil page: every Stadtteil with results on this page, by Bezirk, several at once
+function evDistrictCounts() {
+  const page = {}, live = {};
+  for (const [, o] of evBase(true)) { const d = offerDistrict(o); if (d) page[d] = (page[d] || 0) + 1; }
+  for (const [, o] of evBase(false, true)) if (!o.own && evPass(o)) { const d = offerDistrict(o); if (d) live[d] = (live[d] || 0) + 1; }
+  return { page, live };
+}
+function districtListHtml() {
+  const { page, live } = evDistrictCounts(), q = norm(EV.dq.trim());
+  const out = BEZIRKE.map(bz => {
+    const names = GEO.stadtteile.filter(s => s[1] === bz && page[s[0]] && (!q || norm(s[0]).includes(q))).map(s => s[0]);
+    if (!names.length) return '';
+    const selectable = names.filter(n => live[n] || EV.pending.has(n)), allOn = selectable.length && selectable.every(n => EV.pending.has(n));
+    return `<fieldset class="bezirk"><legend>${esc(bz)}</legend>
+      <label class="drow all${allOn ? ' on' : ''}"><input type="checkbox" data-dall="${esc(bz)}"${allOn ? ' checked' : ''}${selectable.length ? '' : ' disabled'}><span class="dname">Alle in ${esc(bz)}</span></label>
+      ${names.map(n => { const on = EV.pending.has(n), c = live[n] || 0, off = !on && !c;
+        return `<label class="drow${on ? ' on' : ''}${off ? ' zero' : ''}"><input type="checkbox" data-dname="${esc(n)}"${on ? ' checked' : ''}${off ? ' disabled' : ''}><span class="dname">${esc(n)}</span><span class="n" aria-label="${c} Ergebnisse">${nf.format(c)}</span></label>`; }).join('')}
+    </fieldset>`;
+  }).join('');
+  return out || '<div class="empty"><b>Kein Stadtteil gefunden.</b>Versuch einen anderen Namen.</div>';
+}
+const districtApplyText = () => `Übernehmen (${EV.pending.size} gewählt)`;
+function evDistrictsView() {
+  return `<div class="ph"><button type="button" class="round" data-back="1" aria-label="Zurück">${svg('back')}</button><h2>Stadtteil<span class="sub">Mehrere möglich</span></h2></div>
+    <label class="evsearch dsearch">${svg('search')}<input id="dq" type="search" placeholder="Stadtteil suchen" value="${esc(EV.dq)}" autocomplete="off" aria-label="Stadtteil suchen"></label>
+    <div id="dlist">${districtListHtml()}</div>
+    <div class="sticky-bar"><button type="button" class="btn" data-evdreset="1">Zurücksetzen</button><button type="button" class="btn big primary" data-evdapply="1">${districtApplyText()}</button></div>`;
+}
+function refreshDistrictList() { const l = $('#dlist'); if (l) l.innerHTML = districtListHtml(); const b = $('[data-evdapply]'); if (b) b.textContent = districtApplyText(); }
+
 function evShow() { while (stack.length > 1 && !['events'].includes(view().type)) stack.pop(); EV.limit = 60; renderPanel(); setSize('full'); }
-function evReset() { EV.when = ''; EV.from = ''; EV.to = ''; EV.days.clear(); EV.f.clear(); EV.topics.clear(); if (state.area.type !== 'all') setArea({ type: 'all' }, false); renderPanel(); }
+function evReset() { EV.when = ''; EV.from = ''; EV.to = ''; EV.days.clear(); EV.f.clear(); EV.topics.clear(); Object.assign(EV.place, { mode: 'all', gps: null }); EV.place.districts.clear(); renderPanel(); }
 
 // Merken and "waren wir schon" for offers; a snapshot keeps a saved offer readable after it leaves the data.
 const isSaved = id => store.savedOffers.some(x => x.id === id);
@@ -1980,6 +2100,7 @@ document.addEventListener('click', async e => {
   else if (ds.open === 'area') go({ type: 'area' });
   else if (ds.open === 'evfilters') go({ type: 'evfilters' });
   else if (ds.open === 'evtopics') go({ type: 'evtopics' });
+  else if (ds.open === 'evdistricts') { EV.pending = new Set(EV.place.districts); EV.dq = ''; go({ type: 'evdistricts' }); }
   else if (ds.open === 'ferien') go({ type: 'ferien' });
   else if (ds.area === 'all') { setArea({ type: 'all' }, false); renderPanel(); }
   else if (ds.radius) { const a = state.area; setArea({ type: 'radius', r: +ds.radius, center: a.type === 'radius' ? a.center : state.me ? 'me' : [map.getCenter().lat, map.getCenter().lng] }); renderPanel(); }
@@ -1995,7 +2116,19 @@ document.addEventListener('click', async e => {
   else if (ds.evday) { toggle(EV.days, +ds.evday); renderPanel(); }
   else if (ds.evf) { toggle(EV.f, ds.evf); EV.limit = 60; renderPanel(); }
   else if (ds.evtopic) { toggle(EV.topics, ds.evtopic); EV.limit = 60; renderPanel(); }
-  else if (ds.evarea) { setArea({ type: 'all' }, false); renderPanel(); }
+  else if (ds.evplacetab) { EV.placeTab = ds.evplacetab; renderPanel(); }
+  else if (ds.evplace) { Object.assign(EV.place, { mode: 'all', gps: null }); EV.place.districts.clear(); renderPanel(); }
+  else if (ds.evdistrictx) { EV.place.districts.delete(ds.evdistrictx); if (!EV.place.districts.size) EV.place.mode = 'all'; renderPanel(); }
+  else if (ds.evkm) { setKm(ds.evkm); renderPanel(); }
+  else if (ds.evgps) {
+    if (!navigator.geolocation) toast('Dieses Gerät kann den Standort nicht bestimmen.');
+    else navigator.geolocation.getCurrentPosition(p => { EV.place.gps = [p.coords.latitude, p.coords.longitude]; EV.placeTab = 'umkreis'; setKm(EV.place.km); renderPanel(); },
+      () => toast('Standort nicht verfügbar. Bitte im Browser erlauben.'), { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 });
+  }
+  else if (ds.evgpsoff) { EV.place.gps = null; renderPanel(); }
+  else if (ds.evdreset) { EV.pending.clear(); refreshDistrictList(); }
+  else if (ds.evdapply) { EV.place.districts = new Set(EV.pending); EV.place.mode = EV.pending.size ? 'districts' : 'all'; if (EV.pending.size) EV.place.gps = null; back(); }
+  else if (ds.homeclear) { delete store.profile.home; save(); if (EV.place.mode === 'radius' && !EV.place.gps) EV.place.mode = 'all'; renderPanel(); }
   else if (ds.evreset) evReset();
   else if (ds.evshow) evShow();
   else if (ds.offer) go({ type: 'offer', id: ds.offer }, 'full');
@@ -2046,12 +2179,23 @@ document.addEventListener('click', async e => {
   else if (ds.sos) go({ type: 'sos', kind: ds.sos });
 });
 document.addEventListener('input', e => {
+  if (e.target.id === 'dq') { EV.dq = e.target.value; refreshDistrictList(); return; }
+  if (e.target.id === 'evKmRange') { const l = e.target.previousElementSibling; if (l) l.value = String(e.target.value); e.target.setAttribute('aria-label', `Umkreis in Kilometern, ${kmText(+e.target.value)}`); return; }
   if (e.target.id === 'evQ') { EV.q = e.target.value; EV.limit = 60; clearTimeout(document.evqt); document.evqt = setTimeout(() => { const l = $('#evList'); if (l) l.innerHTML = evListHtml(); }, 150); return; }
   if (e.target.id === 'distQ') $('#distList').innerHTML = districtChips(e.target.value); });
 document.addEventListener('change', e => {
   if (e.target.matches('[data-kid], #expecting')) saveProfileField(e.target);
   if (e.target.id === 'fedState') { store.profile.state = e.target.value; save(); loadBreaks().then(renderPanel); }
-  if (e.target.id === 'evDistrict' && e.target.value) { setArea({ type: 'district', name: e.target.value }, false); renderPanel(); }
+  if (e.target.dataset.home) setHome(e.target.value);
+  if (e.target.id === 'evKm' && e.target.value) { setKm(e.target.value); renderPanel(); }
+  if (e.target.id === 'evKmRange') { setKm(e.target.value); renderPanel(); }
+  if (e.target.dataset.dname) { e.target.checked ? EV.pending.add(e.target.dataset.dname) : EV.pending.delete(e.target.dataset.dname); refreshDistrictList(); }
+  if (e.target.dataset.dall) {
+    const { live } = evDistrictCounts(), q = norm(EV.dq.trim());
+    const names = GEO.stadtteile.filter(s => s[1] === e.target.dataset.dall && (live[s[0]] || EV.pending.has(s[0])) && (!q || norm(s[0]).includes(q))).map(s => s[0]);
+    for (const n of names) e.target.checked ? EV.pending.add(n) : EV.pending.delete(n);
+    refreshDistrictList();
+  }
   if (e.target.id === 'evFrom') { EV.from = e.target.value; if (EV.to && EV.to < EV.from) EV.to = ''; renderPanel(); }
   if (e.target.id === 'evTo') { EV.to = e.target.value; renderPanel(); }
 });
@@ -2128,6 +2272,7 @@ $('#panelBody').innerHTML = '<div class="ph"><h2>Lade Orte …</h2></div>';
     try { const od = await getOffers(window.DJUU_API ? window.DJUU_API + '/data/offers.json' : 'data/offers.json').catch(() => getOffers('data/offers.json')); DATA_AT.offers = od.generated; loadOffers(od); } catch (e) { /* offers optional */ }
     refresh();
     renderPanel();
+    loadGeo();
     (window.requestIdleCallback || setTimeout)(searchIndex); // first search answers at once
     const hash = location.hash.slice(1);
     if (byId.has(hash)) { const p = byId.get(hash); map.setView([p.lat, p.lon], 17); showPlace(hash); }

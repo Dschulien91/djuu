@@ -638,3 +638,29 @@ b.yes { color: var(--yes); }
 .fgrid.when { gap: 4px; }
 .fgrid.when .chip { padding: 0 7px; font-size: 13px; }
 .ph .round { width: 44px; height: 44px; }
+/* v0.27 Ort: Stadtteil | Umkreis, Stadtteil page, home */
+.minitoggle { display: inline-grid; grid-template-columns: 1fr 1fr; gap: 2px; padding: 3px; border-radius: 999px; background: #F1ECFF; }
+.minitoggle button { min-height: 44px; min-width: 88px; padding: 0 12px; border: 0; border-radius: 999px; background: transparent; font: 600 14px var(--font-body); color: #1F1B4D; }
+.minitoggle button.on { background: #6B4EE6; color: #FFFFFF; }
+.kmcustom { display: grid; grid-template-columns: auto 92px 1fr; align-items: center; gap: 10px; margin-top: 10px; }
+.kmcustom label { font-weight: 700; font-size: 14px; }
+.kmcustom input[type=number] { height: 44px; border: 1px solid var(--line); border-radius: 12px; padding: 0 10px; font: 600 15px var(--font-body); background: #FFFFFF; }
+.kmcustom.on input[type=number] { border-color: #6B4EE6; color: #6B4EE6; }
+.kmcustom input[type=range] { width: 100%; min-height: 44px; accent-color: #6B4EE6; }
+.dsearch { margin: 0 0 6px; }
+fieldset.bezirk { border: 0; margin: 14px 0 0; padding: 0; }
+fieldset.bezirk legend { font: 600 15px var(--font-display); color: #6B4EE6; padding: 0 0 4px; }
+.drow { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 0 4px; border-bottom: 1px solid var(--line); cursor: pointer; font-size: 15px; color: #1F1B4D; }
+.drow input { appearance: none; -webkit-appearance: none; flex: none; width: 24px; height: 24px; margin: 0; border: 2px solid #6B4EE6; border-radius: 7px; background: #FFFFFF center / 16px no-repeat; }
+.drow input:checked { background-color: #6B4EE6; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7'/%3E%3C/svg%3E"); }
+.drow input:focus-visible { outline: 3px solid #FFD166; outline-offset: 2px; }
+.drow .dname { flex: 1; }
+.drow .n { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.drow.on .dname { color: #6B4EE6; font-weight: 700; }
+.drow.all .dname { font-weight: 700; }
+.drow.zero { opacity: .45; cursor: default; }
+.drow.zero input { border-color: var(--muted); }
+.sticky-bar .btn { white-space: nowrap; }
+.sticky-bar .btn:not(.primary) { flex: none; padding-left: 16px; padding-right: 16px; }
+.sticky-bar .btn.primary { flex: 1; min-width: 0; font-size: 16px; }
+.sec .note .linkbtn { display: inline-flex; align-items: center; min-height: 44px; font-size: 13px; }

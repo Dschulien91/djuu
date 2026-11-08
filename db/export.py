@@ -165,7 +165,7 @@ def run():
 
 OFFER_COLS = ['id', 'title', 'kind', 'topic', 'age_min_m', 'age_max_m', 'for_parents', 'weekday', 'time_from', 'time_to',
               'start_date', 'end_date', 'sessions', 'schedule', 'price', 'free', 'registration', 'venue', 'address',
-              'lat', 'lon', 'place_id', 'url', 'provider', 'source_id', 'audience']
+              'lat', 'lon', 'place_id', 'url', 'provider', 'source_id', 'audience', 'district']
 
 # Who takes part: 'kinder' (children, also together with a parent) or 'erwachsene' (adults only, not always parents).
 ADULT_TOPICS = {'geburtsvorbereitung', 'rueckbildung', 'beratung', 'erste_hilfe', 'eltern_thema'}
@@ -189,7 +189,9 @@ def export_offers(con, places, sidx, dup_of=None):
     from merge import similar
     ensure(con)
     today = now()[:10]
-    cols = OFFER_COLS[:-1]  # 'audience' is computed here
+    cols = OFFER_COLS[:-2]  # 'audience' and 'district' are computed here
+    stadtteil = stadtteil_finder()
+    pos = {p[0]: (p[3], p[4]) for p in places}
     rows = con.execute(f"SELECT {','.join(cols)} FROM offers WHERE COALESCE(end_date, start_date, '9999') >= ?", (today,)).fetchall()
     grid = defaultdict(list)
     for p in places:
@@ -221,6 +223,9 @@ def export_offers(con, places, sidx, dup_of=None):
             o['age_min_m'], o['age_max_m'] = age_of(o['title'])
         if o['topic'] in (None, 'sonstiges'): o['topic'] = topic_of(o['title'])
         o['audience'] = audience(o)
+        # Stadtteil by coordinates (point in polygon): the linked place's position, else the offer's own
+        la, lo = pos.get(o['place_id'], (o['lat'], o['lon']))
+        o['district'] = stadtteil(la, lo) if la and lo else None
         o['source_id'] = sidx.get(o['source_id'], -1)
         out.append([o[c] for c in OFFER_COLS])
     path = ROOT / 'data' / 'offers.json'
@@ -228,7 +233,29 @@ def export_offers(con, places, sidx, dup_of=None):
     linked = sum(1 for o in out if o[OFFER_COLS.index('place_id')])
     print(f'{len(out)} offers ({linked} linked to places) -> {path}')
     from collections import Counter
-    print('audience:', Counter(o[-1] for o in out), 'topics:', dict(Counter(o[OFFER_COLS.index('topic')] for o in out).most_common()))
+    print('district:', sum(1 for o in out if o[-1]), 'of', len(out), 'offers have a Stadtteil')
+    print('audience:', Counter(o[-2] for o in out), 'topics:', dict(Counter(o[OFFER_COLS.index('topic')] for o in out).most_common()))
+
+
+def stadtteil_finder():
+    """Official Stadtteil of a point, from data/stadtteile_poly.json (db/build_geo.py); plain Python, no geo libraries."""
+    path = ROOT / 'data' / 'stadtteile_poly.json'
+    if not path.exists(): return lambda la, lo: None
+    polys = []
+    for name, _, rings in json.loads(path.read_text(encoding='utf-8')):
+        for ring in rings:
+            xs, ys = [c[0] for c in ring], [c[1] for c in ring]
+            polys.append((name, ring, min(xs), max(xs), min(ys), max(ys)))
+    def inside(lo, la, ring):
+        hit = False
+        for (x1, y1), (x2, y2) in zip(ring, ring[1:] + ring[:1]):
+            if (y1 > la) != (y2 > la) and lo < (x2 - x1) * (la - y1) / (y2 - y1) + x1: hit = not hit
+        return hit
+    def find(la, lo):
+        for name, ring, x0, x1, y0, y1 in polys:
+            if x0 <= lo <= x1 and y0 <= la <= y1 and inside(lo, la, ring): return name
+        return None
+    return find
 
 
 def dist(la1, lo1, la2, lo2):
