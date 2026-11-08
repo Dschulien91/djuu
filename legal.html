@@ -21,19 +21,20 @@
     .missing { font-weight: 700; }
     table { width: 100%; border-collapse: collapse; font-size: 14px; }
     td, th { text-align: left; vertical-align: top; padding: 6px 8px 6px 0; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
-    nav a { margin-right: 14px; }
+    nav a { display: inline-block; margin-right: 14px; min-height: 44px; line-height: 44px; }
   </style>
 </head>
 <body>
-<main>
+<!-- German is the binding version. The page shows the language chosen in the app (or the phone's language). -->
+<main lang="de" data-lang="de">
   <h1>Djuu</h1>
   <nav><a href="#impressum">Impressum</a><a href="#agb">Nutzungsbedingungen</a><a href="#datenschutz">Datenschutz</a><a href="#daten">Daten und Lizenzen</a></nav>
   <p class="draft" style="margin-top:16px"><b>Entwurf:</b> Diese Texte sind noch nicht rechtlich geprüft.</p>
 
   <h2 id="impressum">Impressum</h2>
   <p>Angaben gemäß § 5 Digitale-Dienste-Gesetz:</p>
-  <p id="imprint"></p>
-  <p>Verantwortlich für den Inhalt nach § 18 Abs. 2 MStV: <span id="mstv"></span></p>
+  <p class="imprint"></p>
+  <p>Verantwortlich für den Inhalt nach § 18 Abs. 2 MStV: <span class="mstv"></span></p>
   <p>Wir sind nicht bereit und nicht verpflichtet, an Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle teilzunehmen.</p>
 
   <h2 id="agb">Nutzungsbedingungen</h2>
@@ -54,19 +55,15 @@
 
   <h2 id="datenschutz">Datenschutz</h2>
   <p>Djuu funktioniert ohne Konto, ohne Werbung und ohne Nutzungsstatistik und setzt keine Cookies. Ein Konto brauchst du nur, wenn du Listen und Termine mit deiner Familie teilen willst.</p>
-
   <h3>Verantwortlich</h3>
-  <p id="controller"></p>
-
+  <p class="controller"></p>
   <h3>Ohne Anmeldung: alles bleibt auf deinem Gerät</h3>
-  <p>Familienangaben (Namen, Geburtsmonate, Bundesland), Favoriten, Bewertungen, eingetragene Orte, Fotos und der gewählte Kartenstil liegen im Speicher deines Browsers. Sie gehen an niemanden. Löschst du die Website-Daten, sind sie weg.</p>
+  <p>Familienangaben (Namen, Geburtsmonate, Bundesland), Zuhause (nur PLZ- oder Stadtteil-Mittelpunkt), Sprache, Favoriten, Bewertungen, eingetragene Orte, Fotos und der gewählte Kartenstil liegen im Speicher deines Browsers. Sie gehen an niemanden. Löschst du die Website-Daten, sind sie weg.</p>
   <p>Dein Standort wird nur verwendet, wenn du ihn erlaubst, und nur im Browser berechnet. Er wird nicht an Djuu übertragen.</p>
-
   <h3>Mit Anmeldung: die gemeinsame Familie</h3>
-  <p>Meldest du dich an, speichern wir auf unserem eigenen Server in Deutschland (Hetzner, Rechenzentrum in Deutschland): deine E-Mail-Adresse, die Familie und ihre Mitglieder mit den freiwilligen Angaben (Name, Geburtsmonat, Kita oder Schule, Größen, Arbeitszeiten), Einkaufsliste, Besorgungen, gemerkte Termine und Orte und „Waren dabei“. Sehen können das nur die Mitglieder eurer Familie. Zweck ist allein das Teilen in der Familie (Art. 6 Abs. 1 lit. b DSGVO).</p>
+  <p>Meldest du dich an, speichern wir auf unserem eigenen Server in Deutschland (Hetzner, Rechenzentrum in Deutschland): deine E-Mail-Adresse, die Familie und ihre Mitglieder mit den freiwilligen Angaben (Name, Geburtsmonat, Kita oder Schule, Größen, Arbeitszeiten), Einkaufsliste, Besorgungen, gemerkte Termine und Orte und „Waren dabei“. Sehen können das nur die Mitglieder eurer Familie. Dein Zuhause gehört nicht dazu, es bleibt auf deinem Gerät. Zweck ist allein das Teilen in der Familie (Art. 6 Abs. 1 lit. b DSGVO).</p>
   <p>Den Login-Code verschicken wir per E-Mail über unser Postfach bei All-Inkl. „Wo seid ihr?“: Ein Standort wird nur gesendet, wenn die gefragte Person zustimmt, ist nur für die beiden sichtbar und wird nach 24 Stunden gelöscht. Der Familienkalender ist über eine geheime Adresse abrufbar; wer sie kennt, sieht die gemerkten Termine. Ihr könnt sie jederzeit erneuern.</p>
   <p>Unter Familie → Wir kannst du dein Konto jederzeit selbst löschen. Dann entfernen wir deine E-Mail-Adresse und deinen Eintrag in der Familie; die gemeinsamen Listen bleiben für die anderen Mitglieder erhalten.</p>
-
   <h3>Was beim Benutzen an andere Dienste geht</h3>
   <p>Beim Laden erfährt jeder dieser Dienste technisch bedingt deine IP-Adresse und die Browser-Kennung, aber nicht deine Familienangaben.</p>
   <ul>
@@ -78,36 +75,107 @@
     <li><b>Spracheingabe:</b> Nur wenn du auf das Mikrofon tippst, wird dein Browser aktiv. Je nach Browser geht der Ton dabei an dessen Anbieter, zum Beispiel Google oder Apple.</li>
     <li><b>Links:</b> Route, Webseiten und Anbieter-Links öffnen erst auf deinen Tipp hin die jeweilige fremde Seite, zum Beispiel Google Maps.</li>
   </ul>
-
   <h3>Meldungen und Feedback</h3>
   <p>Meldest du einen Ort oder schreibst uns, öffnet sich dein E-Mail-Programm. Du siehst die Nachricht, bevor du sie abschickst. Wir nutzen sie nur, um zu antworten und Daten zu korrigieren.</p>
-
   <h3>Deine Rechte</h3>
   <p>Du hast das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung, Datenübertragbarkeit und Widerspruch sowie auf Beschwerde bei einer Datenschutz-Aufsichtsbehörde, in Hamburg beim Hamburgischen Beauftragten für Datenschutz und Informationsfreiheit. Steht ein Ort mit deinen persönlichen Daten in Djuu, nehmen wir ihn auf Nachricht heraus.</p>
 
   <h2 id="daten">Daten und Lizenzen</h2>
   <p>Djuu führt offene Daten zusammen und zeigt bei jedem Ort, woher eine Angabe stammt. Angaben können veraltet sein. Bitte prüft Wichtiges beim Anbieter. Termine verlinken immer auf die Seite des Anbieters.</p>
+  <p>Für andere Sprachen übersetzen wir die Titel der Termine automatisch mit Claude von Anthropic (USA). Dabei gehen nur die öffentlichen Angaben der Anbieter an Anthropic, keine Daten von Nutzerinnen und Nutzern.</p>
   <p>Kartendaten © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>-Mitwirkende, <a href="https://opendatacommons.org/licenses/odbl/">ODbL</a>. Ortsdaten von <a href="https://overturemaps.org">Overture Maps</a> unter <a href="https://cdla.dev/permissive-2-0/">CDLA Permissive 2.0</a>. Fotos stammen von <a href="https://commons.wikimedia.org">Wikimedia Commons</a>; Urheber und Lizenz stehen jeweils auf der verlinkten Seite des Fotos.</p>
   <p>Software und Schriften: <a href="https://leafletjs.com">Leaflet</a> (BSD), <a href="https://github.com/Leaflet/Leaflet.markercluster">Leaflet.markercluster</a> (MIT), <a href="https://maplibre.org">MapLibre GL JS</a> (BSD), Fredoka und Nunito (<a href="vendor/fonts/OFL-Nunito.txt">SIL Open Font License</a>).</p>
   <h3>Alle Quellen</h3>
-  <div id="sources"><p>Wird geladen …</p></div>
+  <div class="sources"><p>Wird geladen …</p></div>
+</main>
+
+<main lang="en" data-lang="en">
+  <h1>Djuu</h1>
+  <nav><a href="#impressum">Legal notice</a><a href="#agb">Terms of use</a><a href="#datenschutz">Privacy</a><a href="#daten">Data and licences</a></nav>
+  <p class="draft" style="margin-top:16px"><b>Draft:</b> these texts have not been legally reviewed yet. This is a translation for your convenience; only the German version is legally binding.</p>
+
+  <h2 id="impressum">Legal notice</h2>
+  <p>Information according to § 5 of the German Digital Services Act (DDG):</p>
+  <p class="imprint"></p>
+  <p>Responsible for the content according to § 18 (2) MStV: <span class="mstv"></span></p>
+  <p>We are neither willing nor obliged to take part in dispute resolution proceedings before a consumer arbitration board.</p>
+
+  <h2 id="agb">Terms of use</h2>
+  <h3>1. What this is about</h3>
+  <p>Djuu is a free web app for families in Hamburg. It shows places, classes, groups and events from open sources and from providers, and helps families organise lists and events together. These terms apply to everyone who uses Djuu.</p>
+  <h3>2. Information without guarantee</h3>
+  <p>We collect information from many sources and check it as well as we can, but we cannot guarantee that it is correct, complete or up to date. Please always check opening hours, dates, prices and booking with the provider. A contract for a class or event is made only with the provider, not with Djuu.</p>
+  <h3>3. Account</h3>
+  <p>An account is optional and only needed to share with your family. You sign in with your email address and don’t pass the codes on to others. Only invite people you know into your family. You can delete your account in the app at any time.</p>
+  <h3>4. What you add</h3>
+  <p>You are responsible for your entries, reviews, photos and links. Please don’t add anything unlawful, offensive or promotional, and no photos in which children can be recognised. We may remove content that breaks these rules and block accounts for serious or repeated violations.</p>
+  <h3>5. Availability</h3>
+  <p>We do our best to keep Djuu running reliably but cannot guarantee it at all times. We may change features where this is reasonable for you, and discontinue the service with reasonable notice.</p>
+  <h3>6. Liability</h3>
+  <p>We are fully liable for intent and gross negligence and for injury to life, body or health. For slight negligence we are liable only for breaches of essential obligations, limited to the typically foreseeable damage. Liability under the German Product Liability Act remains unaffected.</p>
+  <h3>7. Changes and law</h3>
+  <p>If these terms change, we will let you know in the app. German law applies; mandatory consumer protection rules of your country of residence remain unaffected.</p>
+
+  <h2 id="datenschutz">Privacy</h2>
+  <p>Djuu works without an account, without advertising and without usage statistics, and sets no cookies. You only need an account if you want to share lists and events with your family.</p>
+  <h3>Controller</h3>
+  <p class="controller"></p>
+  <h3>Without signing in: everything stays on your device</h3>
+  <p>Family details (names, birth months, state), home (only the centre of a postcode or district), language, favourites, reviews, places you added, photos and your map style are kept in your browser’s storage. They go to nobody. If you delete the website data, they are gone.</p>
+  <p>Your location is only used if you allow it, and only calculated in the browser. It is not sent to Djuu.</p>
+  <h3>With signing in: the shared family</h3>
+  <p>If you sign in, we store on our own server in Germany (Hetzner, data centre in Germany): your email address, the family and its members with the optional details (name, birth month, nursery or school, sizes, working hours), shopping list, items to buy, saved events and places, and “We went”. Only the members of your family can see this. Your home is not part of it; it stays on your device. The only purpose is sharing within the family (Art. 6(1)(b) GDPR).</p>
+  <p>We send the sign-in code by email via our mailbox at All-Inkl. “Where are you?”: a location is only sent if the person asked agrees, is only visible to the two of you and is deleted after 24 hours. The family calendar can be fetched via a secret address; anyone who knows it can see the saved events. You can renew it at any time.</p>
+  <p>Under Family → Us you can delete your account yourself at any time. We then remove your email address and your entry in the family; the shared lists stay for the other members.</p>
+  <h3>What goes to other services while you use the app</h3>
+  <p>When loading, each of these services technically learns your IP address and browser identifier, but not your family details.</p>
+  <ul>
+    <li><b>Hosting:</b> GitHub Pages (GitHub Inc., USA) delivers the app.</li>
+    <li><b>Map:</b> With the default style, map tiles come from OpenFreeMap; the approximate map area is visible to them. Other map styles use the provider you choose (VersaTiles, Federal Agency for Cartography and Geodesy, OpenStreetMap services, OpenTopoMap).</li>
+    <li><b>Weather:</b> At start, the Hamburg weather is fetched from Bright Sky (data of the German Weather Service).</li>
+    <li><b>School holidays:</b> Only if you choose a state other than Hamburg does the app ask OpenHolidays.</li>
+    <li><b>Photos:</b> Photos of individual places are loaded from Wikimedia Commons when you open the place.</li>
+    <li><b>Voice input:</b> Only when you tap the microphone does your browser become active. Depending on the browser, the audio goes to its provider, for example Google or Apple.</li>
+    <li><b>Links:</b> Directions, websites and provider links only open the external site when you tap them, for example Google Maps.</li>
+  </ul>
+  <h3>Reports and feedback</h3>
+  <p>If you report a place or write to us, your email app opens. You see the message before you send it. We use it only to reply and to correct data.</p>
+  <h3>Your rights</h3>
+  <p>You have the right of access, rectification, erasure, restriction of processing, data portability and objection, and the right to lodge a complaint with a data protection authority, in Hamburg the Hamburg Commissioner for Data Protection and Freedom of Information. If a place with your personal data is listed in Djuu, we remove it on request.</p>
+
+  <h2 id="daten">Data and licences</h2>
+  <p>Djuu brings open data together and shows for every place where a detail comes from. Information may be out of date. Please check anything important with the provider. Events always link to the provider’s page.</p>
+  <p>For other languages we translate event titles automatically with Claude by Anthropic (USA). Only the providers’ public information goes to Anthropic, no data about users.</p>
+  <p>Map data © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, <a href="https://opendatacommons.org/licenses/odbl/">ODbL</a>. Place data from <a href="https://overturemaps.org">Overture Maps</a> under <a href="https://cdla.dev/permissive-2-0/">CDLA Permissive 2.0</a>. Photos come from <a href="https://commons.wikimedia.org">Wikimedia Commons</a>; author and licence are on each photo’s linked page.</p>
+  <p>Software and fonts: <a href="https://leafletjs.com">Leaflet</a> (BSD), <a href="https://github.com/Leaflet/Leaflet.markercluster">Leaflet.markercluster</a> (MIT), <a href="https://maplibre.org">MapLibre GL JS</a> (BSD), Fredoka and Nunito (<a href="vendor/fonts/OFL-Nunito.txt">SIL Open Font License</a>).</p>
+  <h3>All sources</h3>
+  <div class="sources"><p>Loading …</p></div>
 </main>
 <script src="config.js"></script>
 <script>
   'use strict';
+  // the app's language (saved choice, else the phone's): English phones get English, everything else German
+  let lang = /^en\b/i.test(navigator.language || '') ? 'en' : 'de';
+  try { const saved = JSON.parse(localStorage.getItem('djuu.v2') || '{}').lang; if (saved) lang = saved; } catch (e) { /* storage blocked */ }
+  if (!document.querySelector(`main[data-lang="${lang}"]`)) lang = 'de';
+  document.querySelectorAll('main[data-lang]').forEach(m => { if (m.dataset.lang !== lang) m.remove(); }); // keeps ids unique
+  document.documentElement.lang = lang;
+  const T = { de: { missing: 'Name und Anschrift werden noch ergänzt.', above: 'Anschrift wie oben', later: 'wird ergänzt', source: 'Quelle', licence: 'Lizenz', failed: 'Die Liste ließ sich gerade nicht laden.', title: 'Djuu: Impressum und Datenschutz' },
+              en: { missing: 'Name and address will be added soon.', above: 'address as above', later: 'to be added', source: 'Source', licence: 'Licence', failed: 'The list couldn’t be loaded just now.', title: 'Djuu: legal notice and privacy' } }[lang];
+  document.title = T.title;
   const c = window.DJUU_CONTACT || {};
   const esc = s => String(s ?? '').replace(/[&<>"]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m]));
-  const who = c.name && c.address ? `${esc(c.name)}<br>${esc(c.address).replace(/\n/g, '<br>')}` : '<span class="missing">Name und Anschrift werden noch ergänzt.</span>';
+  const who = c.name && c.address ? `${esc(c.name)}<br>${esc(c.address).replace(/\n/g, '<br>')}` : `<span class="missing">${T.missing}</span>`;
   const mail = c.email ? `<br>E-Mail: <a href="mailto:${esc(c.email)}">${esc(c.email)}</a>` : '';
-  document.getElementById('imprint').innerHTML = who + mail;
-  document.getElementById('controller').innerHTML = who + mail;
-  document.getElementById('mstv').innerHTML = c.name ? `${esc(c.name)}, Anschrift wie oben` : '<span class="missing">wird ergänzt</span>';
+  document.querySelector('.imprint').innerHTML = who + mail;
+  document.querySelector('.controller').innerHTML = who + mail;
+  document.querySelector('.mstv').innerHTML = c.name ? `${esc(c.name)}, ${T.above}` : `<span class="missing">${T.later}</span>`;
   // Only http(s) links from our own data file become links.
   const link = (name, url) => /^https?:\/\//.test(url || '') ? `<a href="${esc(url)}" rel="noopener">${esc(name)}</a>` : esc(name);
   fetch('data/sources.json').then(r => r.json()).then(d => {
     const rows = d.sources.map(s => `<tr><td>${link(s[0], s[1])}</td><td>${esc(s[2])}</td></tr>`).join('');
-    document.getElementById('sources').innerHTML = `<table><tr><th>Quelle</th><th>Lizenz</th></tr>${rows}</table>`;
-  }).catch(() => { document.getElementById('sources').textContent = 'Die Liste ließ sich gerade nicht laden.'; });
+    document.querySelector('.sources').innerHTML = `<table><tr><th>${T.source}</th><th>${T.licence}</th></tr>${rows}</table>`;
+  }).catch(() => { document.querySelector('.sources').textContent = T.failed; });
   if (location.hash) document.querySelector(location.hash)?.scrollIntoView();
 </script>
 </body>

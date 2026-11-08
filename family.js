@@ -2,7 +2,7 @@
    Loaded after app.js and uses its helpers (store, save, svg, esc, head, view, renderPanel, toast, uid).
    Everything stays on this device for now. The shapes are ready for the shared family on the server
    (db/supabase/schema.sql): every item knows who added it (member id) and when. */
-'use strict';
+'use strict'; // i18n-skip
 
 // ---------- Members ----------
 // ids in the server's format (15 lowercase letters and digits), so items need no renaming when the family is shared
@@ -14,8 +14,8 @@ for (const a of store.profile.adults) a.id = a.id || pbId();
 save();
 function members() {
   const pr = store.profile;
-  return pr.adults.map((a, i) => ({ id: a.id, name: a.name || `Erwachsene*r ${i + 1}`, kid: false }))
-    .concat(pr.kids.map((k, i) => ({ id: k.id, name: k.name || `Kind ${i + 1}`, kid: true, size: k.size, shoe: k.shoe })))
+  return pr.adults.map((a, i) => ({ id: a.id, name: a.name || `${tl('Erwachsene*r')} ${i + 1}`, kid: false }))
+    .concat(pr.kids.map((k, i) => ({ id: k.id, name: k.name || `${tl('Kind')} ${i + 1}`, kid: true, size: k.size, shoe: k.shoe })))
     .map((m, i) => ({ ...m, color: MEMBER_COLORS[i % MEMBER_COLORS.length] }));
 }
 const memberById = id => members().find(m => m.id === id);
@@ -25,26 +25,26 @@ const byLine = id => { const m = id && memberById(id); return m ? `<span class="
 
 function adultsHtml() {
   const pr = store.profile, ms = members();
-  return `<div class="sec"><h4>Erwachsene</h4>
-      <p class="muted text">Alles freiwillig. Die Namen zeigen später, wer etwas auf die Liste gesetzt hat.</p>
+  return `<div class="sec"><h4>${tl('Erwachsene')}</h4>
+      <p class="muted text">${tl('Alles freiwillig. Die Namen zeigen später, wer etwas auf die Liste gesetzt hat.')}</p>
       ${pr.adults.map((a, i) => `<div class="kidrow">
-        <input data-adult="${i}" data-k="name" value="${esc(a.name || '')}" placeholder="Name" maxlength="20" aria-label="Name von Erwachsener ${i + 1}">
-        ${a.account ? '<span class="round" aria-hidden="true"></span>' : `<button type="button" class="round" data-deladult="${i}" aria-label="Entfernen">${svg('close')}</button>`}
-        <input data-adult="${i}" data-k="work" value="${esc(a.work || '')}" placeholder="Arbeitszeiten (optional), z. B. Mo–Fr 8–16" maxlength="60" aria-label="Arbeitszeiten" class="wide"></div>`).join('')}
-      <button type="button" class="btn" data-addadult="1">${svg('plus')}Erwachsene*n hinzufügen</button>
-      ${ms.length && !(typeof auth !== 'undefined' && auth?.family) ? `<div class="field"><label for="meSel">Wer nutzt dieses Handy?</label><select id="meSel">${ms.filter(m => !m.kid || ms.every(x => x.kid)).map(m => `<option value="${m.id}"${meId() === m.id ? ' selected' : ''}>${esc(m.name)}</option>`).join('')}</select></div>` : ''}
+        <input data-adult="${i}" data-k="name" value="${esc(a.name || '')}" placeholder="${tl('Name')}" maxlength="20" aria-label="Name von Erwachsener ${i + 1}">
+        ${a.account ? '<span class="round" aria-hidden="true"></span>' : `<button type="button" class="round" data-deladult="${i}" aria-label="${tl('Entfernen')}">${svg('close')}</button>`}
+        <input data-adult="${i}" data-k="work" value="${esc(a.work || '')}" placeholder="${tl('Arbeitszeiten (optional), z. B. Mo–Fr 8–16')}" maxlength="60" aria-label="${tl('Arbeitszeiten')}" class="wide"></div>`).join('')}
+      <button type="button" class="btn" data-addadult="1">${svg('plus')}${tl('Erwachsene*n hinzufügen')}</button>
+      ${ms.length && !(typeof auth !== 'undefined' && auth?.family) ? `<div class="field"><label for="meSel">${tl('Wer nutzt dieses Handy?')}</label><select id="meSel">${ms.filter(m => !m.kid || ms.every(x => x.kid)).map(m => `<option value="${m.id}"${meId() === m.id ? ' selected' : ''}>${esc(m.name)}</option>`).join('')}</select></div>` : ''}
     </div>`;
 }
 // extra, optional details per child (shown folded under each child in "Wir")
-const kidMoreHtml = (k, i) => `<details class="kidmore"${k.school || k.size || k.shoe ? ' open' : ''}><summary>Kita, Schule, Größen</summary>
-  <input data-kid="${i}" data-k="school" value="${esc(k.school || '')}" placeholder="Kita oder Schule, Klasse" maxlength="60" aria-label="Kita oder Schule">
-  <input data-kid="${i}" data-k="size" value="${esc(k.size || '')}" placeholder="Kleidergröße, z. B. 104" maxlength="12" aria-label="Kleidergröße">
-  <input data-kid="${i}" data-k="shoe" value="${esc(k.shoe || '')}" placeholder="Schuhgröße" maxlength="8" aria-label="Schuhgröße"></details>`;
+const kidMoreHtml = (k, i) => `<details class="kidmore"${k.school || k.size || k.shoe ? ' open' : ''}><summary>${tl('Kita, Schule, Größen')}</summary>
+  <input data-kid="${i}" data-k="school" value="${esc(k.school || '')}" placeholder="${tl('Kita oder Schule, Klasse')}" maxlength="60" aria-label="${tl('Kita oder Schule')}">
+  <input data-kid="${i}" data-k="size" value="${esc(k.size || '')}" placeholder="${tl('Kleidergröße, z. B. 104')}" maxlength="12" aria-label="${tl('Kleidergröße')}">
+  <input data-kid="${i}" data-k="shoe" value="${esc(k.shoe || '')}" placeholder="${tl('Schuhgröße')}" maxlength="8" aria-label="${tl('Schuhgröße')}"></details>`;
 
 function connectHtml() {
-  return `<div class="sec"><h4>Familie verbinden</h4>
-    <p class="text">Bald: Einladen per Link, dann sehen alle dieselben Listen, Gemerktes und Termine. Dazu kommen ein Familienkalender zum Abonnieren und „Wo seid ihr?“, mit dem man die anderen bitten kann, ihren Standort einmal zu senden.</p>
-    <p class="note">Bis dahin bleibt alles auf diesem Gerät.</p></div>`;
+  return `<div class="sec"><h4>${tl('Familie verbinden')}</h4>
+    <p class="text">${tl('Bald: Einladen per Link, dann sehen alle dieselben Listen, Gemerktes und Termine. Dazu kommen ein Familienkalender zum Abonnieren und „Wo seid ihr?“, mit dem man die anderen bitten kann, ihren Standort einmal zu senden.')}</p>
+    <p class="note">${tl('Bis dahin bleibt alles auf diesem Gerät.')}</p></div>`;
 }
 
 // ---------- Shopping: supermarket ----------
@@ -133,7 +133,7 @@ function finishTrip() {
   for (const i of done) { const h = s.history[itemKey(i.name)] || { name: i.name, cat: i.cat, n: 0 }; h.n++; h.last = Date.now(); h.name = i.name; h.cat = i.cat; s.history[itemKey(i.name)] = h; }
   s.items = s.items.filter(i => !i.done).map(i => ({ ...i, later: false })); // "Nächstes Mal" comes back
   s.trips++; s.seq = [];
-  save(); toast(`Einkauf fertig: ${done.length} ${done.length === 1 ? 'Sache' : 'Sachen'} erledigt.`);
+  save(); toast(`${tl('Einkauf fertig:')} ${done.length} ${done.length === 1 ? tl('Sache') : tl('Sachen')} erledigt.`);
 }
 function shopHtml() {
   const s = store.shop, order = catOrder(), open = openItems();
@@ -144,27 +144,27 @@ function shopHtml() {
   const onList = new Set(s.items.map(i => itemKey(i.name)));
   const often = Object.entries(s.history).filter(([k]) => !onList.has(k)).sort((a, b) => b[1].n - a[1].n || b[1].last - a[1].last).slice(0, 10);
   const row = i => `<li class="shrow${i.done ? ' done' : ''}">
-      <button type="button" class="shcheck" data-shtoggle="${i.id}" aria-label="${i.done ? 'Zurück auf die Liste' : 'Abhaken'}">${i.done ? svg('check') : ''}</button>
+      <button type="button" class="shcheck" data-shtoggle="${i.id}" aria-label="${i.done ? tl('Zurück auf die Liste') : tl('Abhaken')}">${i.done ? svg('check') : ''}</button>
       <button type="button" class="shname" data-shtoggle="${i.id}">${i.qty ? `<b>${esc(i.qty)}</b> ` : ''}${esc(i.name)}${byLine(i.by)}</button>
-      ${i.done ? '' : `<button type="button" class="round sm" data-shmenu="${i.id}" aria-label="Mehr">⋯</button>`}</li>
-      ${SH.menu === i.id ? `<li class="shmenu"><button type="button" class="chip" data-shlater="${i.id}">Nächstes Mal</button><button type="button" class="chip" data-shdel="${i.id}">Löschen</button>
-        <span class="muted">Gang:</span>${SHOP_CATS.map(([id, l]) => `<button type="button" class="chip${i.cat === id ? ' on' : ''}" data-shcat="${i.id}|${id}">${esc(l)}</button>`).join('')}</li>` : ''}`;
+      ${i.done ? '' : `<button type="button" class="round sm" data-shmenu="${i.id}" aria-label="${tl('Mehr')}">⋯</button>`}</li>
+      ${SH.menu === i.id ? `<li class="shmenu"><button type="button" class="chip" data-shlater="${i.id}">${tl('Nächstes Mal')}</button><button type="button" class="chip" data-shdel="${i.id}">${tl('Löschen')}</button>
+        <span class="muted">${tl('Gang:')}</span>${SHOP_CATS.map(([id, l]) => `<button type="button" class="chip${i.cat === id ? ' on' : ''}" data-shcat="${i.id}|${id}">${esc(l)}</button>`).join('')}</li>` : ''}`;
   const p = SH.pending, pd = p && s.items.find(i => i.id === p.dup);
-  return `<form class="shadd" id="shForm"><input id="shIn" autocomplete="off" placeholder="Was fehlt? z. B. 2 Milch" maxlength="60" aria-label="Neuer Eintrag"><button type="submit" class="btn primary" aria-label="Hinzufügen">${svg('plus')}</button></form>
-    ${p && pd ? `<div class="dupcard"><b>„${esc(pd.name)}“ steht schon drauf${pd.later ? ' (für nächstes Mal)' : ''}${pd.qty ? ', ' + esc(pd.qty) : ''}${memberById(pd.by) ? `, von ${esc(memberById(pd.by).name)}` : ''}.</b>
-      <div class="fgrid"><button type="button" class="chip on" data-shraise="1">Menge erhöhen</button><button type="button" class="chip" data-shforce="1">Trotzdem hinzufügen</button><button type="button" class="chip" data-shcancel="1">Abbrechen</button></div></div>` : ''}
+  return `<form class="shadd" id="shForm"><input id="shIn" autocomplete="off" placeholder="${tl('Was fehlt? z. B. 2 Milch')}" maxlength="60" aria-label="${tl('Neuer Eintrag')}"><button type="submit" class="btn primary" aria-label="${tl('Hinzufügen')}">${svg('plus')}</button></form>
+    ${p && pd ? `<div class="dupcard"><b>„${esc(pd.name)}${tl('“ steht schon drauf')}${pd.later ? tl(' (für nächstes Mal)') : ''}${pd.qty ? ', ' + esc(pd.qty) : ''}${memberById(pd.by) ? `, von ${esc(memberById(pd.by).name)}` : ''}.</b>
+      <div class="fgrid"><button type="button" class="chip on" data-shraise="1">${tl('Menge erhöhen')}</button><button type="button" class="chip" data-shforce="1">${tl('Trotzdem hinzufügen')}</button><button type="button" class="chip" data-shcancel="1">${tl('Abbrechen')}</button></div></div>` : ''}
     ${often.length ? `<div class="row shoften">${often.map(([k, h]) => `<button type="button" class="chip" data-shagain="${esc(k)}">${svg('plus')}${esc(h.name)}</button>`).join('')}</div>` : ''}
     ${open.length ? cats.map(c => `<h4 class="shcat">${esc(SHOP_CAT[c])}</h4><ol class="shlist">${groups[c].sort((a, b) => a.at - b.at).map(row).join('')}</ol>`).join('')
-      : `<div class="empty"><b>${done.length ? 'Alles im Wagen.' : 'Die Liste ist leer.'}</b>${done.length ? 'Tippe auf „Einkauf fertig“, wenn ihr durch seid.' : 'Was fehlt, sortiert Djuu nach den Gängen im Supermarkt.'}</div>`}
-    ${done.length ? `<h4 class="shcat">Im Wagen (${done.length})</h4><ol class="shlist">${done.map(row).join('')}</ol>` : ''}
-    ${later.length ? `<details class="fold"><summary>Nächstes Mal (${later.length})</summary><ol class="shlist">${later.map(i => `<li class="shrow"><span class="shname">${i.qty ? `<b>${esc(i.qty)}</b> ` : ''}${esc(i.name)}${byLine(i.by)}</span><button type="button" class="chip" data-shnow="${i.id}">Jetzt</button></li>`).join('')}</ol>
-      <p class="note">Kommt nach „Einkauf fertig“ automatisch wieder auf die Liste.</p></details>` : ''}
-    ${s.items.length ? `<div class="sticky-bar"><button type="button" class="btn" data-shclear="1">Liste leeren</button><button type="button" class="btn big primary" data-shfinish="1"${done.length ? '' : ' disabled'}>Einkauf fertig</button></div>` : ''}
-    <p class="note">${store.shop.trips >= 2 ? 'Die Reihenfolge der Gänge lernt Djuu aus euren letzten Einkäufen.' : 'Sortiert wie in den meisten Supermärkten. Nach zwei Einkäufen passt Djuu die Reihenfolge an euren Laden an.'}</p>`;
+      : `<div class="empty"><b>${done.length ? tl('Alles im Wagen.') : tl('Die Liste ist leer.')}</b>${done.length ? tl('Tippe auf „Einkauf fertig“, wenn ihr durch seid.') : tl('Was fehlt, sortiert Djuu nach den Gängen im Supermarkt.')}</div>`}
+    ${done.length ? `<h4 class="shcat">${tl('Im Wagen (')}${done.length})</h4><ol class="shlist">${done.map(row).join('')}</ol>` : ''}
+    ${later.length ? `<details class="fold"><summary>${tl('Nächstes Mal (')}${later.length})</summary><ol class="shlist">${later.map(i => `<li class="shrow"><span class="shname">${i.qty ? `<b>${esc(i.qty)}</b> ` : ''}${esc(i.name)}${byLine(i.by)}</span><button type="button" class="chip" data-shnow="${i.id}">${tl('Jetzt')}</button></li>`).join('')}</ol>
+      <p class="note">${tl('Kommt nach „Einkauf fertig“ automatisch wieder auf die Liste.')}</p></details>` : ''}
+    ${s.items.length ? `<div class="sticky-bar"><button type="button" class="btn" data-shclear="1">${tl('Liste leeren')}</button><button type="button" class="btn big primary" data-shfinish="1"${done.length ? '' : ' disabled'}>${tl('Einkauf fertig')}</button></div>` : ''}
+    <p class="note">${store.shop.trips >= 2 ? tl('Die Reihenfolge der Gänge lernt Djuu aus euren letzten Einkäufen.') : tl('Sortiert wie in den meisten Supermärkten. Nach zwei Einkäufen passt Djuu die Reihenfolge an euren Laden an.')}</p>`;
 }
 
 // ---------- Errands (Besorgungen): clothes, furniture, presents ----------
-const ERRAND_STATES = [['idee', 'Idee'], ['ja', 'Kaufen wir'], ['gekauft', 'Gekauft']];
+const ERRAND_STATES = [['idee', tl('Idee')], ['ja', tl('Kaufen wir')], ['gekauft', tl('Gekauft')]];
 const cleanUrl = u => { try { const x = new URL(/^https?:\/\//i.test(u) ? u : 'https://' + u); return /^https?:$/.test(x.protocol) && x.hostname.includes('.') ? x.href : null; } catch (e) { return null; } };
 const hostOf = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch (e) { return ''; } };
 // a readable title from a shop link: last words of the path ("kinderbett-90x200" -> "Kinderbett 90x200"), else the shop's name
@@ -183,36 +183,36 @@ function addErrand(text) {
 }
 function errandHtml() {
   const ms = members(), list = store.errands, open = list.filter(e => e.state !== 'gekauft'), bought = list.filter(e => e.state === 'gekauft');
-  const groups = [['', 'Für alle']].concat(ms.map(m => [m.id, 'Für ' + m.name])).map(([id, l]) => [l, open.filter(e => (e.for || '') === id || (id === '' && !memberById(e.for)))]).filter(([, l]) => l.length);
+  const groups = [['', tl('Für alle')]].concat(ms.map(m => [m.id, tl('Für ') + m.name])).map(([id, l]) => [l, open.filter(e => (e.for || '') === id || (id === '' && !memberById(e.for)))]).filter(([, l]) => l.length);
   const card = e => {
-    const m = memberById(e.for), size = m && m.kid && (m.size || m.shoe) ? [m.size && 'Gr. ' + m.size, m.shoe && 'Schuhe ' + m.shoe].filter(Boolean).join(' · ') : '';
+    const m = memberById(e.for), size = m && m.kid && (m.size || m.shoe) ? [m.size && tl('Gr. ') + m.size, m.shoe && tl('Schuhe ') + m.shoe].filter(Boolean).join(' · ') : '';
     return `<li class="ercard${e.state === 'gekauft' ? ' done' : ''}">
-      <div class="erhead"><button type="button" class="shcheck" data-erbought="${e.id}" aria-label="${e.state === 'gekauft' ? 'Doch nicht gekauft' : 'Gekauft'}">${e.state === 'gekauft' ? svg('check') : ''}</button>
+      <div class="erhead"><button type="button" class="shcheck" data-erbought="${e.id}" aria-label="${e.state === 'gekauft' ? tl('Doch nicht gekauft') : tl('Gekauft')}">${e.state === 'gekauft' ? svg('check') : ''}</button>
         <div class="ertitle"><b>${esc(e.title)}</b>
           <span class="ermeta">${e.link ? `<a href="${esc(e.link)}" target="_blank" rel="noopener nofollow">${esc(hostOf(e.link))}</a>` : ''}${e.price ? `<span>${esc(e.price)}</span>` : ''}${size ? `<span>${esc(size)}</span>` : ''}${byLine(e.by)}</span>
           ${e.note ? `<span class="muted">${esc(e.note)}</span>` : ''}</div>
-        <button type="button" class="round sm" data-eredit="${e.id}" aria-label="Bearbeiten">${svg('edit')}</button></div>
+        <button type="button" class="round sm" data-eredit="${e.id}" aria-label="${tl('Bearbeiten')}">${svg('edit')}</button></div>
       ${e.state !== 'gekauft' ? `<div class="erstates">${ERRAND_STATES.slice(0, 2).map(([id, l]) => `<button type="button" class="chip${e.state === id ? ' on' : ''}" data-erstate="${e.id}|${id}">${l}</button>`).join('')}</div>` : ''}
       ${SH.editing === e.id ? `<div class="eredit">
-        <input data-erf="${e.id}|title" value="${esc(e.title)}" maxlength="80" aria-label="Was">
-        <input data-erf="${e.id}|link" value="${esc(e.link)}" placeholder="Link (optional)" inputmode="url" aria-label="Link">
-        <select data-erf="${e.id}|for" aria-label="Für wen"><option value="">Für alle</option>${ms.map(x => `<option value="${x.id}"${e.for === x.id ? ' selected' : ''}>Für ${esc(x.name)}</option>`).join('')}</select>
-        <input data-erf="${e.id}|price" value="${esc(e.price)}" placeholder="Preis (optional)" maxlength="20" aria-label="Preis">
-        <input data-erf="${e.id}|note" value="${esc(e.note)}" placeholder="Notiz, z. B. Farbe, Laden" maxlength="140" aria-label="Notiz">
-        <div class="fgrid"><button type="button" class="chip on" data-eredit="${e.id}">Fertig</button><button type="button" class="chip" data-erdel="${e.id}">Löschen</button></div></div>` : ''}</li>`;
+        <input data-erf="${e.id}|title" value="${esc(e.title)}" maxlength="80" aria-label="${tl('Was')}">
+        <input data-erf="${e.id}|link" value="${esc(e.link)}" placeholder="${tl('Link (optional)')}" inputmode="url" aria-label="${tl('Link')}">
+        <select data-erf="${e.id}|for" aria-label="${tl('Für wen')}"><option value="">${tl('Für alle')}</option>${ms.map(x => `<option value="${x.id}"${e.for === x.id ? ' selected' : ''}>${tl('Für')} ${esc(x.name)}</option>`).join('')}</select>
+        <input data-erf="${e.id}|price" value="${esc(e.price)}" placeholder="${tl('Preis (optional)')}" maxlength="20" aria-label="${tl('Preis')}">
+        <input data-erf="${e.id}|note" value="${esc(e.note)}" placeholder="${tl('Notiz, z. B. Farbe, Laden')}" maxlength="140" aria-label="${tl('Notiz')}">
+        <div class="fgrid"><button type="button" class="chip on" data-eredit="${e.id}">${tl('Fertig')}</button><button type="button" class="chip" data-erdel="${e.id}">${tl('Löschen')}</button></div></div>` : ''}</li>`;
   };
-  return `<form class="shadd" id="erForm"><input id="erIn" autocomplete="off" placeholder="Was brauchen wir? Oder Link einfügen" maxlength="300" aria-label="Neue Besorgung"><button type="submit" class="btn primary" aria-label="Hinzufügen">${svg('plus')}</button></form>
+  return `<form class="shadd" id="erForm"><input id="erIn" autocomplete="off" placeholder="${tl('Was brauchen wir? Oder Link einfügen')}" maxlength="300" aria-label="${tl('Neue Besorgung')}"><button type="submit" class="btn primary" aria-label="${tl('Hinzufügen')}">${svg('plus')}</button></form>
     ${groups.length ? groups.map(([l, items]) => `<h4 class="shcat">${esc(l)}</h4><ol class="erlist">${items.map(card).join('')}</ol>`).join('')
-      : `<div class="empty"><b>Noch nichts geplant.</b>Für alles außer dem Wocheneinkauf: Kinderkleidung, Möbel, Geschenke. Ein Link zum Shop passt auch.</div>`}
-    ${bought.length ? `<details class="fold"><summary>Gekauft (${bought.length})</summary><ol class="erlist">${bought.map(card).join('')}</ol></details>` : ''}`;
+      : `<div class="empty"><b>${tl('Noch nichts geplant.')}</b>${tl('Für alles außer dem Wocheneinkauf: Kinderkleidung, Möbel, Geschenke. Ein Link zum Shop passt auch.')}</div>`}
+    ${bought.length ? `<details class="fold"><summary>${tl('Gekauft (')}${bought.length})</summary><ol class="erlist">${bought.map(card).join('')}</ol></details>` : ''}`;
 }
 
 // ---------- The family tab ----------
-const FAM_SEGS = [['einkauf', 'Einkauf'], ['besorgungen', 'Besorgungen'], ['wir', 'Wir']];
+const FAM_SEGS = [['einkauf', tl('Einkauf')], ['besorgungen', tl('Besorgungen')], ['wir', tl('Wir')]];
 function familyView() {
   const seg = state.famSeg || 'einkauf';
   const n = openItems().length, e = store.errands.filter(x => x.state !== 'gekauft').length;
-  return `${head('Familie', typeof auth !== 'undefined' && auth?.family ? 'Geteilt mit ' + esc(auth.familyName || 'der Familie') : 'Bisher nur auf diesem Gerät', false)}
+  return `${head(tl('Familie'), typeof auth !== 'undefined' && auth?.family ? tl('Geteilt mit ') + esc(auth.familyName || tl('der Familie')) : tl('Bisher nur auf diesem Gerät'), false)}
     <div class="famseg" role="tablist">${FAM_SEGS.map(([id, l]) => `<button type="button" role="tab" aria-selected="${seg === id}" class="${seg === id ? 'on' : ''}" data-famseg="${id}">${l}${id === 'einkauf' && n ? ` <span class="n">${n}</span>` : id === 'besorgungen' && e ? ` <span class="n">${e}</span>` : ''}</button>`).join('')}</div>
     ${seg === 'einkauf' ? shopHtml() : seg === 'besorgungen' ? errandHtml() : `<div class="melogo">${LOGO}</div>${meineInfosHtml()}${syncHtml()}${adultsHtml()}${savedView()}`}`;
 }
@@ -238,7 +238,7 @@ document.addEventListener('click', e => {
     // everything on the list goes, "Nächstes Mal" stays and becomes the new list; one tap brings it all back
     const before = JSON.parse(JSON.stringify(s.items));
     s.items = s.items.filter(i => i.later && !i.done).map(i => ({ ...i, later: false })); save(); renderPanel();
-    SH.undo = before; toastAction('Liste geleert.', 'Rückgängig', () => { s.items = SH.undo; SH.undo = null; save(); renderPanel(); });
+    SH.undo = before; toastAction(tl('Liste geleert.'), tl('Rückgängig'), () => { s.items = SH.undo; SH.undo = null; save(); renderPanel(); });
   }
   else if (d.erbought) { const x = store.errands.find(r => r.id === d.erbought); x.state = x.state === 'gekauft' ? 'ja' : 'gekauft'; save(); renderPanel(); }
   else if (d.erstate) { const [id, st] = d.erstate.split('|'); store.errands.find(r => r.id === id).state = st; save(); renderPanel(); }

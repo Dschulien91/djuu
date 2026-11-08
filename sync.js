@@ -4,7 +4,7 @@
    How it works: every save() compares the local data with the last known server state ("shadow") and queues the
    differences; changes from others arrive over the realtime connection and update both. Without login nothing leaves the device.
    Loaded after app.js and family.js. */
-'use strict';
+'use strict'; // i18n-skip
 
 const API = (window.DJUU_API || '').replace(/\/$/, '');
 const AUTH_KEY = 'djuu.auth', OUT_KEY = 'djuu.outbox', SHADOW_KEY = 'djuu.shadow';
@@ -36,7 +36,7 @@ const SPECS = {
   members: {
     local: () => store.profile.adults.map(a => ({ ...a, _kind: 'adult' })).concat(store.profile.kids.map(k => ({ ...k, _kind: 'kid' }))),
     key: x => x.id, newId: x => x.id,
-    payload: x => ({ name: (x.name || '').slice(0, 30) || (x._kind === 'kid' ? 'Kind' : 'Erwachsene*r'), kind: x._kind, birth_ym: x.ym || '', birth_day: +x.d || 0, school: x.school || '', size: x.size || '', shoe: x.shoe || '', work: x.work || '' }),
+    payload: x => ({ name: (x.name || '').slice(0, 30) || (x._kind === 'kid' ? tl('Kind') : tl('Erwachsene*r')), kind: x._kind, birth_ym: x.ym || '', birth_day: +x.d || 0, school: x.school || '', size: x.size || '', shoe: x.shoe || '', work: x.work || '' }),
     keep: s => s.account, // members with an account leave only by deleting their account
     setAll(rs) {
       const kid = r => ({ id: r.id, name: r.name, ym: r.birth_ym, d: r.birth_day ? String(r.birth_day) : '', school: r.school, size: r.size, shoe: r.shoe });
@@ -293,8 +293,8 @@ async function enterFamily(r, myName, keepMembers) {
 async function invite() {
   const r = await api('POST', '/api/djuu/invite');
   const url = `${location.origin}${location.pathname}#join=${r.token}`;
-  const text = `Komm in unsere Familie bei Djuu: gemeinsame Einkaufsliste, Termine und mehr. Der Link gilt 7 Tage.`;
-  if (navigator.share) navigator.share({ title: 'Djuu Familie', text, url }).catch(() => {});
+  const text = `${tl('Komm in unsere Familie bei Djuu: gemeinsame Einkaufsliste, Termine und mehr. Der Link gilt 7 Tage.')}`;
+  if (navigator.share) navigator.share({ title: tl('Djuu Familie'), text, url }).catch(() => {});
   else navigator.clipboard?.writeText(text + ' ' + url).then(() => toast('Einladungslink kopiert.'), () => toast(url));
 }
 function logout(silent) {
@@ -305,7 +305,7 @@ function logout(silent) {
   rerender();
 }
 async function deleteAccount() {
-  if (!confirm('Konto wirklich löschen? Du verlässt damit auch die Familie. Die Listen der Familie bleiben für die anderen erhalten.')) return;
+  if (!confirm(tl('Konto wirklich löschen? Du verlässt damit auch die Familie. Die Listen der Familie bleiben für die anderen erhalten.'))) return;
   try {
     if (auth.member) await api('DELETE', `/api/collections/members/records/${auth.member}`).catch(() => {});
     await api('DELETE', `/api/collections/users/records/${auth.userId}`);
@@ -319,14 +319,14 @@ async function loadPings() {
   try { SY.pings = (await api('GET', `/api/collections/pings/records?perPage=50&sort=-created&filter=${encodeURIComponent(`created>'${since}'`)}`)).items; } catch (e) { SY.pings = []; }
   showPingBar();
 }
-const nameOf = id => memberById(id)?.name || 'Jemand';
+const nameOf = id => memberById(id)?.name || tl('Jemand');
 async function askWhere(memberId) {
-  try { await api('POST', '/api/collections/pings/records', { family: auth.family, from: auth.member, to: memberId }); toast(`Gefragt. ${nameOf(memberId)} sieht die Frage beim nächsten Öffnen von Djuu.`); }
+  try { await api('POST', '/api/collections/pings/records', { family: auth.family, from: auth.member, to: memberId }); toast(`${tl('Gefragt.')} ${nameOf(memberId)} ${tl('sieht die Frage beim nächsten Öffnen von Djuu.')}`); }
   catch (e) { toast('Das hat nicht geklappt. Bitte mit Netz noch einmal versuchen.'); }
 }
 function answerPing(id, share) {
   const send = body => api('PATCH', `/api/collections/pings/records/${id}`, { ...body, answered: new Date().toISOString().replace('T', ' ') })
-    .then(() => toast(share ? 'Standort einmal gesendet.' : 'Erledigt.'), () => toast('Senden hat nicht geklappt.'));
+    .then(() => toast(share ? tl('Standort einmal gesendet.') : tl('Erledigt.')), () => toast('Senden hat nicht geklappt.'));
   if (!share) return send({});
   if (!navigator.geolocation) return toast('Dieses Gerät kann den Standort nicht bestimmen.');
   navigator.geolocation.getCurrentPosition(p => send({ lat: p.coords.latitude, lon: p.coords.longitude, accuracy: Math.round(p.coords.accuracy) }),
@@ -339,10 +339,10 @@ function showPingBar() {
   const me = auth?.member;
   const ask = me && SY.pings.find(p => p.to === me && !p.answered && !seenPings.has(p.id));
   const ans = me && SY.pings.find(p => p.from === me && p.answered && !seenPings.has(p.id));
-  if (ask) bar.innerHTML = `<b>${esc(nameOf(ask.from))} fragt: Wo bist du?</b><div><button type="button" class="btn primary" data-pinganswer="${ask.id}">Standort einmal senden</button><button type="button" class="btn" data-pingno="${ask.id}">Nicht jetzt</button></div>`;
+  if (ask) bar.innerHTML = `<b>${esc(nameOf(ask.from))} ${tl('fragt: Wo bist du?')}</b><div><button type="button" class="btn primary" data-pinganswer="${ask.id}">${tl('Standort einmal senden')}</button><button type="button" class="btn" data-pingno="${ask.id}">${tl('Nicht jetzt')}</button></div>`;
   else if (ans) bar.innerHTML = ans.lat != null
-    ? `<b>${esc(nameOf(ans.to))} hat den Standort geschickt.</b><div><button type="button" class="btn primary" data-pingshow="${ans.id}">Auf der Karte zeigen</button><button type="button" class="btn" data-pingok="${ans.id}">OK</button></div>`
-    : `<b>${esc(nameOf(ans.to))} möchte den Standort gerade nicht senden.</b><div><button type="button" class="btn" data-pingok="${ans.id}">OK</button></div>`;
+    ? `<b>${esc(nameOf(ans.to))} ${tl('hat den Standort geschickt.')}</b><div><button type="button" class="btn primary" data-pingshow="${ans.id}">${tl('Auf der Karte zeigen')}</button><button type="button" class="btn" data-pingok="${ans.id}">OK</button></div>`
+    : `<b>${esc(nameOf(ans.to))} ${tl('möchte den Standort gerade nicht senden.')}</b><div><button type="button" class="btn" data-pingok="${ans.id}">OK</button></div>`;
   bar.hidden = !(ask || ans);
 }
 const markSeen = id => { seenPings.add(id); writeJson('djuu.pingsSeen', [...seenPings].slice(-100)); showPingBar(); };
@@ -351,7 +351,7 @@ function showPingOnMap(p) {
   if (pingMarker) map.removeLayer(pingMarker);
   const m = memberById(p.to), c = m?.color || '#6B4EE6';
   pingMarker = L.marker([p.lat, p.lon], { icon: L.divIcon({ className: '', iconSize: [44, 44], html: `<div class="mkhit"><div class="pingdot" style="--c:${c}">${esc((m?.name || '?').slice(0, 1))}</div></div>` }) })
-    .bindTooltip(`${esc(m?.name || '')}, ${new Date(p.answered.replace(' ', 'T')).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr, ±${p.accuracy || '?'} m`, { permanent: true, direction: 'top', offset: [0, -16] })
+    .bindTooltip(`${esc(m?.name || '')}, ${new Date(p.answered.replace(' ', 'T')).toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' })} ${tl('Uhr, ±')}${p.accuracy || '?'} m`, { permanent: true, direction: 'top', offset: [0, -16] })
     .addTo(map);
   home('peek'); map.setView([p.lat, p.lon], 16);
 }
@@ -368,57 +368,57 @@ function syncHtml() {
   if (!API) return connectHtml();
   const err = SY.error ? `<p class="error">${esc(SY.error)}</p>` : '';
   if (!auth?.token) {
-    return `<div class="sec syncbox"><h4>Mit der Familie teilen</h4>
-      <p class="text">Melde dich mit deiner E-Mail an. Dann sehen alle in eurer Familie dieselbe Einkaufsliste, Besorgungen, Gemerktes und Termine. Ein Passwort brauchst du nicht.</p>
-      ${SY.invite ? '<p class="note"><b>Du wurdest in eine Familie eingeladen.</b> Nach der Anmeldung trittst du ihr bei.</p>' : ''}
+    return `<div class="sec syncbox"><h4>${tl('Mit der Familie teilen')}</h4>
+      <p class="text">${tl('Melde dich mit deiner E-Mail an. Dann sehen alle in eurer Familie dieselbe Einkaufsliste, Besorgungen, Gemerktes und Termine. Ein Passwort brauchst du nicht.')}</p>
+      ${SY.invite ? `<p class="note"><b>${tl('Du wurdest in eine Familie eingeladen.')}</b> ${tl('Nach der Anmeldung trittst du ihr bei.')}</p>` : ''}
       ${SY.step === 'code'
-        ? `<form id="syCode" class="shadd"><input id="syCodeIn" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="Code aus der E-Mail" aria-label="Code"><button type="submit" class="btn primary"${SY.busy ? ' disabled' : ''}>Anmelden</button></form>
-           <p class="note">Wir haben einen 6-stelligen Code an ${esc(SY.email)} geschickt. Er gilt 10 Minuten. Schau auch im Spam-Ordner. <button type="button" class="linkbtn" data-syback="1">Andere E-Mail</button></p>`
-        : `<form id="syEmail" class="shadd"><input id="syEmailIn" type="email" autocomplete="email" placeholder="deine@email.de" aria-label="E-Mail"><button type="submit" class="btn primary"${SY.busy ? ' disabled' : ''}>Code senden</button></form>`}
-      ${err}<p class="note">Mit der Anmeldung gelten die <a href="legal.html#agb" target="_blank" rel="noopener">Nutzungsbedingungen</a>. Wir speichern nur, was ihr für die Familie eintragt: <a href="legal.html#datenschutz" target="_blank" rel="noopener">Datenschutz</a>.</p></div>`;
+        ? `<form id="syCode" class="shadd"><input id="syCodeIn" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="${tl('Code aus der E-Mail')}" aria-label="${tl('Code')}"><button type="submit" class="btn primary"${SY.busy ? ' disabled' : ''}>${tl('Anmelden')}</button></form>
+           <p class="note">${tl('Wir haben einen 6-stelligen Code an')} ${esc(SY.email)} ${tl('geschickt. Er gilt 10 Minuten. Schau auch im Spam-Ordner.')} <button type="button" class="linkbtn" data-syback="1">${tl('Andere E-Mail')}</button></p>`
+        : `<form id="syEmail" class="shadd"><input id="syEmailIn" type="email" autocomplete="email" placeholder="${tl('deine@email.de')}" aria-label="${tl('E-Mail')}"><button type="submit" class="btn primary"${SY.busy ? ' disabled' : ''}>${tl('Code senden')}</button></form>`}
+      ${err}<p class="note">${tl('Mit der Anmeldung gelten die')} <a href="legal.html#agb" target="_blank" rel="noopener">${tl('Nutzungsbedingungen')}</a>${tl('. Wir speichern nur, was ihr für die Familie eintragt:')} <a href="legal.html#datenschutz" target="_blank" rel="noopener">${tl('Datenschutz')}</a>.</p></div>`;
   }
   if (!auth.family) {
-    return `<div class="sec syncbox"><h4>${SY.invite ? 'Familie beitreten' : 'Familie gründen'}</h4>
-      <p class="text">Angemeldet als ${esc(auth.email)}.</p>
-      <form id="syFam" class="syfam"><input id="syMyName" maxlength="30" placeholder="Wie heißt du?" value="${esc(store.profile.adults.find(a => a.id === meId())?.name || '')}" aria-label="Dein Name">
+    return `<div class="sec syncbox"><h4>${SY.invite ? tl('Familie beitreten') : tl('Familie gründen')}</h4>
+      <p class="text">${tl('Angemeldet als')} ${esc(auth.email)}.</p>
+      <form id="syFam" class="syfam"><input id="syMyName" maxlength="30" placeholder="${tl('Wie heißt du?')}" value="${esc(store.profile.adults.find(a => a.id === meId())?.name || '')}" aria-label="${tl('Dein Name')}">
         ${SY.invite ? '' : '<input id="syFamName" maxlength="60" placeholder="Name der Familie, z. B. Familie Schulz" aria-label="Familienname">'}
-        <button type="submit" class="btn big primary"${SY.busy ? ' disabled' : ''}>${SY.invite ? 'Beitreten' : 'Familie gründen'}</button></form>
-      ${SY.invite ? '' : '<p class="note">Wurdest du eingeladen? Öffne einfach den Link aus der Einladung.</p>'}
-      ${err}<button type="button" class="linkbtn" data-sylogout="1">Abmelden</button></div>`;
+        <button type="submit" class="btn big primary"${SY.busy ? ' disabled' : ''}>${SY.invite ? tl('Beitreten') : tl('Familie gründen')}</button></form>
+      ${SY.invite ? '' : `<p class="note">${tl('Wurdest du eingeladen? Öffne einfach den Link aus der Einladung.')}</p>`}
+      ${err}<button type="button" class="linkbtn" data-sylogout="1">${tl('Abmelden')}</button></div>`;
   }
   const others = members().filter(m => !m.kid && m.id !== auth.member && store.profile.adults.find(a => a.id === m.id)?.account);
-  return `<div class="sec syncbox"><h4>${esc(auth.familyName || 'Familie')}</h4>
-    <p class="text">${SY.online ? '<span class="syok">●</span> Verbunden' : '<span class="syoff">●</span> Offline, Änderungen werden nachgereicht'}${outbox.length ? ` · ${outbox.length} noch nicht gesendet` : ''}</p>
-    <button type="button" class="btn" data-syinvite="1">${svg('share')}Familienmitglied einladen</button>
-    ${others.length ? `<h4 class="shcat">Wo seid ihr?</h4><div class="fgrid">${others.map(m => `<button type="button" class="chip" data-syask="${m.id}">${svg('pin')}${esc(m.name)} fragen</button>`).join('')}</div>
-      <p class="note">Die Person entscheidet selbst, ob sie ihren Standort einmal schickt. Er wird nach 24 Stunden gelöscht.</p>` : ''}
-    <h4 class="shcat">Familienkalender</h4>
-    ${SY.calToken ? `<p class="text">Alle gemerkten Termine erscheinen automatisch in eurem Kalender.</p>
-      <div class="calmenu"><a class="btn" href="${esc(calUrl())}">${svg('cal')}iPhone, Mac, Outlook: abonnieren</a>
-      <a class="btn" href="https://calendar.google.com/calendar/r?cid=${encodeURIComponent(calUrl())}" target="_blank" rel="noopener">${svg('cal')}Google Kalender: abonnieren</a>
-      <button type="button" class="linkbtn" data-sycalcopy="1">Adresse kopieren</button> <button type="button" class="linkbtn" data-sycalrenew="1">Neue Adresse (alte wird ungültig)</button></div>
-      <p class="note">Kalender-Apps holen Änderungen meist alle paar Stunden. Wer die Adresse hat, sieht eure gemerkten Termine, also nur in der Familie teilen.</p>`
-      : '<button type="button" class="btn" data-sycal="1">' + svg('cal') + 'Familienkalender einrichten</button>'}
-    <h4 class="shcat">Konto</h4>
-    <p class="note">Angemeldet als ${esc(auth.email)}.</p>
-    <div class="fgrid"><button type="button" class="chip" data-sylogout="1">Abmelden</button><button type="button" class="chip" data-sydelete="1">Konto löschen</button></div></div>`;
+  return `<div class="sec syncbox"><h4>${esc(auth.familyName || tl('Familie'))}</h4>
+    <p class="text">${SY.online ? `<span class="syok">●</span> ${tl('Verbunden')}` : `<span class="syoff">●</span> ${tl('Offline, Änderungen werden nachgereicht')}`}${outbox.length ? ` · ${outbox.length} ${tl('noch nicht gesendet')}` : ''}</p>
+    <button type="button" class="btn" data-syinvite="1">${svg('share')}${tl('Familienmitglied einladen')}</button>
+    ${others.length ? `<h4 class="shcat">${tl('Wo seid ihr?')}</h4><div class="fgrid">${others.map(m => `<button type="button" class="chip" data-syask="${m.id}">${svg('pin')}${esc(m.name)} fragen</button>`).join('')}</div>
+      <p class="note">${tl('Die Person entscheidet selbst, ob sie ihren Standort einmal schickt. Er wird nach 24 Stunden gelöscht.')}</p>` : ''}
+    <h4 class="shcat">${tl('Familienkalender')}</h4>
+    ${SY.calToken ? `<p class="text">${tl('Alle gemerkten Termine erscheinen automatisch in eurem Kalender.')}</p>
+      <div class="calmenu"><a class="btn" href="${esc(calUrl())}">${svg('cal')}${tl('iPhone, Mac, Outlook: abonnieren')}</a>
+      <a class="btn" href="https://calendar.google.com/calendar/r?cid=${encodeURIComponent(calUrl())}" target="_blank" rel="noopener">${svg('cal')}${tl('Google Kalender: abonnieren')}</a>
+      <button type="button" class="linkbtn" data-sycalcopy="1">${tl('Adresse kopieren')}</button> <button type="button" class="linkbtn" data-sycalrenew="1">${tl('Neue Adresse (alte wird ungültig)')}</button></div>
+      <p class="note">${tl('Kalender-Apps holen Änderungen meist alle paar Stunden. Wer die Adresse hat, sieht eure gemerkten Termine, also nur in der Familie teilen.')}</p>`
+      : '<button type="button" class="btn" data-sycal="1">' + svg('cal') + `${tl('Familienkalender einrichten')}</button>`}
+    <h4 class="shcat">${tl('Konto')}</h4>
+    <p class="note">${tl('Angemeldet als')} ${esc(auth.email)}.</p>
+    <div class="fgrid"><button type="button" class="chip" data-sylogout="1">${tl('Abmelden')}</button><button type="button" class="chip" data-sydelete="1">${tl('Konto löschen')}</button></div></div>`;
 }
 
 // ---------- Interaction ----------
 const run = async (fn, okMsg) => {
   SY.busy = true; SY.error = ''; renderPanel();
   try { await fn(); if (okMsg) toast(okMsg); }
-  catch (e) { SY.error = !e.status ? 'Keine Verbindung. Bitte später noch einmal.' : e.data?.message || e.message; }
+  catch (e) { SY.error = !e.status ? tl('Keine Verbindung. Bitte später noch einmal.') : e.data?.message || e.message; }
   SY.busy = false; renderPanel();
 };
 document.addEventListener('submit', e => {
-  if (e.target.id === 'syEmail') { e.preventDefault(); const v = $('#syEmailIn').value.trim(); if (!/^\S+@\S+\.\S+$/.test(v)) { SY.error = 'Bitte eine gültige E-Mail eingeben.'; return renderPanel(); } run(() => requestCode(v)); }
-  if (e.target.id === 'syCode') { e.preventDefault(); const v = $('#syCodeIn').value; run(async () => { try { await verifyCode(v); } catch (x) { if (x.status === 400) x.data = { message: 'Der Code stimmt nicht oder ist abgelaufen.' }; throw x; } }); }
+  if (e.target.id === 'syEmail') { e.preventDefault(); const v = $('#syEmailIn').value.trim(); if (!/^\S+@\S+\.\S+$/.test(v)) { SY.error = tl('Bitte eine gültige E-Mail eingeben.'); return renderPanel(); } run(() => requestCode(v)); }
+  if (e.target.id === 'syCode') { e.preventDefault(); const v = $('#syCodeIn').value; run(async () => { try { await verifyCode(v); } catch (x) { if (x.status === 400) x.data = { message: tl('Der Code stimmt nicht oder ist abgelaufen.') }; throw x; } }); }
   if (e.target.id === 'syFam') {
     e.preventDefault();
     const my = $('#syMyName').value.trim(), fam = $('#syFamName')?.value.trim() || '';
-    if (!my) { SY.error = 'Bitte gib deinen Namen an.'; return renderPanel(); }
-    run(() => SY.invite ? joinFamily(SY.invite, my).then(() => { SY.invite = null; sessionStorage.removeItem('djuu.join'); }) : createFamily(my, fam), SY.invite ? 'Willkommen in der Familie!' : 'Familie gegründet. Lade jetzt die anderen ein.');
+    if (!my) { SY.error = tl('Bitte gib deinen Namen an.'); return renderPanel(); }
+    run(() => SY.invite ? joinFamily(SY.invite, my).then(() => { SY.invite = null; sessionStorage.removeItem('djuu.join'); }) : createFamily(my, fam), SY.invite ? tl('Willkommen in der Familie!') : tl('Familie gegründet. Lade jetzt die anderen ein.'));
   }
 });
 document.addEventListener('click', e => {
@@ -430,7 +430,7 @@ document.addEventListener('click', e => {
   else if (d.syinvite) run(invite);
   else if (d.syask) askWhere(d.syask);
   else if (d.sycal) run(() => calendarLink(false));
-  else if (d.sycalrenew) { if (confirm('Neue Adresse erzeugen? Wer den Kalender schon abonniert hat, muss ihn neu abonnieren.')) run(() => calendarLink(true)); }
+  else if (d.sycalrenew) { if (confirm(tl('Neue Adresse erzeugen? Wer den Kalender schon abonniert hat, muss ihn neu abonnieren.'))) run(() => calendarLink(true)); }
   else if (d.sycalcopy) navigator.clipboard?.writeText(calUrl().replace(/^webcal:/, 'https:')).then(() => toast('Adresse kopiert.'), () => toast(calUrl()));
   else if (d.pinganswer) { answerPing(d.pinganswer, true); markSeen(d.pinganswer); }
   else if (d.pingno) { answerPing(d.pingno, false); markSeen(d.pingno); }
