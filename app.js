@@ -1,4 +1,4 @@
-/* Djuu v0.25 – family map for Hamburg.
+/* Djuu v0.26 – family map for Hamburg.
    The map owns the screen: one chip row floats on top, map buttons on the right, the sheet starts as a slim bar.
    The chip row drills down one level at a time: Erleben or Service, then categories, then the tags of a category.
    A tapped pin opens a small card; search and favorites live in the bottom bar. Default view: playgrounds.
@@ -7,7 +7,7 @@
    User input is stored on this device only until the server exists (server-ready shape, see STORE). */
 'use strict';
 
-const VERSION = '0.25';
+const VERSION = '0.26';
 const CONTACT = window.DJUU_CONTACT || {}; // config.js: reports and feedback stay hidden until an address is set
 // Logo on light backgrounds, as specified in the design PDF.
 const LOGO = `<span class="logo" role="img" aria-label="djuu"><span style="color:#6B4EE6">d</span><span style="color:#0E8F84">j</span><span style="color:#D6336C">u</span><span style="color:#CC6A00">u</span>
@@ -53,6 +53,9 @@ const ICON = {
   toilet: '<path d="M6 3h5v8H6z"/><path d="M4 11h16c0 3.5-2.8 6-6 6h-1l.8 4H8.5l.8-4.3C6.2 16 4 13.8 4 11z"/>',
   star: '<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>',
   group: '<circle cx="12" cy="7" r="2.6"/><circle cx="5.5" cy="10" r="2.1"/><circle cx="18.5" cy="10" r="2.1"/><path d="M7.5 20c0-2.8 2-5 4.5-5s4.5 2.2 4.5 5"/><path d="M2 19c0-2.2 1.6-4 3.5-4M22 19c0-2.2-1.6-4-3.5-4"/>',
+  book: '<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H12v16H6.5A2.5 2.5 0 0 0 4 21.5z"/><path d="M20 5.5A2.5 2.5 0 0 0 17.5 3H12v16h5.5a2.5 2.5 0 0 1 2.5 2.5z"/>',
+  scissors: '<circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4L8.1 15.9M14.5 14.5L20 20M8.1 8.1L12 12"/>',
+  repeat: '<path d="M17 2l4 4-4 4"/><path d="M3 11V9a3 3 0 0 1 3-3h15"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a3 3 0 0 1-3 3H3"/>',
   user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/>',
   pin: '<path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/>',
   undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/>',
@@ -493,14 +496,14 @@ const fmtDay = d => {
 };
 // minutes after midnight; offers without a time (counselling hours, exhibitions) at the end of their day
 const timeKey = o => o.time_from ? +o.time_from.slice(0, 2) * 60 + +o.time_from.slice(3, 5) : 24 * 60;
-const dayHead = d => { const diff = Math.round((d - today0()) / 864e5); return diff === 0 ? 'Heute' : diff === 1 ? 'Morgen' : d.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' }); };
+const dayHead = d => { const diff = Math.round((d - today0()) / 864e5), long = d.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' }); return diff === 0 ? 'Heute · ' + long : diff === 1 ? 'Morgen · ' + long : long; };
 // a sorted [[date, offer], ...] list with a heading per day: Heute, Morgen, Samstag, 14. November
 function dayListHtml(list) {
   let out = '', cur = null;
   for (const [d, o] of list) {
     const k = ymd(d);
     if (k !== cur) { out += `${cur ? '</ol>' : ''}<h4 class="dayhead">${esc(dayHead(d))}</h4><ol class="list">`; cur = k; }
-    out += offerItem(o, d, { timeOnly: true });
+    out += evRowHtml(o, d);
   }
   return cur ? out + '</ol>' : '';
 }
@@ -824,6 +827,7 @@ function clearSel() { if (state.selected) { byId.get(state.selected)?.marker?._i
 const head = (title, sub = '', canBack = true) => `<div class="ph">${canBack ? `<button type="button" class="round" data-back="1" aria-label="Zurück">${svg('back')}</button>` : ''}
   <h2>${title}${sub ? `<span class="sub">${sub}</span>` : ''}</h2>${canBack ? `<button type="button" class="round" data-home="1" aria-label="Schließen">${svg('close')}</button>` : ''}</div>`;
 
+let stayType = null; // a view that renders again keeps its scroll position (filter chips), a new view starts at the top
 async function renderPanel() {
   const v = view(), body = $('#panelBody');
   if (rec && v.type !== 'search') rec.abort();
@@ -841,13 +845,15 @@ async function renderPanel() {
   else if (v.type === 'favs') body.innerHTML = favsView();
   else if (v.type === 'offer') body.innerHTML = offerView(v.id);
   else if (v.type === 'evfilters') body.innerHTML = evFiltersView();
+  else if (v.type === 'evtopics') body.innerHTML = evTopicsView();
   else if (v.type === 'me') body.innerHTML = familyView();
   else if (v.type === 'rate') { body.innerHTML = rateView(v.id); bindRate(v.id); }
   else if (v.type === 'report') body.innerHTML = reportView(v.id);
   else if (v.type === 'wizard') { renderWizard(); return; }
   else if (v.type === 'thanks') body.innerHTML = v.html;
   decorateEmpty(body);
-  if (v.type !== 'detail' && v.type !== 'rate') body.scrollTop = v.type === 'list' ? body.scrollTop : 0;
+  if (v.type !== 'detail' && v.type !== 'rate' && v.type !== 'list' && !(stayType === v.type && ['evfilters', 'evtopics', 'events'].includes(v.type))) body.scrollTop = 0;
+  stayType = v.type;
 }
 
 // list (the home view)
@@ -1353,20 +1359,27 @@ const EXAMPLE_EVENTS = [
   { d: nextDow(0), time: '11:00', title: 'Familienkonzert: Klassik für Kleine', where: 'Konzertsaal', kind: 'Musik' },
   { d: nextDow(6, 1), time: '09:00–14:00', title: 'Kinderkleiderbasar Herbst/Winter', where: 'Winterhude', kind: 'Flohmarkt' },
 ];
-// ---------- Termine: time range, filters, Merken, visits, calendar ----------
+// ---------- Termine: four pages (Alle, Gruppen, Kurse, Einmalig), search, one filter sheet (design: djuu-termine-filter PDF) ----------
 // Kept while the app is open, so a look at one offer does not reset the list.
-const EV = { range: '', from: '', to: '', art: '', f: new Set(), topics: new Set(), fam: null, limit: 60 };
+const EV = { page: 'alle', q: '', when: '', from: '', to: '', days: new Set(), f: new Set(), topics: new Set(), limit: 60 };
+const EV_PAGES = [['alle', 'Alle'], ['gruppe', 'Gruppen'], ['kurs', 'Kurse'], ['termin', 'Einmalig']];
+const EV_UNIT = { alle: ['Termin', 'Termine'], termin: ['Termin', 'Termine'], gruppe: ['Gruppe', 'Gruppen'], kurs: ['Kurs', 'Kurse'] };
+const unitOf = n => EV_UNIT[EV.page][n === 1 ? 0 : 1];
+const cardPage = () => EV.page === 'gruppe' || EV.page === 'kurs';
+const WD_LONG = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
+const MON_SHORT = ['Jan.', 'Feb.', 'März', 'Apr.', 'Mai', 'Juni', 'Juli', 'Aug.', 'Sep.', 'Okt.', 'Nov.', 'Dez.'];
+const fmtShort = d => `${WD[dayIdx(d)]}, ${d.getDate()}. ${MON_SHORT[d.getMonth()]}`;
 const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
 const fmtLong = d => d.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
-function rangeOf(id = EV.range) {
+// the chosen "Wann" as a day range, or null for the next 8 weeks
+function rangeOf(id = EV.when) {
+  if (cardPage()) return null;
   const t = today0(), w = dayIdx(t);
   if (id === 'heute') return [t, t];
   if (id === 'morgen') return [addDays(t, 1), addDays(t, 1)];
   if (id === 'wochenende') return w === 6 ? [t, t] : [addDays(t, 5 - Math.min(w, 5)), addDays(t, 6 - w)];
   if (id === 'woche') return [t, addDays(t, 6 - w)];
-  if (id === 'naechste') return [addDays(t, 7 - w), addDays(t, 13 - w)];
-  if (id === 'ferien') { const b = nextBreak(); return b ? [b.running ? t : b.from, b.to] : null; }
-  if (id === 'eigen' && EV.from) { const a = new Date(EV.from + 'T00:00'), b = EV.to ? new Date(EV.to + 'T00:00') : a; return [a < t ? t : a, b < a ? a : b]; }
+  if (id === 'datum' && EV.from) { const a = new Date(EV.from + 'T00:00'), b = EV.to ? new Date(EV.to + 'T00:00') : a; return [a < t ? t : a, b < a ? a : b]; }
   return null;
 }
 // first day in [a, b] the offer takes place
@@ -1378,87 +1391,174 @@ function firstIn(o, a, b) {
 const isRecurring = o => o.kind !== 'termin' && o.weekday != null && !(o.start_date && o.start_date === o.end_date);
 const hourOf = o => o.time_from ? +o.time_from.slice(0, 2) : null;
 const ageIs = (x, y) => o => (o.age_min_m != null || o.age_max_m != null) && (o.age_min_m ?? 0) < y && (o.age_max_m ?? 999) > x;
-// Sections: inside one section any choice may match, across sections all must.
-const EV_FILTERS = [
-  { title: 'Uhrzeit', any: true, items: [['vormittag', 'Vormittags', o => hourOf(o) != null && hourOf(o) < 12], ['mittag', 'Mittags', o => hourOf(o) >= 12 && hourOf(o) < 15],
-    ['nachmittag', 'Nachmittags', o => hourOf(o) >= 15 && hourOf(o) < 18], ['abend', 'Abends', o => hourOf(o) >= 18]] },
-  { title: 'Für wen', any: true, items: [['kinder', 'Für Kinder', o => o.audience === 'kinder'], ['erwachsene', 'Für Erwachsene', o => o.audience === 'erwachsene']] },
-  { title: 'Alter', any: true, note: 'Nur Termine, bei denen der Anbieter ein Alter nennt.', items: [['a0', 'unter 1 Jahr', ageIs(0, 12)], ['a1', '1–3 Jahre', ageIs(12, 36)], ['a3', '3–6 Jahre', ageIs(36, 72)], ['a6', '6–10 Jahre', ageIs(72, 120)], ['a10', 'ab 10 Jahren', ageIs(120, 216)]] },
-  { title: 'Kosten und Anmeldung', items: [['frei', 'Kostenlos', o => o.free === 1], ['offen', 'Ohne Anmeldung', o => o.registration === 'offen']] },
-  { title: 'Für uns', items: [['neu', 'Waren wir noch nicht', o => !visitsOf(o.id).length, () => Object.keys(store.visits).length > 0], ['gemerkt', 'Nur Gemerkte', o => isSaved(o.id)]] },
+const fitNames = () => familyAges().filter(k => k.months >= 0).map(k => `${k.name} (${kidLabel(k.months).replace(' Jahre', ' J.').replace(' Monate', ' Mon.')})`).join(', ');
+// Filter sections: inside one section any choice may match, across sections all must. Order as in the sheet (Thema sits between Alter and Preis).
+const EV_SECTIONS = [
+  { id: 'time', title: 'Uhrzeit', any: true, two: true, items: [['vormittag', 'Vormittag', o => hourOf(o) != null && hourOf(o) < 12], ['mittag', 'Mittag', o => hourOf(o) >= 12 && hourOf(o) < 15],
+    ['nachmittag', 'Nachmittag', o => hourOf(o) >= 15 && hourOf(o) < 18], ['abend', 'Abend', o => hourOf(o) >= 18]] },
+  { id: 'aud', title: 'Für wen', any: true, items: [['kinder', 'Für Kinder', o => o.audience === 'kinder'], ['erwachsene', 'Für Erwachsene', o => o.audience === 'erwachsene']] },
+  { id: 'age', title: 'Alter', any: true, two: true, show: () => EV.f.has('kinder'), note: 'Nur Termine, bei denen der Anbieter ein Alter nennt.',
+    items: [['fit', () => 'Passt zu ' + fitNames(), o => offerFits(o) === true, () => hasFamily() && familyAges().some(k => k.months >= 0)],
+      ['a0', 'bis 1', ageIs(0, 12)], ['a1', '1–2', ageIs(12, 36)], ['a3', '3–5', ageIs(36, 72)], ['a6', '6–9', ageIs(72, 120)], ['a10', '10+', ageIs(120, 216)]] },
+  { id: 'price', title: 'Preis & Anmeldung', items: [['frei', 'kostenlos', o => o.free === 1], ['offen', 'ohne Anmeldung', o => o.registration === 'offen']] },
 ];
-const EV_LABEL = Object.fromEntries(EV_FILTERS.flatMap(s => s.items.map(([id, l]) => [id, l])));
+const itemLabel = l => typeof l === 'function' ? l() : l;
+const sectionOn = sec => !sec.show || sec.show();
+const itemOn = it => !it[3] || it[3]();
+const TOPIC_FAMILIES = [
+  ['Vorlesen & Theater', 'book', '#D6336C', ['lesen', 'theater']],
+  ['Spielen & Bewegung', 'blocks', '#0E8F84', ['krabbelgruppe', 'spiele', 'pekip', 'sport', 'schwimmen']],
+  ['Kreativ, Musik & Wissen', 'scissors', '#CC6A00', ['kreativ', 'musik', 'wissen', 'kochen']],
+  ['Für Eltern', 'people', '#6B4EE6', ['beratung', 'eltern_cafe', 'babymassage', 'geburtsvorbereitung', 'rueckbildung', 'eltern_thema', 'erste_hilfe']],
+  ['Feste & Märkte', 'star', '#B07D00', ['feste', 'flohmarkt']],
+];
+const topicFam = t => TOPIC_FAMILIES.find(f => f[3].includes(t)) || ['Angebot', 'cal', '#6B4EE6', []];
 function evPass(o, skip) {
-  for (const sec of EV_FILTERS) {
-    if (sec === skip) continue;
-    const on = sec.items.filter(([id]) => EV.f.has(id));
-    if (on.length && !(sec.any ? on.some(([, , fn]) => fn(o)) : on.every(([, , fn]) => fn(o)))) return false;
+  for (const sec of EV_SECTIONS) {
+    if (sec.id === skip || !sectionOn(sec)) continue;
+    const on = sec.items.filter(it => EV.f.has(it[0]) && itemOn(it));
+    if (on.length && !(sec.any ? on.some(it => it[2](o)) : on.every(it => it[2](o)))) return false;
   }
   return skip === 'topic' || !EV.topics.size || EV.topics.has(o.topic);
 }
-// offers in the chosen time range (or the next 8 weeks), area, kind and family fit, before the sheet filters
-function evBase() {
-  const t = today0(), r = rangeOf(), fam = EV.fam ?? hasFamily();
-  const own = store.events.map(e => ({ title: e.title, kind: 'termin', start_date: e.date, time_from: e.time, lat: e.lat, lon: e.lon, venue: 'von dir eingetragen', topic: 'sonstiges', own: true }));
-  let list = OFFERS.concat(own).map(o => [r ? firstIn(o, r[0], r[1]) : nextDate(o), o]).filter(([d]) => d && (r || d - t < 56 * 864e5));
+// offers of the current page as [date, offer]: day pages one row per date in the range (or next 8 weeks), card pages one card per offer.
+// raw = without Wann/Wochentag, Ort and search (for which topics exist on this page at all)
+function evBase(raw = false) {
+  const t = today0(), r = raw ? null : rangeOf(), p = EV.page;
+  const own = p === 'alle' || p === 'termin' ? store.events.map(e => ({ title: e.title, kind: 'termin', start_date: e.date, time_from: e.time, lat: e.lat, lon: e.lon, venue: 'von dir eingetragen', topic: 'sonstiges', own: true })) : [];
+  let list = OFFERS.filter(o => p === 'alle' || o.kind === p).concat(own)
+    .map(o => [r ? firstIn(o, r[0], r[1]) : nextDate(o), o]).filter(([d]) => d && (r || d - t < (cardPage() ? 120 : 56) * 864e5));
+  if (raw) return list;
+  if (cardPage() && EV.days.size) list = list.filter(([, o]) => EV.days.has(o.weekday));
   list = list.filter(([, o]) => o.own || offerInArea(o));
-  if (EV.art) list = list.filter(([, o]) => o.kind === EV.art);
-  if (fam && hasFamily() && !EV.f.has('erwachsene')) list = list.filter(([, o]) => offerFits(o) !== false);
+  const q = words(EV.q).filter(w => !STOP.has(w));
+  if (q.length) list = list.filter(([, o]) => { const n = norm([o.title, o.venue, o.provider, TOPIC_LABEL[o.topic]].filter(Boolean).join(' ')); return q.every(w => n.includes(w)); });
   // what is over today is gone: end time passed, or one hour after the start when no end is known
   const now = new Date(), nowMin = now.getHours() * 60 + now.getMinutes();
   const endMin = o => o.time_to ? +o.time_to.slice(0, 2) * 60 + +o.time_to.slice(3, 5) : o.time_from ? timeKey(o) + 60 : 24 * 60;
   return list.filter(([d, o]) => +d !== +t || endMin(o) > nowMin);
 }
-function rangeText() {
-  const r = rangeOf();
-  if (!r) return 'Gruppen, Kurse und Veranstaltungen in den nächsten 8 Wochen';
-  return +r[0] === +r[1] ? 'am ' + fmtLong(r[0]) : `${fmtLong(r[0])} bis ${fmtLong(r[1])}`;
+const evResults = () => evBase().filter(([, o]) => o.own || evPass(o));
+function evActiveCount() {
+  let n = (cardPage() ? EV.days.size : (EV.when ? 1 : 0)) + EV.topics.size + (state.area.type !== 'all' ? 1 : 0);
+  for (const sec of EV_SECTIONS) if (sectionOn(sec)) n += sec.items.filter(it => EV.f.has(it[0]) && itemOn(it)).length;
+  return n;
 }
+
+// ---------- the page ----------
 function eventsView() {
-  const base = evBase(), o0 = origin();
-  const list = base.filter(([, o]) => o.own || evPass(o));
-  const near = o => { const pl = o.place_id && byId.get(o.place_id); return pl ? dist(o0, [pl.lat, pl.lon]) : o.lat ? dist(o0, [o.lat, o.lon]) : 9e9; };
-  list.sort((a, b) => byDayTime(a, b) || near(a[1]) - near(b[1]));
-  const b = nextBreak(), t = today0();
-  const ranges = [['heute', 'Heute'], ['morgen', 'Morgen'], ['wochenende', 'Wochenende'], ['woche', 'Diese Woche'], ['naechste', 'Nächste Woche']]
-    .concat(b && (b.running || b.days <= 56) ? [['ferien', b.name.replace(/ ?\d{4}.*$/, '')]] : []).concat([['eigen', 'Zeitraum …']]);
-  const chip = (attr, on, label) => `<button type="button" class="chip${on ? ' on' : ''}" ${attr}>${label}</button>`;
-  const nf_ = EV.f.size + EV.topics.size;
-  const active = [...EV.f].map(id => chip(`data-evf="${id}"`, true, esc(EV_LABEL[id]) + ' ' + svg('close'))).concat([...EV.topics].map(id => chip(`data-evtopic="${id}"`, true, esc(TOPIC_LABEL[id]) + ' ' + svg('close'))));
-  const kids = familyAges(), fam = EV.fam ?? hasFamily();
-  return `${head('Termine', esc(rangeText()), false)}
-    ${freshHtml()}
-    <div class="row evrow">${ranges.map(([id, l]) => chip(`data-er="${id}"`, EV.range === id, esc(l))).join('')}</div>
-    ${EV.range === 'eigen' ? `<div class="evrange"><label>von <input id="evFrom" type="date" value="${esc(EV.from)}" min="${ymd(t)}"></label><label>bis <input id="evTo" type="date" value="${esc(EV.to)}" min="${esc(EV.from || ymd(t))}"></label></div>` : ''}
-    <div class="row evrow">${[['gruppe', 'Regelmäßige Gruppen'], ['kurs', 'Kurse'], ['termin', 'Einzeltermine']].map(([id, l]) => chip(`data-ef="${id}"`, EV.art === id, l)).join('')}</div>
-    <div class="tools"><button type="button" class="tool${state.area.type !== 'all' ? ' on' : ''}" data-open="area">${svg('pin')}<span>${esc(areaLabel())}</span></button>
-      <button type="button" class="tool${nf_ ? ' on' : ''}" data-open="evfilters">${svg('filter')}<span>Filter${nf_ ? ' · ' + nf_ : ''}</span></button></div>
-    ${active.length ? `<div class="active">${active.join('')}</div>` : ''}
-    ${hasFamily() ? `<label class="switch" for="famSwitch" style="margin:0 0 10px">Nur passend für ${esc(kids.map(k => `${k.name} (${kidLabel(k.months)})`).join(', ') || 'unser Baby')} <input type="checkbox" id="famSwitch" ${fam ? 'checked' : ''}></label>` : ''}
-    ${EV.range === 'ferien' ? '' : ferienCard(14, true)}
-    ${schoolHoliday(rangeOf()?.[0] || t) ? `<p class="note" style="margin:0 0 10px">${esc(schoolHoliday(rangeOf()?.[0] || t))}: Viele Kurse pausieren, bitte beim Anbieter nachsehen.</p>` : ''}
-    <p class="note" style="margin:0 0 6px">${nf.format(list.length)} ${list.length === 1 ? 'Termin' : 'Termine'}</p>
-    ${list.length ? `${dayListHtml(list.slice(0, EV.limit))}${list.length > EV.limit ? '<button type="button" class="more" data-emore="1">Mehr anzeigen</button>' : ''}`
-      : `<div class="empty"><b>${OFFERS.length ? 'Nichts gefunden.' : 'Noch keine Termine geladen.'}</b>${OFFERS.length ? 'Probier einen anderen Zeitraum oder weniger Filter.' : ''}</div>`}
+  const nf_ = evActiveCount();
+  return `<div class="ph"><h2>Termine<span class="sub">Gruppen, Kurse & Events in Hamburg</span></h2></div>
+    <div class="evtabs" role="tablist">${EV_PAGES.map(([id, l]) => `<button type="button" role="tab" aria-selected="${EV.page === id}" class="${EV.page === id ? 'on' : ''}" data-evpage="${id}">${l}</button>`).join('')}</div>
+    <div class="evbar"><label class="evsearch">${svg('search')}<input id="evQ" type="search" placeholder="Suchen" value="${esc(EV.q)}" autocomplete="off" aria-label="Termine durchsuchen"></label>
+      <button type="button" class="evfilterbtn${nf_ ? ' on' : ''}" data-open="evfilters">${svg('filter')}Filter${nf_ ? ` <span class="count">${nf_}</span>` : ''}</button></div>
+    <div id="evList">${evListHtml()}</div>
     <button type="button" class="btn" data-addevent="1" style="margin-top:14px">${svg('plus')}Veranstaltung eintragen</button>
     <p class="note">Quellen: Eltern-Kind-Zentren, Elternschulen, Familienbildung, Bücherhallen, Bäderland u. a. Anmeldung immer beim Anbieter.</p>`;
 }
+function evListHtml() {
+  const list = evResults(), o0 = origin(), t = today0();
+  const near = o => { const pl = o.place_id && byId.get(o.place_id); return pl ? dist(o0, [pl.lat, pl.lon]) : o.lat ? dist(o0, [o.lat, o.lon]) : 9e9; };
+  list.sort((a, b) => byDayTime(a, b) || near(a[1]) - near(b[1]));
+  const shown = list.slice(0, EV.limit), r = rangeOf();
+  return `<p class="evcount">${nf.format(list.length)} ${unitOf(list.length)}${DATA_AT.offers ? ` · <span class="freshinline">${svg('check')}aktualisiert ${esc(freshText())}</span>` : ''}</p>
+    ${cardPage() ? '' : ferienCard(14, true)}
+    ${!cardPage() && schoolHoliday(r?.[0] || t) ? `<p class="note" style="margin:0 0 10px">${esc(schoolHoliday(r?.[0] || t))}: Viele Kurse pausieren, bitte beim Anbieter nachsehen.</p>` : ''}
+    ${list.length ? (cardPage() ? `<ol class="list evcards">${shown.map(([d, o]) => evCardHtml(o, d)).join('')}</ol>` : dayListHtml(shown))
+      + (list.length > EV.limit ? '<button type="button" class="more" data-emore="1">Mehr anzeigen</button>' : '')
+      : `<div class="empty"><b>${OFFERS.length ? 'Nichts gefunden.' : 'Noch keine Termine geladen.'}</b>${OFFERS.length ? 'Probier eine andere Suche oder weniger Filter.' : ''}</div>`}`;
+}
+// tags under a title: age, recurring, registration, price
+function evTags(o, withRecurring) {
+  const kids = o.audience === 'erwachsene' ? 'für Erwachsene' : ageLabel(o.age_min_m, o.age_max_m);
+  const fits = offerFits(o) === true, n = o.id ? visitsOf(o.id).length : 0;
+  return [fits && '<span class="fitchip">passt zu euch</span>', n && `<span class="visitchip">${n === 1 ? 'wart ihr schon' : n + '× dabei'}</span>`,
+    kids && `<span>${esc(kids)}</span>`,
+    withRecurring && isRecurring(o) && `<span class="tag rec">${svg('repeat')}${o.kind === 'kurs' ? 'Kurs' : 'Gruppe'} · jeden ${WD_LONG[o.weekday]}</span>`,
+    o.registration === 'nötig' && `<span class="tag reg">${svg('edit')}Anmeldung nötig</span>`,
+    o.registration === 'offen' && `<span class="tag ok">${svg('check')}ohne Anmeldung</span>`,
+    o.registration === 'Warteliste' && '<span class="tag reg">Warteliste</span>',
+    o.free === 1 && '<span>kostenlos</span>'].filter(Boolean).join('');
+}
+const timeRange = o => o.time_from ? `${o.time_from}${o.time_to ? '–' + o.time_to : ''}` : '';
+// one row in a day list (Alle, Einmalig, Gemerkt)
+function evRowHtml(o, d) {
+  const fam = topicFam(o.topic), tags = evTags(o, true);
+  const inner = `<span class="evtime">${o.time_from ? esc(o.time_from) : '<small>ganztags</small>'}</span>
+    <span><h3>${esc(o.title)}</h3><span class="meta"><span class="ticon" style="--c:${fam[2]}">${svg(fam[1])}</span>${esc(TOPIC_LABEL[o.topic] || 'Angebot')}${o.venue ? ' · ' + esc(o.venue) : ''}</span>
+    ${tags ? `<span class="mini">${tags}</span>` : ''}</span>`;
+  return o.id ? `<li class="offrow"><button type="button" class="item evrow" data-offer="${o.id}">${inner}</button>${saveBtn(o)}</li>` : `<li><div class="item evrow">${inner}</div></li>`;
+}
+// one card on the Gruppen and Kurse pages
+function evCardHtml(o, nd) {
+  const fam = topicFam(o.topic), time = timeRange(o);
+  const rec = isRecurring(o) ? `Jeden ${WD_LONG[o.weekday]}${time ? ' · ' + time : ''}`
+    : o.start_date && o.end_date && o.start_date !== o.end_date ? `${fmtShort(new Date(o.start_date + 'T00:00'))} bis ${fmtShort(new Date(o.end_date + 'T00:00'))}${time ? ' · ' + time : ''}`
+    : `Einmal${time ? ' · ' + time : ''}`;
+  return `<li class="offrow"><button type="button" class="evcard" data-offer="${o.id}">
+      <span class="evicon" style="--c:${fam[2]}">${svg(fam[1])}</span>
+      <span class="evcbody"><h3>${esc(o.title)}</h3><span class="meta">${esc(TOPIC_LABEL[o.topic] || 'Angebot')}${o.venue ? ' · ' + esc(o.venue) : ''}</span>
+        <span class="rec">${svg('repeat')}${esc(rec)}</span>
+        <span class="next">Nächster Termin: ${esc(fmtShort(nd))}${o.sessions ? ` · ${o.sessions} Termine` : ''}</span>
+        <span class="mini">${evTags(o, false)}</span></span></button>${saveBtn(o)}</li>`;
+}
+
+// ---------- the filter sheet ----------
+const chipCls = (on, n) => `chip${on ? ' on' : ''}${!on && n === 0 ? ' zero' : ''}`;
+const chipInner = (on, label, n) => `${on ? svg('check') : ''}<span>${esc(label)}</span>${n != null ? ` <span class="n">${nf.format(n)}</span>` : ''}`;
+function evSheetFoot() {
+  const n = evResults().length;
+  return `<div class="sticky-bar"><button type="button" class="btn" data-evreset="1">Zurücksetzen</button><button type="button" class="btn big primary" data-evshow="1">${nf.format(n)} ${unitOf(n)} zeigen</button></div>`;
+}
+// topics of this page (at least one result without filters) with live counts under the other filters
+function evTopicCounts() {
+  const page = {}, live = {};
+  for (const [, o] of evBase(true)) if (!o.own && o.topic && o.topic !== 'sonstiges') page[o.topic] = (page[o.topic] || 0) + 1;
+  for (const [, o] of evBase()) if (!o.own && evPass(o, 'topic') && page[o.topic]) live[o.topic] = (live[o.topic] || 0) + 1;
+  return { page, live };
+}
 function evFiltersView() {
   const base = evBase().filter(([, o]) => !o.own);
-  const block = sec => {
-    const pool = base.filter(([, o]) => evPass(o, sec));
-    const items = sec.items.filter(([id, , , show]) => !show || show() || EV.f.has(id)).map(([id, l, fn]) => [id, l, pool.filter(([, o]) => fn(o)).length]).filter(([id, , n]) => n || EV.f.has(id));
-    return items.length ? `<div class="sec"><h4>${sec.title}</h4><div class="fgrid">${items.map(([id, l, n]) => `<button type="button" class="chip${EV.f.has(id) ? ' on' : ''}" data-evf="${id}">${esc(l)} <span class="n">${nf.format(n)}</span></button>`).join('')}</div>${sec.note ? `<p class="note">${sec.note}</p>` : ''}</div>` : '';
+  const count = (sec, fn) => base.filter(([, o]) => evPass(o, sec.id) && fn(o)).length;
+  const section = sec => {
+    if (!sectionOn(sec)) return '';
+    const chip = it => { const on = EV.f.has(it[0]), n = count(sec, it[2]); return `<button type="button" class="${chipCls(on, n)}" data-evf="${it[0]}" aria-pressed="${on}"${!on && n === 0 ? ' disabled' : ''}>${chipInner(on, itemLabel(it[1]), n)}</button>`; };
+    const items = sec.items.filter(itemOn), wide = items.filter(it => it[0] === 'fit'), row = items.filter(it => it[0] !== 'fit');
+    // time and age: one row of equal boxes as in the design; "Passt zu Mia" gets its own line
+    return `<div class="sec"><h4>${sec.title}</h4>${wide.length ? `<div class="fgrid" style="margin-bottom:8px">${wide.map(chip).join('')}</div>` : ''}
+      <div class="fgrid${sec.two ? ' two' : ''}"${sec.two ? ` style="grid-template-columns:repeat(${row.length},1fr)"` : ''}>${row.map(chip).join('')}</div>${sec.note ? `<p class="note">${sec.note}</p>` : ''}</div>`;
   };
-  const tpool = base.filter(([, o]) => evPass(o, 'topic')), tn = {};
-  for (const [, o] of tpool) tn[o.topic] = (tn[o.topic] || 0) + 1;
-  const topics = Object.keys(TOPIC_LABEL).filter(k => k !== 'sonstiges' && (tn[k] || EV.topics.has(k))).sort((a, b) => (tn[b] || 0) - (tn[a] || 0));
-  const total = base.filter(([, o]) => evPass(o)).length;
-  return `${head('Filter für Termine', esc(rangeText()))}
-    ${EV_FILTERS.map(block).join('')}
-    ${topics.length ? `<div class="sec"><h4>Thema</h4><div class="fgrid">${topics.map(k => `<button type="button" class="chip${EV.topics.has(k) ? ' on' : ''}" data-evtopic="${k}">${esc(TOPIC_LABEL[k])} <span class="n">${nf.format(tn[k] || 0)}</span></button>`).join('')}</div></div>` : ''}
-    <div class="sticky-bar"><button type="button" class="btn" data-evreset="1">Zurücksetzen</button><button type="button" class="btn big primary" data-back="1">${nf.format(total)} Termine zeigen</button></div>`;
+  const when = cardPage()
+    ? `<div class="sec"><h4>Wochentag</h4><div class="fgrid days">${WD.map((l, i) => `<button type="button" class="chip round${EV.days.has(i) ? ' on' : ''}" data-evday="${i}" aria-pressed="${EV.days.has(i)}" aria-label="${WD_LONG[i]}">${EV.days.has(i) ? svg('check') : ''}${l}</button>`).join('')}</div></div>`
+    : `<div class="sec"><h4>Wann</h4><div class="fgrid when">${[['heute', 'Heute'], ['morgen', 'Morgen'], ['wochenende', 'Wochenende'], ['woche', 'Woche']].map(([id, l]) => `<button type="button" class="chip${EV.when === id ? ' on' : ''}" data-evwhen="${id}" aria-pressed="${EV.when === id}">${chipInner(EV.when === id, l)}</button>`).join('')}
+        <button type="button" class="chip round${EV.when === 'datum' ? ' on' : ''}" data-evwhen="datum" aria-pressed="${EV.when === 'datum'}" aria-label="Zeitraum wählen">${svg('cal')}</button></div>
+        ${EV.when === 'datum' ? `<div class="evrange"><label>von <input id="evFrom" type="date" value="${esc(EV.from)}" min="${ymd(today0())}"></label><label>bis <input id="evTo" type="date" value="${esc(EV.to)}" min="${esc(EV.from || ymd(today0()))}"></label></div>` : ''}</div>`;
+  const { page, live } = evTopicCounts(), all = Object.keys(page);
+  const top = all.sort((a, b) => page[b] - page[a]).slice(0, 4);
+  for (const t of EV.topics) if (page[t] && !top.includes(t)) top.push(t);
+  const topic = all.length ? `<div class="sec"><div class="sechead"><h4>Thema</h4><span>${EV.topics.size ? `${EV.topics.size} gewählt` : 'Mehrere möglich'}</span></div>
+      <div class="fgrid">${top.map(t => topicChip(t, live[t] || 0)).join('')}</div>
+      ${all.length > top.length ? `<button type="button" class="morelink" data-open="evtopics">Alle ${all.length} Themen ${svg('back')}</button>` : ''}</div>` : '';
+  const a = state.area;
+  const place = `<div class="sec"><h4>Ort</h4><div class="fgrid">
+      <button type="button" class="chip${a.type === 'all' ? ' on' : ''}" data-evarea="all" aria-pressed="${a.type === 'all'}">${a.type === 'all' ? svg('check') : svg('pin')}Ganz Hamburg</button>
+      <label class="chip select${a.type === 'district' ? ' on' : ''}">${a.type === 'district' ? svg('check') : ''}<select id="evDistrict" aria-label="Stadtteil wählen"><option value="">Stadtteil wählen</option>${districtList().map(d => `<option${a.type === 'district' && a.name === d ? ' selected' : ''}>${esc(d)}</option>`).join('')}</select></label>
+      ${a.type === 'radius' || a.type === 'poly' ? `<button type="button" class="chip on" data-evarea="all" aria-label="${esc(areaLabel())} entfernen">${svg('check')}${esc(areaLabel())} ${svg('close')}</button>` : ''}</div></div>`;
+  return `<div class="ph sheethead"><h2>Filter</h2><button type="button" class="round" data-back="1" aria-label="Schließen">${svg('close')}</button></div>
+    ${when}${section(EV_SECTIONS[0])}${section(EV_SECTIONS[1])}${section(EV_SECTIONS[2])}${topic}${section(EV_SECTIONS[3])}${place}
+    ${evSheetFoot()}`;
 }
+const topicChip = (t, n) => { const on = EV.topics.has(t); return `<button type="button" class="${chipCls(on, n)}" data-evtopic="${t}" aria-pressed="${on}"${!on && n === 0 ? ' disabled' : ''}>${chipInner(on, TOPIC_LABEL[t], n)}</button>`; };
+function evTopicsView() {
+  const { page, live } = evTopicCounts();
+  const fams = TOPIC_FAMILIES.map(([name, icon, color, ts]) => [name, icon, color, ts.filter(t => page[t])]).filter(f => f[3].length);
+  return `<div class="ph"><button type="button" class="round" data-back="1" aria-label="Zurück">${svg('back')}</button><h2>Thema<span class="sub">Mehrere möglich</span></h2></div>
+    ${fams.map(([name, icon, color, ts]) => { const k = ts.filter(t => EV.topics.has(t)).length; return `<div class="sec topicfam"><div class="sechead"><h4><span class="ticon big" style="--c:${color}">${svg(icon)}</span>${esc(name)}</h4>${k ? `<span>${k} gewählt</span>` : ''}</div>
+      <div class="fgrid">${ts.map(t => topicChip(t, live[t] || 0)).join('')}</div></div>`; }).join('')}
+    ${evSheetFoot()}`;
+}
+function evShow() { while (stack.length > 1 && !['events'].includes(view().type)) stack.pop(); EV.limit = 60; renderPanel(); setSize('full'); }
+function evReset() { EV.when = ''; EV.from = ''; EV.to = ''; EV.days.clear(); EV.f.clear(); EV.topics.clear(); if (state.area.type !== 'all') setArea({ type: 'all' }, false); renderPanel(); }
 
 // Merken and "waren wir schon" for offers; a snapshot keeps a saved offer readable after it leaves the data.
 const isSaved = id => store.savedOffers.some(x => x.id === id);
@@ -1879,6 +1979,7 @@ document.addEventListener('click', async e => {
   else if (ds.open === 'filters') go({ type: 'filters' });
   else if (ds.open === 'area') go({ type: 'area' });
   else if (ds.open === 'evfilters') go({ type: 'evfilters' });
+  else if (ds.open === 'evtopics') go({ type: 'evtopics' });
   else if (ds.open === 'ferien') go({ type: 'ferien' });
   else if (ds.area === 'all') { setArea({ type: 'all' }, false); renderPanel(); }
   else if (ds.radius) { const a = state.area; setArea({ type: 'radius', r: +ds.radius, center: a.type === 'radius' ? a.center : state.me ? 'me' : [map.getCenter().lat, map.getCenter().lng] }); renderPanel(); }
@@ -1889,10 +1990,14 @@ document.addEventListener('click', async e => {
   else if (ds.drawundo) { state.drawing.pop(); drawArea(); renderPanel(); }
   else if (ds.drawcancel) { state.drawing = null; drawArea(); back(); }
   else if (ds.drawdone) { const pts = state.drawing; state.drawing = null; setArea({ type: 'poly', pts }); stack = [{ type: 'list' }]; renderPanel(); setSize(desktop() ? 'full' : 'half'); }
-  else if (ds.er) { EV.range = EV.range === ds.er ? '' : ds.er; if (EV.range === 'eigen' && !EV.from) EV.from = ymd(today0()); EV.limit = 60; renderPanel(); }
+  else if (ds.evpage) { EV.page = ds.evpage; EV.limit = 60; renderPanel(); $('#panelBody').scrollTop = 0; }
+  else if (ds.evwhen) { EV.when = EV.when === ds.evwhen ? '' : ds.evwhen; if (EV.when === 'datum' && !EV.from) EV.from = ymd(today0()); renderPanel(); }
+  else if (ds.evday) { toggle(EV.days, +ds.evday); renderPanel(); }
   else if (ds.evf) { toggle(EV.f, ds.evf); EV.limit = 60; renderPanel(); }
   else if (ds.evtopic) { toggle(EV.topics, ds.evtopic); EV.limit = 60; renderPanel(); }
-  else if (ds.evreset) { EV.f.clear(); EV.topics.clear(); renderPanel(); }
+  else if (ds.evarea) { setArea({ type: 'all' }, false); renderPanel(); }
+  else if (ds.evreset) evReset();
+  else if (ds.evshow) evShow();
   else if (ds.offer) go({ type: 'offer', id: ds.offer }, 'full');
   else if (ds.saveoffer) {
     toggleSaved(ds.saveoffer);
@@ -1930,8 +2035,7 @@ document.addEventListener('click', async e => {
   else if (ds.reportplace) go({ type: 'report', id: ds.reportplace });
   else if (ds.reason) { view().reason = ds.reason; $('#panelBody').querySelectorAll('[data-reason]').forEach(b => b.classList.toggle('on', b === t)); $('#repErr').hidden = true; }
   else if (ds.reportsend) sendPlaceReport();
-  else if (ds.ef) { EV.art = EV.art === ds.ef ? '' : ds.ef; EV.limit = 60; renderPanel(); }
-  else if (ds.emore) { EV.limit += 60; renderPanel(); }
+  else if (ds.emore) { EV.limit += 60; $('#evList') ? ($('#evList').innerHTML = evListHtml()) : renderPanel(); }
   else if (ds.offerurl) window.open(ds.offerurl, '_blank', 'noopener');
   else if (ds.mapstyle) { setMapStyle(ds.mapstyle); state.styleOpen = false; renderPanel(); toast(`Kartenstil: ${mapStyle().label}`); }
   else if (ds.wx) { if (ds.wx === 'rain') { state.io = state.io === 'drinnen' ? null : 'drinnen'; state.preset = null; refresh(); } else { const pr = PRESETS.find(x => x.id === 'hitze'); state.preset = pr.id; state.groups = new Set(pr.groups); state.tags = new Set(pr.tags); state.cats.clear(); state.level = 1; refresh(); home(desktop() ? 'full' : 'peek'); } }
@@ -1941,13 +2045,15 @@ document.addEventListener('click', async e => {
   else if (ds.report) { store.reports.push({ targetType: 'review', targetId: ds.report, at: Date.now() }); save(); toast('Auf diesem Gerät ausgeblendet.'); renderPanel(); }
   else if (ds.sos) go({ type: 'sos', kind: ds.sos });
 });
-document.addEventListener('input', e => { if (e.target.id === 'distQ') $('#distList').innerHTML = districtChips(e.target.value); });
+document.addEventListener('input', e => {
+  if (e.target.id === 'evQ') { EV.q = e.target.value; EV.limit = 60; clearTimeout(document.evqt); document.evqt = setTimeout(() => { const l = $('#evList'); if (l) l.innerHTML = evListHtml(); }, 150); return; }
+  if (e.target.id === 'distQ') $('#distList').innerHTML = districtChips(e.target.value); });
 document.addEventListener('change', e => {
   if (e.target.matches('[data-kid], #expecting')) saveProfileField(e.target);
   if (e.target.id === 'fedState') { store.profile.state = e.target.value; save(); loadBreaks().then(renderPanel); }
-  if (e.target.id === 'famSwitch') { EV.fam = e.target.checked; renderPanel(); }
-  if (e.target.id === 'evFrom') { EV.from = e.target.value; if (EV.to && EV.to < EV.from) EV.to = ''; EV.limit = 60; renderPanel(); }
-  if (e.target.id === 'evTo') { EV.to = e.target.value; EV.limit = 60; renderPanel(); }
+  if (e.target.id === 'evDistrict' && e.target.value) { setArea({ type: 'district', name: e.target.value }, false); renderPanel(); }
+  if (e.target.id === 'evFrom') { EV.from = e.target.value; if (EV.to && EV.to < EV.from) EV.to = ''; renderPanel(); }
+  if (e.target.id === 'evTo') { EV.to = e.target.value; renderPanel(); }
 });
 $('#sos').innerHTML = svg('bolt');
 $('#sos').onclick = () => { stack = [{ type: 'list' }]; go({ type: 'sos' }, 'full'); locate(false); };
