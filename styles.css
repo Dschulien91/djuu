@@ -549,3 +549,14 @@ b.yes { color: var(--yes); }
 /* v0.24 freshness */
 .fresh { display: flex; align-items: center; gap: 6px; margin: -4px 0 10px; font-size: 13px; font-weight: 700; color: var(--yes); }
 .fresh svg.i { width: 15px; height: 15px; }
+/* v0.25 events: day headings, time box, heart in the list */
+.dayhead { position: sticky; top: 0; z-index: 2; margin: 14px -16px 0; padding: 8px 16px 6px; background: #FFFCF5; font-size: 14px; color: var(--brand); border-bottom: 1px solid var(--line); }
+.dayhead + .list li:first-child .item { border-top: 0; }
+.datebox.time b { font-size: 15px; }
+.offrow { position: relative; }
+.offrow .item.offer { padding-right: 46px; }
+.savebtn { position: absolute; right: -6px; top: 50%; transform: translateY(-50%); width: 44px; height: 44px; border: 0; border-radius: 50%; background: none; display: grid; place-items: center; color: var(--muted); }
+.savebtn svg.i { width: 22px; height: 22px; }
+.savebtn.on { color: #D6336C; }
+.savebtn.on svg.i { fill: #D6336C; }
+.savebtn:active { transform: translateY(-50%) scale(.9); }

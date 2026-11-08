@@ -1,4 +1,4 @@
-/* Djuu v0.24 – family map for Hamburg.
+/* Djuu v0.25 – family map for Hamburg.
    The map owns the screen: one chip row floats on top, map buttons on the right, the sheet starts as a slim bar.
    The chip row drills down one level at a time: Erleben or Service, then categories, then the tags of a category.
    A tapped pin opens a small card; search and favorites live in the bottom bar. Default view: playgrounds.
@@ -7,7 +7,7 @@
    User input is stored on this device only until the server exists (server-ready shape, see STORE). */
 'use strict';
 
-const VERSION = '0.24';
+const VERSION = '0.25';
 const CONTACT = window.DJUU_CONTACT || {}; // config.js: reports and feedback stay hidden until an address is set
 // Logo on light backgrounds, as specified in the design PDF.
 const LOGO = `<span class="logo" role="img" aria-label="djuu"><span style="color:#6B4EE6">d</span><span style="color:#0E8F84">j</span><span style="color:#D6336C">u</span><span style="color:#CC6A00">u</span>
@@ -491,16 +491,34 @@ const fmtDay = d => {
   const t = today0(), diff = Math.round((d - t) / 864e5);
   return diff === 0 ? 'Heute' : diff === 1 ? 'Morgen' : `${WD[dayIdx(d)]} ${d.getDate()}.${d.getMonth() + 1}.`;
 };
-function offerItem(o, nd) {
+// minutes after midnight; offers without a time (counselling hours, exhibitions) at the end of their day
+const timeKey = o => o.time_from ? +o.time_from.slice(0, 2) * 60 + +o.time_from.slice(3, 5) : 24 * 60;
+const dayHead = d => { const diff = Math.round((d - today0()) / 864e5); return diff === 0 ? 'Heute' : diff === 1 ? 'Morgen' : d.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' }); };
+// a sorted [[date, offer], ...] list with a heading per day: Heute, Morgen, Samstag, 14. November
+function dayListHtml(list) {
+  let out = '', cur = null;
+  for (const [d, o] of list) {
+    const k = ymd(d);
+    if (k !== cur) { out += `${cur ? '</ol>' : ''}<h4 class="dayhead">${esc(dayHead(d))}</h4><ol class="list">`; cur = k; }
+    out += offerItem(o, d, { timeOnly: true });
+  }
+  return cur ? out + '</ol>' : '';
+}
+const byDayTime = (a, b) => a[0] - b[0] || timeKey(a[1]) - timeKey(b[1]);
+const saveBtn = o => o.id ? `<button type="button" class="savebtn${isSaved(o.id) ? ' on' : ''}" data-saveoffer="${o.id}" data-inline="1" aria-pressed="${isSaved(o.id)}" aria-label="${isSaved(o.id) ? 'Nicht mehr merken' : 'Merken'}">${svg('heart')}</button>` : '';
+function offerItem(o, nd, opts = {}) {
   const place = o.place_id && byId.get(o.place_id);
   const d = state.me && ((o.lat && o.lon) || place) ? dist(origin(), place ? [place.lat, place.lon] : [o.lat, o.lon]) : null;
   const fits = offerFits(o), n = o.id ? visitsOf(o.id).length : 0;
   const tags = [o.audience === 'erwachsene' ? 'für Erwachsene' : ageLabel(o.age_min_m, o.age_max_m), o.free ? 'kostenlos' : o.price, o.kind === 'gruppe' ? (isRecurring(o) ? 'regelmäßig' : 'offenes Treffen') : o.kind === 'kurs' ? (o.sessions ? `Kurs, ${o.sessions}×` : 'Kurs') : '']
     .filter(Boolean).map(t => `<span>${esc(t)}</span>`).join('');
-  const inner = `<span class="datebox"><b>${nd ? esc(fmtDay(nd)) : '–'}</b><span>${esc(o.time_from || '')}</span></span>
-    <span><h3>${esc(o.title)}${o.id && isSaved(o.id) ? ` <span class="savedmark" title="Gemerkt">${svg('heart', '')}</span>` : ''}</h3><span class="meta">${esc(TOPIC_LABEL[o.topic] || '')}${o.venue ? ' · ' + esc(o.venue) : ''}${d != null ? ' · ' + fmtDist(d) : ''}</span>
+  const box = opts.timeOnly
+    ? (o.time_from ? `<span class="datebox time"><b>${esc(o.time_from)}</b><span>${o.time_to ? 'bis ' + esc(o.time_to) : 'Uhr'}</span></span>` : '<span class="datebox time"><span>ganztags</span></span>')
+    : `<span class="datebox"><b>${nd ? esc(fmtDay(nd)) : '–'}</b><span>${esc(o.time_from || '')}</span></span>`;
+  const inner = `${box}
+    <span><h3>${esc(o.title)}</h3><span class="meta">${esc(TOPIC_LABEL[o.topic] || '')}${o.venue ? ' · ' + esc(o.venue) : ''}${d != null ? ' · ' + fmtDist(d) : ''}</span>
     <span class="mini${fits === true ? ' fit' : ''}">${fits === true ? '<span class="fitchip">passt zu euch</span>' : ''}${n ? `<span class="visitchip">${n === 1 ? 'wart ihr schon' : n + '× dabei'}</span>` : ''}${tags}</span></span><span></span>`;
-  return o.id ? `<li><button type="button" class="item offer" data-offer="${o.id}">${inner}</button></li>` : `<li><div class="item offer">${inner}</div></li>`;
+  return o.id ? `<li class="offrow"><button type="button" class="item offer" data-offer="${o.id}">${inner}</button>${saveBtn(o)}</li>` : `<li><div class="item offer">${inner}</div></li>`;
 }
 
 // ---------- Map ----------
@@ -1386,7 +1404,10 @@ function evBase() {
   list = list.filter(([, o]) => o.own || offerInArea(o));
   if (EV.art) list = list.filter(([, o]) => o.kind === EV.art);
   if (fam && hasFamily() && !EV.f.has('erwachsene')) list = list.filter(([, o]) => offerFits(o) !== false);
-  return list;
+  // what is over today is gone: end time passed, or one hour after the start when no end is known
+  const now = new Date(), nowMin = now.getHours() * 60 + now.getMinutes();
+  const endMin = o => o.time_to ? +o.time_to.slice(0, 2) * 60 + +o.time_to.slice(3, 5) : o.time_from ? timeKey(o) + 60 : 24 * 60;
+  return list.filter(([d, o]) => +d !== +t || endMin(o) > nowMin);
 }
 function rangeText() {
   const r = rangeOf();
@@ -1397,7 +1418,7 @@ function eventsView() {
   const base = evBase(), o0 = origin();
   const list = base.filter(([, o]) => o.own || evPass(o));
   const near = o => { const pl = o.place_id && byId.get(o.place_id); return pl ? dist(o0, [pl.lat, pl.lon]) : o.lat ? dist(o0, [o.lat, o.lon]) : 9e9; };
-  list.sort((a, b) => a[0] - b[0] || near(a[1]) - near(b[1]));
+  list.sort((a, b) => byDayTime(a, b) || near(a[1]) - near(b[1]));
   const b = nextBreak(), t = today0();
   const ranges = [['heute', 'Heute'], ['morgen', 'Morgen'], ['wochenende', 'Wochenende'], ['woche', 'Diese Woche'], ['naechste', 'Nächste Woche']]
     .concat(b && (b.running || b.days <= 56) ? [['ferien', b.name.replace(/ ?\d{4}.*$/, '')]] : []).concat([['eigen', 'Zeitraum …']]);
@@ -1417,7 +1438,7 @@ function eventsView() {
     ${EV.range === 'ferien' ? '' : ferienCard(14, true)}
     ${schoolHoliday(rangeOf()?.[0] || t) ? `<p class="note" style="margin:0 0 10px">${esc(schoolHoliday(rangeOf()?.[0] || t))}: Viele Kurse pausieren, bitte beim Anbieter nachsehen.</p>` : ''}
     <p class="note" style="margin:0 0 6px">${nf.format(list.length)} ${list.length === 1 ? 'Termin' : 'Termine'}</p>
-    ${list.length ? `<ol class="list">${list.slice(0, EV.limit).map(([d, o]) => offerItem(o, d)).join('')}</ol>${list.length > EV.limit ? '<button type="button" class="more" data-emore="1">Mehr anzeigen</button>' : ''}`
+    ${list.length ? `${dayListHtml(list.slice(0, EV.limit))}${list.length > EV.limit ? '<button type="button" class="more" data-emore="1">Mehr anzeigen</button>' : ''}`
       : `<div class="empty"><b>${OFFERS.length ? 'Nichts gefunden.' : 'Noch keine Termine geladen.'}</b>${OFFERS.length ? 'Probier einen anderen Zeitraum oder weniger Filter.' : ''}</div>`}
     <button type="button" class="btn" data-addevent="1" style="margin-top:14px">${svg('plus')}Veranstaltung eintragen</button>
     <p class="note">Quellen: Eltern-Kind-Zentren, Elternschulen, Familienbildung, Bücherhallen, Bäderland u. a. Anmeldung immer beim Anbieter.</p>`;
@@ -1553,11 +1574,11 @@ function favsView() {
   const o = origin();
   const ps = store.favorites.map(id => byId.get(id)).filter(Boolean);
   const offers = store.savedOffers.map(s => [OFFER_BY_ID.get(s.id), s]);
-  const live = offers.filter(([x]) => x && nextDate(x)).map(([x]) => [nextDate(x), x]).sort((a, b) => a[0] - b[0]);
+  const live = offers.filter(([x]) => x && nextDate(x)).map(([x]) => [nextDate(x), x]).sort(byDayTime);
   const gone = offers.filter(([x]) => !x || !nextDate(x));
   return `${head('Gemerkt', typeof auth !== 'undefined' && auth?.family ? 'Gemeinsam mit der Familie' : 'Nur auf diesem Gerät gespeichert', false)}
     ${!ps.length && !offers.length ? '<div class="empty"><b>Noch nichts gemerkt.</b>Tippe bei Terminen und Orten auf das Herz, dann sammelt sich hier alles Interessante.</div>' : ''}
-    ${live.length ? `<div class="sec"><h4>Termine</h4><ol class="list">${live.map(([d, x]) => offerItem(x, d)).join('')}</ol>
+    ${live.length ? `<div class="sec"><h4>Termine</h4>${dayListHtml(live)}
       ${live.length > 1 ? `<button type="button" class="btn" data-ics="saved" style="margin-top:8px">${svg('cal')}Alle ${live.length} in den Kalender</button>` : ''}</div>` : ''}
     ${gone.length ? `<div class="sec"><h4>Vorbei oder nicht mehr gefunden</h4><ol class="list">${gone.map(([x, s]) => `<li><button type="button" class="item offer" data-offer="${esc(s.id)}"><span class="datebox"><b>–</b></span><span><h3>${esc(s.snap.title)}</h3><span class="meta">${esc(s.snap.venue || '')}</span></span><span></span></button></li>`).join('')}</ol></div>` : ''}
     ${ps.length ? `<div class="sec"><h4>Orte</h4><ol class="list">${ps.map(p => itemHtml(p, dist(o, [p.lat, p.lon]))).join('')}</ol></div>` : ''}`;
@@ -1873,7 +1894,11 @@ document.addEventListener('click', async e => {
   else if (ds.evtopic) { toggle(EV.topics, ds.evtopic); EV.limit = 60; renderPanel(); }
   else if (ds.evreset) { EV.f.clear(); EV.topics.clear(); renderPanel(); }
   else if (ds.offer) go({ type: 'offer', id: ds.offer }, 'full');
-  else if (ds.saveoffer) { toggleSaved(ds.saveoffer); renderPanel(); }
+  else if (ds.saveoffer) {
+    toggleSaved(ds.saveoffer);
+    if (ds.inline) { const on = isSaved(ds.saveoffer); document.querySelectorAll(`.savebtn[data-saveoffer="${ds.saveoffer}"]`).forEach(b => { b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); b.setAttribute('aria-label', on ? 'Nicht mehr merken' : 'Merken'); }); }
+    else renderPanel();
+  }
   else if (ds.visit) { const k = ymd(today0()), l = store.visits[ds.visit] || (store.visits[ds.visit] = []); if (l[l.length - 1] !== k) l.push(k); save(); toast('Eingetragen: ihr wart dabei.'); renderPanel(); }
   else if (ds.unvisit) { const l = store.visits[ds.unvisit] || []; l.pop(); if (!l.length) delete store.visits[ds.unvisit]; save(); renderPanel(); }
   else if (ds.calmenu) { view().cal = !view().cal; renderPanel(); }
