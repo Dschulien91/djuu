@@ -153,7 +153,10 @@ function wirHub() {
 }
 
 // the head of the Wir: its photo (76 px) or first letter, the name, and what I am here
-const wirName = () => auth?.familyName || tl('Euer Wir');
+// The title is simply "Wir", the same for everyone. Only a name the admin gave the Wir (e.g. "Familie Rossi") replaces it.
+// Names made automatically before ("Annas Wir", "Anna’s Us", "Familie", "Wir") count as no own name.
+const ownWirName = () => { const n = (auth?.familyName || '').trim(); return !n || /^(wir|us|familie)$/i.test(n) || /^\S+(s|’|') Wir$/.test(n) || /^\S+’s Us$/.test(n) ? '' : n; };
+const wirName = () => ownWirName() || tl('Wir');
 const adminColor = () => (members().find(m => adultById(m.id)?.admin) || members()[0])?.color || MEMBER_COLORS[0];
 function wirAvatar(size = 'xl') {
   return store.wirPhoto ? `<span class="av ring ${size}" style="--c:${adminColor()}"><img src="${store.wirPhoto}" alt=""></span>`
@@ -166,8 +169,8 @@ function wirHeadHtml() {
     <span class="wirtx">${admin ? `<button type="button" class="wirname${wirName().length > 18 ? ' long' : ''}" data-wir="wirname" aria-label="${tl('Namen des Wir ändern')}">${esc(wirName())}</button>` : `<b class="wirname${wirName().length > 18 ? ' long' : ''}">${esc(wirName())}</b>`}<small>${esc(what)}</small></span></div>`;
 }
 function wirNameView() {
-  return `${head(tl('Name des Wir'))}<form id="wirNameForm"><div class="field"><label for="wirNameIn">${tl('Name')}</label><input id="wirNameIn" maxlength="60" value="${esc(wirName())}" required></div>
-    <p class="note">${tl('Zum Beispiel „Annas Wir“ oder „Familie Schulz“. Alle im Wir sehen ihn.')}</p>
+  return `${head(tl('Name des Wir'))}<form id="wirNameForm"><div class="field"><label for="wirNameIn">${tl('Eigener Name')} <small class="muted">${tl('freiwillig')}</small></label><input id="wirNameIn" maxlength="60" value="${esc(ownWirName())}" placeholder="${tl('z. B. Familie Rossi')}"></div>
+    <p class="note">${tl('Alle im Wir sehen denselben Namen. Ohne eigenen Namen steht dort einfach „Wir“.')}</p>
     <div class="stick"><button type="submit" class="btn big primary">${tl('Speichern')}</button></div></form>`;
 }
 // photo, name and colour of one entry: the big avatar with the camera, and how others will see the person
@@ -446,7 +449,7 @@ function aboutView() {
 // Einkauf and Besorgungen: the lists themselves are unchanged; "Ansehen" shows them without the controls
 function listView_(kind) {
   const p = perm(kind === 'shop' ? 'shop' : 'errands'), title = kind === 'shop' ? tl('Einkauf') : tl('Besorgungen');
-  const sub = signedIn() ? (p === 'view' ? tl('Gemeinsam · nur ansehen') : tl('Gemeinsam mit ') + esc(auth.familyName || tl('der Familie'))) : tl('Bisher nur auf diesem Gerät');
+  const sub = signedIn() ? (p === 'view' ? tl('Gemeinsam · nur ansehen') : (ownWirName() ? tl('Gemeinsam mit ') + esc(ownWirName()) : tl('Gemeinsam'))) : tl('Bisher nur auf diesem Gerät');
   if (p === 'none') return `${head(title)}<div class="empty"><b>${tl('Kein Zugriff.')}</b>${tl('Der Admin eures Wir kann das ändern.')}</div>`;
   return `${head(title, sub)}<div class="${p === 'view' ? 'readonly' : ''}">${kind === 'shop' ? shopHtml() : errandHtml()}</div>`;
 }
@@ -556,7 +559,7 @@ document.addEventListener('click', e => {
       // a new account: the first step creates the Wir, the lists and everything from this phone go into it
       if (hasToken() && !auth.family) {
         W.busy = true; renderPanel();
-        createFamily(name, LANG === 'de' ? `${genitive(name)} Wir` : `${name}’s Us`, meAdult()?.role).then(() => { W.busy = false; W.onb = 2; renderPanel(); runPending(); },
+        createFamily(name, 'Wir', meAdult()?.role).then(() => { W.busy = false; W.onb = 2; renderPanel(); runPending(); },
           x => { W.busy = false; toast(accountError(x)); renderPanel(); });
         return;
       }
@@ -621,7 +624,7 @@ document.addEventListener('click', e => {
 function openLooksPhoto(key) {
   const [kind, id] = key.split('|');
   if (kind === 'wir') {
-    return photoSheet({ title: tl('Foto von {name}', { name: wirName() }), hint: tl('Alle im Wir sehen es'), avatar: wirAvatar('md'), hasPhoto: !!store.wirPhoto,
+    return photoSheet({ title: tl('Foto des Wir'), hint: tl('Alle im Wir sehen es'), avatar: wirAvatar('md'), hasPhoto: !!store.wirPhoto,
       onPhoto: url => setWirLooks({ photo: url }), onRemove: () => setWirLooks({ photo: '' }) });
   }
   const x = kind === 'me' ? ensureMe() : kind === 'dog' ? dogs().find(y => y.id === id) : adultById(id) || kidById(id);
@@ -651,7 +654,7 @@ document.addEventListener('submit', e => {
   if (e.target.id !== 'wirNameForm') return;
   e.preventDefault();
   const n = $('#wirNameIn').value.trim();
-  if (n) setWirLooks({ name: n.slice(0, 60) }).then(() => back());
+  setWirLooks({ name: n.slice(0, 60) || 'Wir' }).then(() => back());
 });
 document.addEventListener('input', e => {
   if (e.target.id !== 'onbName') return;
@@ -686,7 +689,6 @@ document.addEventListener('change', e => {
 });
 // ---------- Account pages: guest, register, confirm e-mail, sign in, passwords, invite ----------
 const hasToken = () => typeof auth !== 'undefined' && !!auth?.token;
-const genitive = n => /[sßxz]$/i.test(n) ? `${n}’` : `${n}s`;
 const isIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const isAndroid = () => /Android/i.test(navigator.userAgent);
 const mailAppUrl = () => isIOS() ? 'message://' : isAndroid() ? 'intent://#Intent;action=android.intent.action.MAIN;category=android.intent.category.APP_EMAIL;end' : '';
@@ -781,7 +783,7 @@ const ROLES_JOIN = [tl('Elternteil'), tl('Oma / Opa'), tl('Tante / Onkel'), tl('
 function joinView() {
   const I = W.inviteInfo;
   if (!I) loadInviteInfo();
-  return `${peopleDots(I?.people)}<h2 class="big">${I?.inviter ? tl('Du trittst {gen} Wir bei', { gen: esc(genitive(I.inviter)), name: esc(I.inviter) }) : tl('Du trittst dem Wir bei')}</h2>
+  return `${peopleDots(I?.people)}<h2 class="big">${I?.inviter ? tl('Du trittst dem Wir von {name} bei', { name: esc(I.inviter) }) : tl('Du trittst dem Wir bei')}</h2>
     <p class="muted text">${tl('Wie sollen wir dich nennen?')}</p>
     <form id="joinForm" novalidate><div class="field"><label for="joinName">${tl('Vorname oder Spitzname')}</label><input id="joinName" maxlength="30" autocomplete="given-name" required value="${esc(W.joinName || '')}"></div>
       <div class="field"><label>${tl('Deine Rolle')} <small class="muted">${tl('Freiwillig')}</small></label>${chipRow(ROLES_JOIN, W.joinRole, 'data-joinrole')}</div>${errHtml()}
@@ -794,7 +796,7 @@ function accountSignedIn() {
       <button type="button" class="navrow" data-wir="pwchange"><span class="navic">${svg('gear')}</span><span class="navtx"><b>${tl('Passwort ändern')}</b></span>${svg('next')}</button>
       <div class="navrow static"><span class="navic">${svg('card')}</span><span class="navtx"><b>${tl('Abo')}</b><small>${tl('Kostenlos')}</small></span></div></div>
     ${hint(`${svg('check')} ${tl('Du bleibst angemeldet, bis du dich abmeldest. Deine Daten bleiben in deinem Konto.')}`)}
-    ${auth.family ? `<p class="note">${SY.online ? `<span class="syok">●</span> ${tl('Verbunden mit')} ${esc(auth.familyName || tl('eurem Wir'))}` : `<span class="syoff">●</span> ${tl('Offline, Änderungen werden nachgereicht')}`}${outbox.length ? ` · ${outbox.length} ${tl('noch nicht gesendet')}` : ''}</p>` : ''}
+    ${auth.family ? `<p class="note">${SY.online ? `<span class="syok">●</span> ${tl('Verbunden mit')} ${esc(ownWirName() || tl('eurem Wir'))}` : `<span class="syoff">●</span> ${tl('Offline, Änderungen werden nachgereicht')}`}${outbox.length ? ` · ${outbox.length} ${tl('noch nicht gesendet')}` : ''}</p>` : ''}
     <button type="button" class="btn big wide" data-sylogout="1">${tl('Abmelden')}</button>
     <p class="center"><button type="button" class="linkbtn danger" data-wir="delete">${tl('Konto löschen')}</button></p>`;
 }

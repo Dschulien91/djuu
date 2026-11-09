@@ -704,4 +704,9 @@ window.DJUU_I18N.en = {
   'Wenn jemand eurem Wir beitritt': 'When someone joins your Us',
   'Zwei Wochen vor den Schulferien': 'Two weeks before the school holidays',
   'Bald kannst du hier selbst wählen, welche Meldungen kommen. Mitteilungen aufs Handy fragt Djuu erst, wenn es Sinn ergibt.': 'Soon you can choose here which news you get. Djuu only asks for phone notifications when it makes sense.',
+  'Eigener Name': 'Own name',
+  'z. B. Familie Rossi': 'e.g. The Rossi family',
+  'Alle im Wir sehen denselben Namen. Ohne eigenen Namen steht dort einfach „Wir“.': 'Everyone in the Us sees the same name. Without one, it simply says “Us”.',
+  'Foto des Wir': 'Photo of the Us',
+  'Du trittst dem Wir von {name} bei': 'You’re joining {name}’s Us',
 };
