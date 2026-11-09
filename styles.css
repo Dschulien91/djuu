@@ -849,3 +849,9 @@ a.btn.wide, button.btn.wide { display: flex; }
 .dogchip svg.i { width: 14px; height: 14px; }
 .dogchip.nein { background: #F3E8E8; color: #8E2B2B; }
 .facts .dogchip { font-size: 13px; padding: 4px 10px; }
+
+/* v0.41: dogs after the people, a little apart */
+.avsep { width: 1px; align-self: stretch; margin: 4px 4px 14px; background: var(--line); }
+.av.dog img { width: 100%; height: 100%; object-fit: cover; }
+.sec.dogsec { margin-top: 30px; padding-top: 16px; border-top: 1px dashed var(--line); }
+.plist.dogs { background: color-mix(in srgb, var(--sun) 10%, var(--surface)); }

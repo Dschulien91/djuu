@@ -79,7 +79,7 @@ function avatarHtml(m, size = '') {
 const adultById = id => store.profile.adults.find(a => a.id === id);
 const dogs = () => store.profile.dogList || [];
 const dogName = d => d.name || tl('Hund');
-const dogAv = (d, size = '') => `<span class="av dog ${size}" aria-hidden="true">${svg('paw')}</span>`;
+const dogAv = (d, size = '') => store.kidPhotos[d.id] ? `<span class="av dog ${size}" aria-hidden="true"><img src="${store.kidPhotos[d.id]}" alt=""></span>` : `<span class="av dog ${size}" aria-hidden="true">${svg('paw')}</span>`;
 // dogs, like children, can be added and changed by the family group (not by helpers)
 const canEditFamily = () => isAdmin() || meAdult()?.grp === 'family';
 const kidById = id => store.profile.kids.find(k => k.id === id);
@@ -117,11 +117,13 @@ function wirHub() {
   const fam = adults.filter(a => a.grp !== 'helper').length, help = adults.filter(a => a.grp === 'helper').length;
   const nd = dogs().length;
   const count = [fam && `${fam} ${tl('Familie')}`, kids.length && `${kids.length} ${kids.length === 1 ? tl('Kind') : tl('Kinder')}`, help && `${help} ${help === 1 ? tl('Helfer:in') : tl('Helfer:innen')}`, nd && `${nd} ${nd === 1 ? tl('Hund') : tl('Hunde')}`].filter(Boolean).join(' · ');
-  const order = ms.filter(m => !m.kid && adultById(m.id)?.grp !== 'helper').concat(ms.filter(m => m.kid)).map(m => `<button type="button" class="avbtn" data-wirperson="${m.id}" aria-label="${esc(m.name)}">${avatarHtml(m)}</button>`)
-    .concat(dogs().map(d => `<button type="button" class="avbtn dogav" data-wirdog="${d.id}" aria-label="${esc(dogName(d))}">${dogAv(d)}<small>${esc(dogName(d))}</small></button>`))
-    .concat(ms.filter(m => !m.kid && adultById(m.id)?.grp === 'helper').map(m => `<button type="button" class="avbtn" data-wirperson="${m.id}" aria-label="${esc(m.name)}">${avatarHtml(m)}</button>`));
-  const slots = isAdmin() ? 5 : 6; // one row on a phone, the add button included
-  const shown = order.length > slots ? order.slice(0, slots - 1).concat(`<button type="button" class="avbtn" data-wir="people" aria-label="${tl('Alle anzeigen')}"><span class="av more">+${order.length - slots + 1}</span></button>`) : order;
+  const person = m => `<button type="button" class="avbtn" data-wirperson="${m.id}" aria-label="${esc(m.name)}">${avatarHtml(m)}</button>`;
+  const humans = ms.filter(m => !m.kid && adultById(m.id)?.grp !== 'helper').concat(ms.filter(m => m.kid), ms.filter(m => !m.kid && adultById(m.id)?.grp === 'helper')).map(person);
+  const pets = dogs().map(d => `<button type="button" class="avbtn dogav" data-wirdog="${d.id}" aria-label="${esc(dogName(d))}">${dogAv(d)}<small>${esc(dogName(d))}</small></button>`);
+  const slots = isAdmin() ? 5 : 6, all = humans.length + pets.length; // one row on a phone, the add button included
+  const over = all > slots, room = over ? slots - 1 : all, h = Math.min(humans.length, room), dg = room - h;
+  const more = over ? [`<button type="button" class="avbtn" data-wir="people" aria-label="${tl('Alle anzeigen')}"><span class="av more">+${all - room}</span></button>`] : [];
+  const shown = humans.slice(0, h).concat(dg ? [`<span class="avsep" aria-hidden="true"></span>`].concat(pets.slice(0, dg)) : [], more);
   const shop = perm('shop'), err = perm('errands');
   const n = openItems().length, e = store.errands.filter(x => x.state !== 'gekauft').length;
   const tile = (open, icon, title, n_) => `<button type="button" class="tile" data-wir="${open}"><span class="navic">${svg(icon)}</span>${n_ ? `<span class="n">${n_}</span>` : ''}<b>${title}</b><small>${signedIn() ? tl('Gemeinsam') : tl('Auf diesem Gerät')}</small></button>`;
@@ -192,10 +194,10 @@ function peopleView() {
   return `${head(tl('Personen'), `${tl('Wir')} · ${ms.length} ${ms.length === 1 ? tl('Person') : tl('Personen')}`)}
     ${group(tl('Familie'), tl('Mit eigenem Zugang'), adults.filter(a => a.grp !== 'helper').map(adultRow))}
     ${group(tl('Kinder'), tl('Nur ein Eintrag, kein Zugang'), kids.map(m => { const k = kidById(m.id); return row(m, kidAgeText(k) + (k.approx && !k.remote ? ` · ${tl('Geburtsdatum ergänzen')}` : ''), null); }))}
-    ${meAdult()?.grp === 'helper' ? '' : `<div class="sec"><h4>${tl('Hunde')}<small>${tl('Für Hinweise, wo Hunde erlaubt sind')}</small></h4>
-      ${dogs().length ? `<ol class="card plist">${dogs().map(d => `<li><button type="button" class="prow" data-wirdog="${d.id}">${dogAv(d)}<span class="navtx"><b>${esc(dogName(d))}</b></span>${svg('next')}</button></li>`).join('')}</ol>` : ''}
-      ${canEditFamily() ? `<button type="button" class="linkbtn plus" data-adddog="1">${svg('plus')}${tl('Hund hinzufügen')}</button>` : ''}</div>`}
     ${group(tl('Helfer:innen'), tl('Du bestimmst, was sie sehen'), adults.filter(a => a.grp === 'helper').map(adultRow))}
+    ${meAdult()?.grp === 'helper' ? '' : `<div class="sec dogsec"><h4>${tl('Hunde')}<small>${tl('Für Hinweise, wo Hunde erlaubt sind')}</small></h4>
+      ${dogs().length ? `<ol class="card plist dogs">${dogs().map(d => `<li><button type="button" class="prow" data-wirdog="${d.id}">${dogAv(d)}<span class="navtx"><b>${esc(dogName(d))}</b></span>${svg('next')}</button></li>`).join('')}</ol>` : ''}
+      ${canEditFamily() ? `<button type="button" class="linkbtn plus" data-adddog="1">${svg('plus')}${tl('Hund hinzufügen')}</button>` : ''}</div>`}
     ${moreAboutHtml()}
     ${isAdmin() ? `<div class="stick"><button type="button" class="btn big primary" data-wir="add">${svg('plus')}${tl('Person hinzufügen')}</button></div>` : ''}`;
 }
@@ -281,7 +283,10 @@ function dogView() {
   const d = dogs().find(x => x.id === view().id);
   if (!d) return `${head(tl('Hund'))}<div class="empty"><b>${tl('Diesen Eintrag gibt es nicht mehr.')}</b></div>`;
   const i = dogs().indexOf(d), edit = canEditFamily();
-  return `${head(esc(dogName(d)), tl('Hund'))}<div class="card who">${dogAv(d, 'lg')}<span class="navtx"><b>${tl('Hund')}</b><small>${tl('Nur ein Eintrag, kein Zugang')}</small></span></div>
+  const photo = store.kidPhotos[d.id];
+  return `${head(esc(dogName(d)), tl('Hund'))}<div class="card who">${dogAv(d, 'lg')}<span class="navtx"><b>${tl('Hund')}</b><small>${tl('Nur ein Eintrag, kein Zugang')}</small></span>
+      ${edit ? `<label class="btn sm">${svg('camera')}${photo ? tl('Foto ändern') : tl('Foto (optional)')}<input type="file" accept="image/*" data-kidphoto="${d.id}" hidden></label>` : ''}</div>
+    ${photo ? `<p class="note">${tl('Das Foto bleibt nur auf diesem Handy und wird nicht geteilt.')}${edit ? ` <button type="button" class="linkbtn" data-kidphotodel="${d.id}">${tl('Entfernen')}</button>` : ''}</p>` : edit ? `<p class="note">${tl('Ein Foto bleibt nur auf diesem Handy und wird nicht geteilt.')}</p>` : ''}
     ${edit ? `<div class="field"><label for="dName">${tl('Name')} <small class="muted">${tl('freiwillig')}</small></label><input id="dName" data-dogname="${i}" maxlength="30" value="${esc(d.name)}"></div>` : ''}
     <p class="note">${tl('Mit einem Hund im Wir zeigt Djuu bei Orten und Terminen, ob Hunde erlaubt sind, und im Filter „Mit Hund“.')}</p>
     ${edit ? `<button type="button" class="btn wide danger" data-dogdel="${d.id}">${tl('Eintrag entfernen')}</button>` : ''}`;
@@ -503,7 +508,7 @@ document.addEventListener('click', e => {
   }
   else if (d.dogdel) {
     if (view().page === 'dog' && !confirm(tl('Diesen Eintrag entfernen?'))) return;
-    store.profile.dogList = dogs().filter(x => x.id !== d.dogdel); save();
+    store.profile.dogList = dogs().filter(x => x.id !== d.dogdel); delete store.kidPhotos[d.dogdel]; save();
     if (view().page === 'dog') back(); else renderPanel();
   }
   else if (d.welcome) closeWelcome(d.welcome);
