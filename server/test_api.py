@@ -3,6 +3,7 @@ Creates three throwaway users (A, B, stranger C), checks what each may see and d
 import json
 import secrets
 import sys
+import time
 import urllib.error
 import urllib.request
 
@@ -177,8 +178,10 @@ check('removed helper keeps the account, without a Wir', s == 200 and not cu.get
 
 s, o = call('POST', '/api/collections/users/request-otp', body={'email': 'nobody@example.invalid'})
 check('e-mail code login is switched off', s != 200, (s, o))
+time.sleep(3.2)  # the server allows 2 sign-ins per 3 seconds
 s, o = call('POST', '/api/collections/users/auth-with-password', body={'identity': users['B']['email'], 'password': users['B']['pw']})
 check('confirmed account signs in with password', s == 200 and o.get('token'), (s, o))
+time.sleep(3.2)  # the server allows 2 sign-ins per 3 seconds
 s, o = call('POST', '/api/collections/users/auth-with-password', body={'identity': users['B']['email'], 'password': 'wrong-password'})
 check('wrong password is rejected', s in (400, 403), (s, o))
 newmail, newpw = f'test-new-{secrets.token_hex(3)}@example.invalid', secrets.token_urlsafe(12)
@@ -188,11 +191,13 @@ s, nu = call('POST', '/api/collections/users/records', body={'email': newmail, '
 check('anyone can register', s == 200 and not nu.get('verified'), (s, nu))
 s, o = call('POST', '/api/collections/users/records', body={'email': newmail, 'password': newpw, 'passwordConfirm': newpw, 'member': MB})
 check('registration cannot pick a Wir', s == 400, (s, o))
+time.sleep(3.2)  # the server allows 2 sign-ins per 3 seconds
 s, o = call('POST', '/api/collections/users/auth-with-password', body={'identity': newmail, 'password': newpw})
 check('unconfirmed account cannot sign in', s in (400, 403), (s, o))
 s, o = call('POST', '/api/collections/users/request-verification', body={'email': newmail})
 check('confirmation mail can be requested', s == 204, (s, o))
 call('PATCH', f"/api/collections/users/records/{nu.get('id')}", SU, {'verified': True})
+time.sleep(3.2)  # the server allows 2 sign-ins per 3 seconds
 s, o = call('POST', '/api/collections/users/auth-with-password', body={'identity': newmail, 'password': newpw})
 check('after confirming, the account signs in', s == 200, (s, o))
 call('DELETE', f"/api/collections/users/records/{nu.get('id')}", SU)

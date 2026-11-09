@@ -154,7 +154,7 @@ async function flush() {
   } finally { flushing = false; }
 }
 let syncTimer = null;
-function scheduleSync() { clearTimeout(syncTimer); syncTimer = setTimeout(() => { diffAll(); flush(); }, 250); }
+function scheduleSync() { clearTimeout(syncTimer); syncTimer = setTimeout(() => { syncTimer = null; diffAll(); flush(); }, 250); }
 
 // every local save also syncs
 const saveLocal = save;
@@ -212,6 +212,8 @@ function withPending(coll) {
   return recs;
 }
 function applyRemote(coll, { action, record }) {
+  // own changes from the last moment (still waiting for the 250 ms pause) go into the outbox first, so they win
+  if (syncTimer) { clearTimeout(syncTimer); syncTimer = null; diffAll(); flush(); }
   const spec = SPECS[coll], sh = shadow[coll] || (shadow[coll] = {});
   RECS[coll] = (RECS[coll] || []).filter(r => r.id !== record.id);
   if (action !== 'delete') RECS[coll].push(record);
@@ -310,13 +312,13 @@ async function enterFamily(r, myName, keepMembers) {
   const meLocal = keepMembers ? (meId() || null) : null;
   if (keepMembers && !store.profile.adults.some(a => a.id === meLocal)) store.profile.adults.unshift({ id: 'me', name: myName });
   adoptLocalIds(keepMembers ? (meLocal || 'me') : null, r.member);
-  const me = store.profile.adults.find(a => a.id === r.member);
-  if (me) { me.name = me.name || myName; me.account = true; } else store.profile.adults.unshift({ id: r.member, name: myName, account: true });
-  // the server already has: my member and the shop memory record
-  const mem = (await listAll('shop_memory', `family='${r.family}'`))[0];
+  // the server already has: my member (with the role chosen when joining) and the shop memory record
   const myRec = await api('GET', `/api/collections/members/records/${r.member}`);
+  const me = store.profile.adults.find(a => a.id === r.member);
+  if (me) { me.name = me.name || myName; me.account = true; me.role = me.role || myRec.role || ''; } else store.profile.adults.unshift({ id: r.member, name: myName, account: true, role: myRec.role || '' });
+  const mem = (await listAll('shop_memory', `family='${r.family}'`))[0];
   shadow = {};
-  shadow.members = { [r.member]: { id: r.member, p: JSON.stringify(SPECS.members.payload({ ...myRec, _kind: 'adult', name: myRec.name, work: myRec.work })), account: true } };
+  shadow.members = { [r.member]: { id: r.member, p: JSON.stringify(SPECS.members.payload({ ...myRec, _kind: 'adult', name: myRec.name, work: myRec.work, role: myRec.role })), account: true } };
   if (mem) shadow.shop_memory = { m: { id: mem.id, p: '' } }; // differs on purpose: our memory goes up once
   saveShadow(); saveLocal();
   diffAll(); await flush();

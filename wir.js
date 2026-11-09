@@ -370,7 +370,10 @@ const WIR_PAGES = { guest: guestInfoView, register: registerView, verify: verify
   pwchange: pwChangeView, emailchange: emailChangeView, emailconfirm: emailConfirmView, delete: deleteView, people: peopleView, add: addPersonView, places: placesView, place: placeEditView, fit: fitView, settings: settingsView, bell: bellView, mapset: mapSetView, lang: langView, calsub: calSubView, account: accountView, about: aboutView, shop: () => listView_('shop'), errands: () => listView_('errands') };
 // every page fills the sheet, so the main button sits at the bottom like on the phone screens
 function wirRender(v) {
-  const html = v.type === 'me' ? wirHub() : v.type === 'favs' ? gemerktView() : v.type === 'person' ? personView(v.id) : (WIR_PAGES[v.page] || wirHub)();
+  // pages that need an account show the sign-in instead (for example after signing out on another page)
+  const needsAccount = v.type === 'person' || ['people', 'add', 'places', 'place', 'fit', 'shop', 'errands', 'calsub', 'pwchange', 'emailchange', 'delete'].includes(v.page);
+  const html = needsAccount && !auth?.family && !(hasToken() && ['pwchange', 'emailchange', 'delete'].includes(v.page)) ? loginView()
+    : v.type === 'me' ? wirHub() : v.type === 'favs' ? gemerktView() : v.type === 'person' ? personView(v.id) : (WIR_PAGES[v.page] || wirHub)();
   return `<div class="pagewrap">${html}</div>`;
 }
 
