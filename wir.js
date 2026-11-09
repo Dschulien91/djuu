@@ -429,9 +429,17 @@ function settingsView() {
     ${navRow('account', 'user', tl('Konto & Anmeldung'), tl('E-Mail, Abmelden'))}</div>`;
 }
 // Einstellungen › Benachrichtigungen: which news come today; choosing them comes later
-const bellView = () => `${head(tl('Benachrichtigungen'))}<p class="text">${tl('Neuigkeiten findest du über die Glocke auf der Karte. Im Moment meldet Djuu:')}</p>
-  <div class="card navlist">${['shop', 'errands', 'saved', 'wir', 'tipp'].map(k => { const [l, ic, c] = NEWS_AREAS[k]; return `<div class="navrow static"><span class="newsic" style="--c:${c}">${svg(ic)}</span><span class="navtx"><b>${l}</b><small>${{ shop: tl('Wenn jemand etwas auf die Einkaufsliste setzt'), errands: tl('Wenn jemand eine Besorgung plant'), saved: tl('Wenn jemand einen Termin merkt'), wir: tl('Wenn jemand eurem Wir beitritt'), tipp: tl('Zwei Wochen vor den Schulferien') }[k]}</small></span></div>`; }).join('')}</div>
-  <p class="note">${tl('Bald kannst du hier selbst wählen, welche Meldungen kommen. Mitteilungen aufs Handy fragt Djuu erst, wenn es Sinn ergibt.')}</p>`;
+// Einstellungen › Benachrichtigungen: one switch per topic (only for me, kept in my account), all on or all off
+const NEWS_DESC = () => ({ shop: tl('Wenn jemand etwas auf die Einkaufsliste setzt'), errands: tl('Wenn jemand eine Besorgung plant'), saved: tl('Wenn jemand einen Termin merkt'), wir: tl('Wenn jemand eurem Wir beitritt'), tipp: tl('Zwei Wochen vor den Schulferien') });
+function bellView() {
+  const topics = NEWS_TOPICS(), off = store.newsOff || [], allOn = topics.every(k => !off.includes(k)), allOff = topics.every(k => off.includes(k));
+  return `${head(tl('Benachrichtigungen'))}<p class="text">${tl('Neuigkeiten findest du über die Glocke auf der Karte. Hier wählst du, worüber Djuu dich informiert. Das gilt nur für dich.')}</p>
+    <div class="twobtns"><button type="button" class="btn" data-newsall="on"${allOn ? ' disabled' : ''}>${svg('check')}${tl('Alle aktivieren')}</button><button type="button" class="btn" data-newsall="off"${allOff ? ' disabled' : ''}>${svg('close')}${tl('Alle deaktivieren')}</button></div>
+    <div class="card navlist">${topics.map(k => { const [l, ic, c] = NEWS_AREAS[k], on = !off.includes(k);
+      return `<label class="navrow switchrow"><span class="newsic" style="--c:${c}">${svg(ic)}</span><span class="navtx"><b>${l}</b><small>${NEWS_DESC()[k]}</small></span>
+        <span class="tglr"><small class="${on ? '' : 'off'}">${on ? tl('Ein') : tl('Aus')}</small><span class="tglbox"><input type="checkbox" role="switch" data-newstopic="${k}" aria-label="${esc(l)}"${on ? ' checked' : ''}></span></span></label>`; }).join('')}</div>
+    <p class="note">${tl('Mitteilungen aufs Handy fragt Djuu erst, wenn es Sinn ergibt. Ausgeschaltete Themen erscheinen weder in der Liste noch als Zahl an der Glocke.')}</p>`;
+}
 const mapSetView = () => `${head(tl('Karte'), tl('Standardansicht'))}<div class="stylegrid">${MAP_STYLES.map(m => m.sec ? `<p class="stylesec">${esc(m.sec)}</p>` : `<button type="button" class="stylecard${mapStyle().id === m.id ? ' on' : ''}" data-mapstyle="${m.id}"><img src="icons/maps/${m.id}.jpg" alt="" loading="lazy" width="150" height="100"><span>${esc(m.label)}</span></button>`).join('')}</div>
   <p class="note">${tl('Alle Kartenstile sind kostenlos und brauchen kein Konto.')}</p>`;
 const langView = () => `${head(tl('Sprache'), 'Language')}<div class="card navlist">${Object.entries(LANGS).map(([c, n]) => `<button type="button" class="navrow" data-setlang="${c}"><span class="navtx"><b>${esc(n)}</b></span>${c === LANG ? svg('check') : ''}</button>`).join('')}</div>

@@ -1,6 +1,6 @@
 // Djuu service worker v0.31: app shell and data work offline, map tiles need network.
 // Updates arrive at once: every file is checked with the server (no-cache = a quick 304 when unchanged), the cache is only the offline fallback.
-const CACHE = 'djuu-0.44';
+const CACHE = 'djuu-0.45';
 const SHELL = ['./', 'index.html', 'legal.html', 'styles.css', 'i18n/i18n.js', 'i18n/en.js', 'config.js', 'app.js', 'family.js', 'sync.js', 'wir.js', 'looks.js', 'vendor/fonts/fonts.css', 'vendor/fonts/fredoka-latin.woff2', 'vendor/fonts/nunito-latin.woff2', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png',
   'vendor/leaflet.js', 'vendor/leaflet.css', 'vendor/maplibre-gl.js', 'vendor/maplibre-gl.css', 'vendor/leaflet-maplibre-gl.js', 'vendor/leaflet.markercluster.js', 'vendor/MarkerCluster.css',
   'data/places.json', 'data/offers.json', 'data/geo.json'];

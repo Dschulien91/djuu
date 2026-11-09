@@ -249,7 +249,7 @@ async function startSession() {
   if (!API || !auth?.token) return;
   try {
     const r = await api('POST', '/api/collections/users/auth-refresh');
-    auth.token = r.token; writeJson(AUTH_KEY, auth);
+    auth.token = r.token; writeJson(AUTH_KEY, auth); userPrefs(r.record);
   } catch (e) { if (e.status === 401) { logout(true); return; } SY.online = false; return; } // offline: keep working locally
   if (!auth.family) { await findFamily(); if (!auth.family) return rerender(); }
   await flush();
@@ -267,11 +267,16 @@ async function helperKids() {
   try { store.profile.kids = (await api('GET', '/api/djuu/kids')).kids.map(k => ({ id: k.id, name: k.name, ageMin: k.min, ageMax: k.max, remote: true })); }
   catch (e) { /* keep what is known */ }
 }
+// personal settings kept in the account (on every phone of this person): news topics that are switched off
+function userPrefs(rec) {
+  const off = rec?.news_prefs?.off;
+  if (Array.isArray(off)) { store.newsOff = off.filter(x => typeof x === 'string').slice(0, 20); saveLocal(); if (typeof updateBell === 'function') updateBell(); }
+}
 // ---------- Account: register, confirm the e-mail, sign in, passwords ----------
 const PENDING_KEY = 'djuu.pendingEmail', JOIN_KEY = 'djuu.join';
 async function signIn(email, password) {
   const r = await api('POST', '/api/collections/users/auth-with-password', { identity: email.trim(), password });
-  auth = { token: r.token, userId: r.record.id, email: r.record.email };
+  auth = { token: r.token, userId: r.record.id, email: r.record.email }; userPrefs(r.record);
   writeJson(AUTH_KEY, auth);
   try { localStorage.removeItem(PENDING_KEY); } catch (e) { /* storage blocked */ }
   await findFamily();

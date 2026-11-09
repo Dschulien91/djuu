@@ -113,7 +113,17 @@ const NEWS_AREAS = {
   shop: [tl('Einkauf'), 'cart', '#6B4EE6'], errands: [tl('Besorgungen'), 'list', '#0E8F84'], saved: [tl('Gemerkt'), 'heart', '#D6336C'],
   termine: [tl('Termine'), 'cal', '#CC6A00'], wir: [tl('Wir'), 'user', '#0E8F84'], tipp: [tl('Vorschlag'), 'star', '#6B4EE6'], karte: [tl('Karte'), 'pin', '#0E8F84'],
 };
-const unread = () => store.news.filter(n => !n.read).length;
+// news topics this person may get (helpers only where they have access) and which of them are switched off (store.newsOff,
+// kept with the account, see sync.js); switched-off topics are neither listed nor counted at the bell
+const NEWS_TOPICS = () => ['shop', 'errands', 'saved', 'wir', 'tipp'].filter(k => !['shop', 'errands', 'saved'].includes(k) || perm(k) !== 'none');
+const newsOn = area => !(store.newsOff || []).includes(area) && (NEWS_TOPICS().includes(area) || !['shop', 'errands', 'saved', 'wir', 'tipp'].includes(area));
+const visibleNews = () => store.news.filter(n => newsOn(n.area));
+const unread = () => visibleNews().filter(n => !n.read).length;
+// switch topics on or off: at once, on this phone, and in the account for all phones
+async function setNewsOff(off) {
+  store.newsOff = [...new Set(off)]; save(); updateBell(); renderPanel();
+  if (auth?.userId) { try { await api('PATCH', `/api/collections/users/records/${auth.userId}`, { news_prefs: { off: store.newsOff } }); } catch (e) { /* tried again with the next change */ } }
+}
 function addNews(n) {
   if (n.key && store.news.some(x => x.key === n.key)) return;
   store.news.unshift({ id: pbId(), at: Date.now(), read: false, ...n });
@@ -163,7 +173,7 @@ function newsWhen(t) {
   return d.toLocaleDateString(LOCALE, { day: 'numeric', month: 'short' });
 }
 function newsView() {
-  const fresh = store.news.filter(n => !n.read), old = store.news.filter(n => n.read);
+  const fresh = visibleNews().filter(n => !n.read), old = visibleNews().filter(n => n.read);
   const row = n => { const [label, ic, c] = NEWS_AREAS[n.area] || NEWS_AREAS.wir;
     return `<li><button type="button" class="newsrow${n.read ? '' : ' new'}" data-news="${n.id}"><span class="newsic" style="--c:${c}">${svg(ic)}</span>
       <span class="navtx"><b>${esc(n.text)}</b><small>${esc(label)} · ${esc(newsWhen(n.at))}</small></span>${n.read ? '' : '<i class="newdot" aria-label="' + tl('neu') + '"></i>'}</button></li>`; };
@@ -171,7 +181,7 @@ function newsView() {
       <button type="button" class="pillbtn" data-wir="bell">${svg('gear')}${tl('Einstellungen')}</button></div>
     ${fresh.length ? `<div class="sec"><h4>${tl('Neu')}</h4><ol class="card plist newslist">${fresh.map(row).join('')}</ol></div>` : ''}
     ${old.length ? `<div class="sec"><h4>${tl('Früher')}</h4><ol class="card plist newslist">${old.map(row).join('')}</ol></div>` : ''}
-    ${store.news.length ? `<p class="note center">${tl('Tippe auf eine Meldung, um direkt dorthin zu gehen.')}</p>` : `<div class="empty"><b>${tl('Noch keine Neuigkeiten.')}</b>${tl('Hier erscheint, was in eurem Wir passiert: Einkauf, Besorgungen, Gemerktes und neue Personen. Dazu Ideen vor den Ferien.')}</div>`}`;
+    ${visibleNews().length ? `<p class="note center">${tl('Tippe auf eine Meldung, um direkt dorthin zu gehen.')}</p>` : `<div class="empty"><b>${tl('Noch keine Neuigkeiten.')}</b>${tl('Hier erscheint, was in eurem Wir passiert: Einkauf, Besorgungen, Gemerktes und neue Personen. Dazu Ideen vor den Ferien.')}</div>`}`;
 }
 function openNews(id) {
   const n = store.news.find(x => x.id === id); if (!n) return;
@@ -208,8 +218,12 @@ document.addEventListener('click', e => {
   else if (d.cropsave) { const url = cropResult(), p = PHOTO; $('#crop')?.remove(); p?.onPhoto?.(url); PHOTO = null; }
   else if (d.opennews) go({ type: 'wir', page: 'news' }, 'full');
   else if (d.news) openNews(d.news);
+  else if (d.newsall) setNewsOff(d.newsall === 'on' ? [] : NEWS_TOPICS());
 });
-document.addEventListener('change', e => { if (e.target.dataset.photofile && e.target.files[0]) openCropper(e.target.files[0]); });
+document.addEventListener('change', e => {
+  if (e.target.dataset.photofile && e.target.files[0]) openCropper(e.target.files[0]);
+  if (e.target.dataset.newstopic) { const k = e.target.dataset.newstopic, off = (store.newsOff || []).filter(x => x !== k); setNewsOff(e.target.checked ? off : off.concat(k)); }
+});
 
 // start: colours for everyone, the bell on the map
 assignColors();

@@ -710,4 +710,9 @@ window.DJUU_I18N.en = {
   'Foto des Wir': 'Photo of the Us',
   'Du trittst dem Wir von {name} bei': 'You’re joining {name}’s Us',
   'Erwachsene:r': 'Adult',
+  'Neuigkeiten findest du über die Glocke auf der Karte. Hier wählst du, worüber Djuu dich informiert. Das gilt nur für dich.': 'You find news behind the bell on the map. Here you choose what Djuu tells you about. This applies only to you.',
+  'Alle aktivieren': 'Turn all on',
+  'Alle deaktivieren': 'Turn all off',
+  'Aus': 'Off',
+  'Mitteilungen aufs Handy fragt Djuu erst, wenn es Sinn ergibt. Ausgeschaltete Themen erscheinen weder in der Liste noch als Zahl an der Glocke.': 'Djuu only asks for phone notifications when it makes sense. Topics that are off appear neither in the list nor as a number on the bell.',
 };
