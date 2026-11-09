@@ -709,4 +709,5 @@ window.DJUU_I18N.en = {
   'Alle im Wir sehen denselben Namen. Ohne eigenen Namen steht dort einfach „Wir“.': 'Everyone in the Us sees the same name. Without one, it simply says “Us”.',
   'Foto des Wir': 'Photo of the Us',
   'Du trittst dem Wir von {name} bei': 'You’re joining {name}’s Us',
+  'Erwachsene:r': 'Adult',
 };

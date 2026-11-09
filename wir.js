@@ -121,7 +121,7 @@ function wirHub() {
   const ms = members(), kids = ms.filter(m => m.kid), adults = store.profile.adults;
   const fam = adults.filter(a => a.grp !== 'helper').length, help = adults.filter(a => a.grp === 'helper').length;
   const nd = dogs().length;
-  const count = [fam && `${fam} ${tl('Familie')}`, kids.length && `${kids.length} ${kids.length === 1 ? tl('Kind') : tl('Kinder')}`, help && `${help} ${help === 1 ? tl('Helfer:in') : tl('Helfer:innen')}`, nd && `${nd} ${nd === 1 ? tl('Hund') : tl('Hunde')}`].filter(Boolean).join(' · ');
+  const count = [fam && `${fam} ${fam === 1 ? tl('Erwachsene:r') : tl('Erwachsene')}`, kids.length && `${kids.length} ${kids.length === 1 ? tl('Kind') : tl('Kinder')}`, help && `${help} ${help === 1 ? tl('Helfer:in') : tl('Helfer:innen')}`, nd && `${nd} ${nd === 1 ? tl('Hund') : tl('Hunde')}`].filter(Boolean).join(' · ');
   const person = m => `<button type="button" class="avbtn" data-wirperson="${m.id}" aria-label="${esc(m.name)}">${avatarHtml(m)}</button>`;
   const humans = ms.filter(m => !m.kid && adultById(m.id)?.grp !== 'helper').concat(ms.filter(m => m.kid), ms.filter(m => !m.kid && adultById(m.id)?.grp === 'helper')).map(person);
   const pets = dogs().map(d => `<button type="button" class="avbtn dogav" data-wirdog="${d.id}" aria-label="${esc(dogName(d))}">${dogAv(d)}<small>${esc(dogName(d))}</small></button>`);
