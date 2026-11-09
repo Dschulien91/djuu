@@ -282,4 +282,10 @@ window.DJUU_I18N.en = {
   'kostenlos': 'free', 'bis': 'to', 'ganztags': 'all day',
   'Kategorien und Tags': 'Categories and tags', 'Ort eintragen': 'Add a place', 'Mein Standort': 'My location',
   'Dringend: nächstes WC, Wickeltisch, Windeln oder Apotheke': 'Urgent: nearest toilet, changing table, nappies or pharmacy', 'Bereiche': 'Sections',
+  // shopping list aisles (family.js SHOP_CATS)
+  'Obst & Gemüse': 'Fruit & vegetables', 'Brot & Backwaren': 'Bread & bakery', 'Milch, Käse & Eier': 'Milk, cheese & eggs', 'Wurst, Fleisch & Fisch': 'Meat, deli & fish',
+  'Frühstück, Kaffee & Tee': 'Breakfast, coffee & tea', 'Nudeln, Reis & Vorrat': 'Pasta, rice & pantry', 'Süßes & Knabbern': 'Sweets & snacks',
+  'Baby & Drogerie': 'Baby & toiletries', 'Haushalt & Putzen': 'Household & cleaning', 'Tierbedarf': 'Pet supplies', 'Tiefkühl': 'Frozen',
+  'Getränke': 'Drinks',
+  'Sonstiges': 'Other',
 };
