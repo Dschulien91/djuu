@@ -48,7 +48,7 @@ const SPECS = {
   shop_items: {
     local: () => store.shop.items, key: x => x.id, newId: x => x.id,
     payload: x => ({ name: x.name, qty: x.qty || '', cat: x.cat || 'sonst', added_by: memberRef(x.by), done_by: memberRef(x.doneBy), done: !!x.done, later: !!x.later }),
-    setAll(rs) { store.shop.items = rs.map(r => ({ id: r.id, name: r.name, qty: r.qty, cat: r.cat, by: r.added_by, doneBy: r.done_by, done: r.done, later: r.later, at: when(r.created) })); },
+    setAll(rs) { store.shop.items = rs.map(r => ({ id: r.id, name: r.name, qty: r.qty, cat: r.cat, by: r.added_by, doneBy: r.done_by, done: r.done, later: r.later, at: when(r.created) })); resortSonst(); },
   },
   errands: {
     local: () => store.errands, key: x => x.id, newId: x => x.id,

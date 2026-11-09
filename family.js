@@ -329,3 +329,13 @@ function toastAction(msg, label, fn) {
   t.querySelector('button').onclick = () => { fn(); t.hidden = true; };
   toast.t = setTimeout(() => t.hidden = true, 6000);
 }
+
+// items that landed in "Sonstiges" before the vocabulary knew them get their aisle now; aisles you chose yourself stay.
+// Also runs when the family's list comes from the server (sync.js), so every phone shows them in the right aisle.
+function resortSonst() {
+  let moved = 0;
+  for (const i of store.shop.items) if (i.cat === 'sonst' && !store.shop.learned[itemKey(i.name)]) { const c = shopCat(i.name); if (c !== 'sonst') { i.cat = c; moved++; } }
+  for (const h of Object.values(store.shop.history)) if (h.cat === 'sonst') h.cat = shopCat(h.name);
+  return moved;
+}
+if (resortSonst()) save();
