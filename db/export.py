@@ -243,8 +243,8 @@ def export_offers(con, places, sidx, dup_of=None):
     linked = sum(1 for o in out if o[OFFER_COLS.index('place_id')])
     print(f'{len(out)} offers ({linked} linked to places) -> {path}')
     from collections import Counter
-    print('district:', sum(1 for o in out if o[-1]), 'of', len(out), 'offers have a Stadtteil')
-    print('audience:', Counter(o[-2] for o in out), 'topics:', dict(Counter(o[OFFER_COLS.index('topic')] for o in out).most_common()))
+    print('district:', sum(1 for o in out if o[OFFER_COLS.index('district')]), 'of', len(out), 'offers have a Stadtteil')
+    print('audience:', Counter(o[OFFER_COLS.index('audience')] for o in out), 'topics:', dict(Counter(o[OFFER_COLS.index('topic')] for o in out).most_common()))
 
 
 def stadtteil_finder():
