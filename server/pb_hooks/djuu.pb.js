@@ -155,6 +155,8 @@ routerAdd("POST", "/api/djuu/remove", (e) => {
 // everyone else deletes their own person, their places and what they saved.
 routerAdd("POST", "/api/djuu/delete-account", (e) => {
   const u = require(`${__hooks}/djuu_utils.js`);
+  // a sensitive step: the password is asked again
+  if (!e.auth.validatePassword(String((e.requestInfo().body || {}).password || ""))) throw new BadRequestError("Das Passwort stimmt nicht.");
   const me = u.memberOf(e.app, e.auth.id);
   const userId = e.auth.id;
   e.app.runInTransaction((tx) => {
@@ -172,3 +174,22 @@ routerAdd("POST", "/api/djuu/delete-account", (e) => {
   });
   return e.json(200, { ok: true });
 }, $apis.requireAuth());
+
+// What an invite link shows before signing in: who invites, and the initials of the people in that Wir. Nothing else.
+routerAdd("GET", "/api/djuu/invite-info/{token}", (e) => {
+  let inv;
+  try { inv = e.app.findFirstRecordByFilter("invites", "token_hash = {:h} && used = ''", { h: $security.sha256(String(e.request.pathValue("token") || "")) }); }
+  catch (err) { throw new NotFoundError("Diese Einladung gibt es nicht oder sie wurde schon benutzt."); }
+  if (inv.getDateTime("expires").before(new DateTime())) throw new NotFoundError("Diese Einladung ist abgelaufen. Bitte um eine neue.");
+  let inviter = "";
+  try { inviter = e.app.findRecordById("members", inv.getString("created_by")).getString("name"); } catch (err) { /* gone */ }
+  const people = e.app.findRecordsByFilter("members", "family = {:f}", "created", 12, 0, { f: inv.getString("family") }).map((m) => m.getString("name").slice(0, 1).toUpperCase());
+  e.response.header().set("Cache-Control", "no-store");
+  return e.json(200, { inviter, grp: inv.getString("grp") || "family", people });
+});
+
+// Accounts that were never confirmed are deleted after 7 days.
+cronAdd("djuu_unverified_cleanup", "23 3 * * *", () => {
+  const old = $app.findRecordsByFilter("users", "verified = false && created < {:t}", "", 500, 0, { t: new DateTime().addDate(0, 0, -7).string() });
+  for (const usr of old) { try { $app.delete(usr); } catch (err) { /* in use */ } }
+});

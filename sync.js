@@ -1,5 +1,5 @@
 /* Djuu sync: the shared family on the Djuu server (PocketBase at window.DJUU_API).
-   Login by e-mail code, create or join a family, then the family profile, shopping list, errands, saved offers and places
+   Sign in with e-mail and password (confirmed by a link), create or join a Wir, then the family profile, shopping list, errands, saved offers and places
    and visits are the same on every phone, live. Changes without network wait in an outbox and go out later.
    How it works: every save() compares the local data with the last known server state ("shadow") and queues the
    differences; changes from others arrive over the realtime connection and update both. Without login nothing leaves the device.
@@ -13,7 +13,7 @@ const writeJson = (k, v) => { try { v == null ? localStorage.removeItem(k) : loc
 let auth = readJson(AUTH_KEY, null); // { token, userId, email, family, member, familyName }
 let outbox = readJson(OUT_KEY, []);
 let shadow = readJson(SHADOW_KEY, {});
-const SY = { step: 'email', email: '', otpId: '', busy: false, error: '', calToken: '', pings: [], online: true, invite: null };
+const SY = { busy: false, error: '', calToken: '', pings: [], online: true, invite: null };
 const when = t => Date.parse(String(t || '').replace(' ', 'T')) || Date.now();
 const isPbId = id => typeof id === 'string' && /^[a-z0-9]{15}$/.test(id);
 
@@ -248,24 +248,37 @@ async function findFamily() {
   const ms = await listAll('members', `user='${auth.userId}'`);
   if (ms[0]) { auth.family = ms[0].family; auth.member = ms[0].id; const f = await api('GET', `/api/collections/families/records/${auth.family}`); auth.familyName = f.name; writeJson(AUTH_KEY, auth); }
 }
-async function requestCode(email) {
-  // an account is made on first use; the server answers the same for known and unknown addresses
-  const pw = pbId() + pbId();
-  try { await api('POST', '/api/collections/users/records', { email, password: pw, passwordConfirm: pw }); } catch (e) { if (!e.status) throw e; }
-  const r = await api('POST', '/api/collections/users/request-otp', { email });
-  SY.otpId = r.otpId; SY.email = email; SY.step = 'code';
-}
-async function verifyCode(code) {
-  const r = await api('POST', '/api/collections/users/auth-with-otp', { otpId: SY.otpId, password: code.replace(/\s/g, '') });
+// ---------- Account: register, confirm the e-mail, sign in, passwords ----------
+const PENDING_KEY = 'djuu.pendingEmail', JOIN_KEY = 'djuu.join';
+async function signIn(email, password) {
+  const r = await api('POST', '/api/collections/users/auth-with-password', { identity: email.trim(), password });
   auth = { token: r.token, userId: r.record.id, email: r.record.email };
   writeJson(AUTH_KEY, auth);
+  try { localStorage.removeItem(PENDING_KEY); } catch (e) { /* storage blocked */ }
   await findFamily();
-  if (auth.family) {
-    // this person's family exists already (second phone): the server's state replaces the local one
-    await loadAll(); connectRealtime();
-  }
-  SY.step = 'family';
+  // this person's Wir exists already (second phone): the server's state replaces the local one
+  if (auth.family) { await flush(); await loadAll(); connectRealtime(); showPingBar(); }
+  return auth;
 }
+async function register(email, password) {
+  email = email.trim();
+  await api('POST', '/api/collections/users/records', { email, password, passwordConfirm: password });
+  await api('POST', '/api/collections/users/request-verification', { email });
+  try { localStorage.setItem(PENDING_KEY, email); } catch (e) { /* storage blocked */ }
+}
+const resendVerification = email => api('POST', '/api/collections/users/request-verification', { email });
+const confirmVerification = token => api('POST', '/api/collections/users/confirm-verification', { token });
+const requestReset = email => api('POST', '/api/collections/users/request-password-reset', { email: email.trim() });
+const confirmReset = (token, password) => api('POST', '/api/collections/users/confirm-password-reset', { token, password, passwordConfirm: password });
+// sensitive steps ask for the password again
+async function checkPassword(password) { await api('POST', '/api/collections/users/auth-with-password', { identity: auth.email, password }); }
+async function changePassword(oldPassword, password) {
+  await api('PATCH', `/api/collections/users/records/${auth.userId}`, { oldPassword, password, passwordConfirm: password });
+  await signIn(auth.email, password); // a new password ends all old sessions, this phone signs in again
+}
+async function requestEmailChange(password, newEmail) { await checkPassword(password); await api('POST', '/api/collections/users/request-email-change', { newEmail: newEmail.trim() }); }
+const confirmEmailChange = (token, password) => api('POST', '/api/collections/users/confirm-email-change', { token, password });
+const inviteInfo = token => api('GET', `/api/djuu/invite-info/${encodeURIComponent(token)}`);
 // local ids from before the family existed become server ids, references follow
 function adoptLocalIds(myLocalId, myServerId) {
   const map = {};
@@ -278,12 +291,14 @@ function adoptLocalIds(myLocalId, myServerId) {
   for (const s of store.savedOffers) s.by = re(s.by);
   store.profile.me = myServerId;
 }
-async function createFamily(myName, familyName) {
-  const r = await api('POST', '/api/djuu/family', { myName, name: familyName, state: store.profile.state || 'DE-HH' });
+async function createFamily(myName, familyName, role) {
+  const r = await api('POST', '/api/djuu/family', { myName, name: familyName, role: role || '', state: store.profile.state || 'DE-HH' });
   await enterFamily(r, myName, true);
 }
-async function joinFamily(token, myName) {
-  const r = await api('POST', '/api/djuu/join', { token, myName });
+async function joinFamily(token, myName, role) {
+  const r = await api('POST', '/api/djuu/join', { token, myName, role: role || '' });
+  try { localStorage.removeItem(JOIN_KEY); } catch (e) { /* storage blocked */ }
+  SY.invite = null;
   // the family's members come from the server; the shared lists of this phone are added to the family's
   store.profile.adults = []; store.profile.kids = [];
   await enterFamily(r, myName, false);
@@ -305,36 +320,23 @@ async function enterFamily(r, myName, keepMembers) {
   if (mem) shadow.shop_memory = { m: { id: mem.id, p: '' } }; // differs on purpose: our memory goes up once
   saveShadow(); saveLocal();
   diffAll(); await flush();
-  await loadAll(); connectRealtime(); SY.step = 'family';
-}
-async function invite() {
-  const r = await api('POST', '/api/djuu/invite');
-  const url = `${location.origin}${location.pathname}#join=${r.token}`;
-  const text = `${tl('Komm in unsere Familie bei Djuu: gemeinsame Einkaufsliste, Termine und mehr. Der Link gilt 7 Tage.')}`;
-  if (navigator.share) navigator.share({ title: tl('Djuu Familie'), text, url }).catch(() => {});
-  else navigator.clipboard?.writeText(text + ' ' + url).then(() => toast('Einladungslink kopiert.'), () => toast(url));
+  await loadAll(); connectRealtime();
 }
 function logout(silent) {
   if (es) { es.close(); es = null; }
-  auth = null; outbox = []; shadow = {}; SY.step = 'email'; SY.pings = [];
+  auth = null; outbox = []; shadow = {}; SY.pings = [];
   writeJson(AUTH_KEY, null); writeJson(OUT_KEY, null); writeJson(SHADOW_KEY, null);
-  showPingBar(); if (!silent) toast('Abgemeldet. Deine Listen bleiben auf diesem Gerät.');
+  showPingBar(); if (!silent) toast(tl('Abgemeldet.'));
   rerender();
 }
-async function deleteAccount() {
-  const me = store.profile.adults.find(x => x.id === auth.member), others = members().filter(m => m.id !== auth.member);
-  const msg = me?.admin && others.length
-    ? tl('Achtung: Du bist Admin. Wenn du dein Konto löschst, wird euer ganzes Wir gelöscht, für alle: Einkauf, Besorgungen, Gemerktes, Orte und Einträge. Betroffen: {names}. Wirklich löschen?', { names: others.map(m => m.name).join(', ') })
-    : tl('Konto wirklich löschen? Alle deine Daten werden entfernt.');
-  if (!confirm(msg)) return;
-  try {
-    await api('POST', '/api/djuu/delete-account');
-    // nothing of the deleted account stays on this phone either
-    Object.assign(store.shop, { items: [], history: {}, learned: {}, rank: {}, trips: 0, seq: [] });
-    store.errands = []; store.savedOffers = []; store.favorites = []; store.favBy = {}; store.visits = {}; store.places = []; store.fit = null;
-    store.profile.adults = []; store.profile.kids = []; store.kidPhotos = {}; store.onboarded = false;
-    logout(true); saveLocal(); toast('Dein Konto ist gelöscht.'); home();
-  } catch (e) { toast('Löschen hat nicht geklappt. Bitte mit Netz noch einmal versuchen.'); }
+// the warning and the password are asked in Wir › Konto & Anmeldung (wir.js)
+async function deleteAccount(password) {
+  await api('POST', '/api/djuu/delete-account', { password });
+  // nothing of the deleted account stays on this phone either
+  Object.assign(store.shop, { items: [], history: {}, learned: {}, rank: {}, trips: 0, seq: [] });
+  store.errands = []; store.savedOffers = []; store.favorites = []; store.favBy = {}; store.visits = {}; store.places = []; store.fit = null;
+  store.profile.adults = []; store.profile.kids = []; store.kidPhotos = {}; store.onboarded = false;
+  logout(true); saveLocal();
 }
 
 // ---------- "Wo seid ihr?" ----------
@@ -388,35 +390,6 @@ async function calendarLink(renew) {
 const calUrl = () => `${API.replace(/^https:/, 'webcal:')}/api/djuu/cal/${SY.calToken}.ics`;
 
 // ---------- The "Wir" card ----------
-function syncHtml() {
-  if (!API) return connectHtml();
-  const err = SY.error ? `<p class="error">${esc(SY.error)}</p>` : '';
-  if (!auth?.token) {
-    return `<div class="sec syncbox"><h4>${tl('Mit der Familie teilen')}</h4>
-      <p class="text">${tl('Melde dich mit deiner E-Mail an. Dann sehen alle in eurer Familie dieselbe Einkaufsliste, Besorgungen, Gemerktes und Termine. Ein Passwort brauchst du nicht.')}</p>
-      ${SY.invite ? `<p class="note"><b>${tl('Du wurdest in eine Familie eingeladen.')}</b> ${tl('Nach der Anmeldung trittst du ihr bei.')}</p>` : ''}
-      ${SY.step === 'code'
-        ? `<form id="syCode" class="shadd"><input id="syCodeIn" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="${tl('Code aus der E-Mail')}" aria-label="${tl('Code')}"><button type="submit" class="btn primary"${SY.busy ? ' disabled' : ''}>${tl('Anmelden')}</button></form>
-           <p class="note">${tl('Wir haben einen 6-stelligen Code an')} ${esc(SY.email)} ${tl('geschickt. Er gilt 10 Minuten. Schau auch im Spam-Ordner.')} <button type="button" class="linkbtn" data-syback="1">${tl('Andere E-Mail')}</button></p>`
-        : `<form id="syEmail" class="shadd"><input id="syEmailIn" type="email" autocomplete="email" placeholder="${tl('deine@email.de')}" aria-label="${tl('E-Mail')}"><button type="submit" class="btn primary"${SY.busy ? ' disabled' : ''}>${tl('Code senden')}</button></form>`}
-      ${err}<p class="note">${tl('Mit der Anmeldung gelten die')} <a href="legal.html#agb" target="_blank" rel="noopener">${tl('Nutzungsbedingungen')}</a>${tl('. Wir speichern nur, was ihr für die Familie eintragt:')} <a href="legal.html#datenschutz" target="_blank" rel="noopener">${tl('Datenschutz')}</a>.</p></div>`;
-  }
-  if (!auth.family) {
-    return `<div class="sec syncbox"><h4>${SY.invite ? tl('Familie beitreten') : tl('Familie gründen')}</h4>
-      <p class="text">${tl('Angemeldet als')} ${esc(auth.email)}.</p>
-      <form id="syFam" class="syfam"><input id="syMyName" maxlength="30" placeholder="${tl('Wie heißt du?')}" value="${esc(store.profile.adults.find(a => a.id === meId())?.name || '')}" aria-label="${tl('Dein Name')}">
-        ${SY.invite ? '' : '<input id="syFamName" maxlength="60" placeholder="Name der Familie, z. B. Familie Schulz" aria-label="Familienname">'}
-        <button type="submit" class="btn big primary"${SY.busy ? ' disabled' : ''}>${SY.invite ? tl('Beitreten') : tl('Familie gründen')}</button></form>
-      ${SY.invite ? '' : `<p class="note">${tl('Wurdest du eingeladen? Öffne einfach den Link aus der Einladung.')}</p>`}
-      ${err}<button type="button" class="linkbtn" data-sylogout="1">${tl('Abmelden')}</button></div>`;
-  }
-  return `<div class="card navlist acct"><div class="acctrow"><span class="navtx"><small>${tl('E-Mail')}</small><b>${esc(auth.email)}</b></span><span class="pill green">${tl('Bestätigt')}</span></div>
-      <div class="acctrow"><span class="navic">${svg('card')}</span><span class="navtx"><b>${tl('Abo')}</b><small>${tl('Kostenlos')}</small></span></div></div>
-    <p class="hintbox">${svg('check')} ${tl('Du bleibst angemeldet, bis du dich abmeldest. Deine Daten bleiben in deinem Konto.')}</p>
-    <p class="note">${SY.online ? `<span class="syok">●</span> ${tl('Verbunden mit')} ${esc(auth.familyName || tl('eurem Wir'))}` : `<span class="syoff">●</span> ${tl('Offline, Änderungen werden nachgereicht')}`}${outbox.length ? ` · ${outbox.length} ${tl('noch nicht gesendet')}` : ''}</p>
-    <button type="button" class="btn wide" data-sylogout="1">${tl('Abmelden')}</button>
-    <button type="button" class="linkbtn danger center" data-sydelete="1">${tl('Konto löschen')}</button>`;
-}
 // the family calendar subscription (Wir › Einstellungen › Familienkalender)
 function calHtml() {
   if (!auth?.family) return '';
@@ -435,23 +408,10 @@ const run = async (fn, okMsg) => {
   catch (e) { SY.error = !e.status ? tl('Keine Verbindung. Bitte später noch einmal.') : e.data?.message || e.message; }
   SY.busy = false; renderPanel();
 };
-document.addEventListener('submit', e => {
-  if (e.target.id === 'syEmail') { e.preventDefault(); const v = $('#syEmailIn').value.trim(); if (!/^\S+@\S+\.\S+$/.test(v)) { SY.error = tl('Bitte eine gültige E-Mail eingeben.'); return renderPanel(); } run(() => requestCode(v)); }
-  if (e.target.id === 'syCode') { e.preventDefault(); const v = $('#syCodeIn').value; run(async () => { try { await verifyCode(v); } catch (x) { if (x.status === 400) x.data = { message: tl('Der Code stimmt nicht oder ist abgelaufen.') }; throw x; } }); }
-  if (e.target.id === 'syFam') {
-    e.preventDefault();
-    const my = $('#syMyName').value.trim(), fam = $('#syFamName')?.value.trim() || '';
-    if (!my) { SY.error = tl('Bitte gib deinen Namen an.'); return renderPanel(); }
-    run(() => SY.invite ? joinFamily(SY.invite, my).then(() => { SY.invite = null; sessionStorage.removeItem('djuu.join'); }) : createFamily(my, fam), SY.invite ? tl('Willkommen in der Familie!') : tl('Familie gegründet. Lade jetzt die anderen ein.'));
-  }
-});
 document.addEventListener('click', e => {
   const t = e.target.closest('button'); if (!t) return;
   const d = t.dataset;
-  if (d.syback) { SY.step = 'email'; SY.error = ''; renderPanel(); }
-  else if (d.sylogout) logout();
-  else if (d.sydelete) deleteAccount();
-  else if (d.syinvite) run(invite);
+  if (d.sylogout) { logout(); home(); }
   else if (d.syask) askWhere(d.syask);
   else if (d.sycal) run(() => calendarLink(false));
   else if (d.sycalrenew) { if (confirm(tl('Neue Adresse erzeugen? Wer den Kalender schon abonniert hat, muss ihn neu abonnieren.'))) run(() => calendarLink(true)); }
@@ -463,12 +423,11 @@ document.addEventListener('click', e => {
 });
 window.addEventListener('online', () => { SY.online = true; flush(); });
 
-// an invite link opens the family tab
+// an invite link opens the Wir: who invites, then sign up or sign in and join (wir.js shows the pages)
 (() => {
   const m = location.hash.match(/^#join=([A-Za-z0-9]+)/);
-  if (m) { sessionStorage.setItem('djuu.join', m[1]); history.replaceState(null, '', location.pathname); }
-  SY.invite = sessionStorage.getItem('djuu.join');
-  if (SY.invite && !(auth?.family)) setTimeout(() => { store.onboarded = true; store.welcomed = true; document.getElementById('welcome')?.remove(); stack = [{ type: 'list' }]; go({ type: 'me' }, 'full'); setTab('me'); go({ type: 'wir', page: 'account' }); }, 1200);
-  else if (SY.invite && auth?.family) { sessionStorage.removeItem('djuu.join'); SY.invite = null; setTimeout(() => toast('Du bist schon in einer Familie.'), 1500); }
+  if (m) { try { localStorage.setItem(JOIN_KEY, m[1]); } catch (e) { /* storage blocked */ } history.replaceState(null, '', location.pathname); }
+  try { SY.invite = localStorage.getItem(JOIN_KEY); } catch (e) { SY.invite = null; }
+  if (SY.invite && auth?.family) { try { localStorage.removeItem(JOIN_KEY); } catch (e) { /* storage blocked */ } SY.invite = null; setTimeout(() => toast(tl('Du bist schon in einem Wir.')), 1500); }
 })();
 if (API) setTimeout(startSession, 800); // after offers are loaded, so saved offers carry full calendar data

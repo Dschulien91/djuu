@@ -1,7 +1,7 @@
 /* Djuu "Wir": the hub of a family. People in three groups (Familie, Kinder, Helfer:innen) with access per area,
    the first steps, Meine Orte, "Was passt zu euch?", Gemerkt, settings, account and "Über Djuu".
    Einkauf and Besorgungen are unchanged (family.js); they only open from the tiles here and follow the access rules.
-   Without an account everything stays on this device and this person counts as admin.
+   Guests (no account) use the map, search and events; the Wir, the lists, Gemerkt and Meine Orte need an account.
    Loaded after app.js, family.js and sync.js. */
 'use strict'; // i18n-skip
 
@@ -32,10 +32,10 @@ save();
 const signedIn = () => typeof auth !== 'undefined' && !!auth?.family;
 const meAdult = () => store.profile.adults.find(a => a.id === meId()) || null;
 const expired = a => !!a?.until && a.until < ymd(today0());
-const isAdmin = () => !signedIn() || !!meAdult()?.admin;
-// what this person may do in an area: 'none', 'view' or 'edit'. Without an account: everything, it is your device.
+const isAdmin = () => signedIn() && !!meAdult()?.admin;
+// what this person may do in an area: 'none', 'view' or 'edit'. Guests: nothing (the lists need an account).
 function perm(area) {
-  if (!signedIn()) return 'edit';
+  if (!signedIn()) return 'none';
   const me = meAdult();
   if (!me) return 'none';
   if (me.admin) return 'edit';
@@ -78,6 +78,8 @@ const hint = text => `<p class="hintbox">${text}</p>`;
 
 // ---------- Hub ----------
 function wirHub() {
+  if (!hasToken()) return guestHub();
+  if (!auth.family) return SY.invite ? joinView() : onboardingView(); // the first step creates the Wir
   if (!store.onboarded) return onboardingView();
   const ms = members(), kids = ms.filter(m => m.kid), adults = store.profile.adults;
   const fam = adults.filter(a => a.grp !== 'helper').length, help = adults.filter(a => a.grp === 'helper').length;
@@ -87,7 +89,7 @@ function wirHub() {
   const tile = (open, icon, title, n_) => `<button type="button" class="tile" data-wir="${open}"><span class="navic">${svg(icon)}</span>${n_ ? `<span class="n">${n_}</span>` : ''}<b>${title}</b><small>${signedIn() ? tl('Gemeinsam') : tl('Auf diesem Gerät')}</small></button>`;
   const placesSub = store.places.filter(p => p.mine !== false).map(p => tl(p.name)).slice(0, 3).join(', ');
   const me = meAdult();
-  return `<div class="wirhead"><h2>${tl('Wir')}<span class="sub">${signedIn() ? esc(auth.familyName || tl('Deine Familie in Djuu')) : tl('Deine Familie in Djuu · nur auf diesem Gerät')}</span></h2>
+  return `<div class="wirhead"><h2>${tl('Wir')}<span class="sub">${esc(auth.familyName || tl('Deine Familie in Djuu'))}</span></h2>
       <button type="button" class="round" data-wir="bell" aria-label="${tl('Benachrichtigungen')}">${svg('bell')}</button></div>
     ${expired(me) && signedIn() ? hint(tl('Dein Zugang ist abgelaufen. Der Admin kann ihn verlängern.')) : ''}
     <div class="card people"><div class="cardhead"><h4>${tl('Personen')}</h4><button type="button" class="linkbtn" data-wir="people">${tl('Verwalten')}</button></div>
@@ -100,7 +102,7 @@ function wirHub() {
       ${navRow('places', 'pin', tl('Meine Orte'), esc(placesSub ? placesSub + (store.places.length > 3 ? ' …' : '') : tl('Zuhause, Arbeit, Kita …')))}
       ${navRow('fit', 'star', tl('Was passt zu euch?'), tl('Freiwillig · für passende Vorschläge'))}
       ${navRow('settings', 'gear', tl('Einstellungen'), tl('Benachrichtigungen, Karte, Sprache'))}
-      ${navRow('account', 'card', tl('Konto & Abo'), signedIn() || (typeof auth !== 'undefined' && auth?.token) ? tl('E-Mail, Abo, Abmelden') : tl('Nicht angemeldet · Teilen mit der Familie'))}
+      ${navRow('account', 'card', tl('Konto & Abo'), tl('E-Mail, Abo, Abmelden'))}
       ${navRow('about', 'info', tl('Über Djuu'), tl('Feedback, Rechtliches, Version'))}</div>`;
 }
 
@@ -112,7 +114,7 @@ function onboardingView() {
     return `${dots}<h2 class="big">${tl('Wer bist du?')}</h2><p class="muted text">${tl('Damit deine Familie dich erkennt.')}</p>
       <div class="field"><label for="onbName">${tl('Vorname oder Spitzname')}</label><input id="onbName" maxlength="30" autocomplete="given-name" value="${esc(me?.name || '')}"></div>
       <div class="field"><label>${tl('Deine Rolle')} <small class="muted">${tl('Freiwillig')}</small></label>${chipRow(ROLES_ME, me?.role, 'data-onbrole')}</div>
-      <div class="stick"><button type="button" class="btn big primary" data-onb="2">${tl('Weiter')}</button></div>`;
+      <div class="stick"><button type="button" class="btn big primary" data-onb="2"${W.busy ? ' disabled' : ''}>${tl('Weiter')}</button></div>`;
   }
   if (W.onb === 2) {
     const home = store.places.find(p => p.def);
@@ -285,6 +287,9 @@ function fitView() {
 
 // ---------- Gemerkt: places and events of the Wir, with who saved them ----------
 function gemerktView() {
+  if (!auth?.family) return `${head(tl('Gemerkt'), '', false)}<div class="locked"><span class="bigic">${svg('heart')}</span><h3>${tl('Zum Merken brauchst du ein Konto')}</h3>
+    <p class="muted">${tl('Dann findest du deine Lieblingsorte und Termine auf jedem Gerät wieder.')}</p>
+    <button type="button" class="btn big primary wide" data-wir="register">${tl('Konto erstellen')}</button><button type="button" class="btn big wide" data-wir="login">${tl('Anmelden')}</button></div>`;
   if (perm('saved') === 'none') return `${head(tl('Gemerkt'), '', false)}<div class="empty"><b>${tl('Kein Zugriff auf Gemerkt.')}</b>${tl('Der Admin eures Wir kann das ändern.')}</div>`;
   const ms = members(), who = W.savedWho, by = id => ms.find(m => m.id === id);
   const placesL = store.favorites.map(id => [byId.get(id), store.favBy[id]]).filter(([p, b]) => p && (!who || b === who));
@@ -327,9 +332,7 @@ const mapSetView = () => `${head(tl('Karte'), tl('Standardansicht'))}<div class=
 const langView = () => `${head(tl('Sprache'), 'Language')}<div class="card navlist">${Object.entries(LANGS).map(([c, n]) => `<button type="button" class="navrow" data-setlang="${c}"><span class="navtx"><b>${esc(n)}</b></span>${c === LANG ? svg('check') : ''}</button>`).join('')}</div>
   <p class="note">${tl('Termine und Orte stehen in der Sprache der Anbieter. Titel von Terminen übersetzt Djuu automatisch.')}</p>`;
 const calSubView = () => `${head(tl('Familienkalender'))}${typeof calHtml === 'function' ? calHtml() : ''}`;
-function accountView() {
-  return `${head(tl('Konto & Anmeldung'))}${typeof syncHtml === 'function' ? syncHtml() : ''}`;
-}
+const accountView = () => hasToken() ? accountSignedIn() : loginView();
 function aboutView() {
   return `${head(tl('Über Djuu'))}<div class="card navlist">
     ${CONTACT.email ? `<a class="navrow" href="mailto:${esc(CONTACT.email)}?subject=${encodeURIComponent('Feedback zu Djuu')}"><span class="navic">${svg('mail')}</span><span class="navtx"><b>${tl('Feedback geben')}</b><small>${esc(CONTACT.email)}</small></span>${svg('next')}</a>` : ''}
@@ -359,11 +362,12 @@ function showWelcome() {
 function closeWelcome(next) {
   store.welcomed = true; save();
   $('#welcome')?.remove();
-  if (next === 'account') { stack = [{ type: 'list' }]; go({ type: 'me' }, 'full'); setTab('me'); store.onboarded = true; go({ type: 'wir', page: 'account' }); }
+  if (next === 'account') openWir('login');
 }
 
 // ---------- Rendering ----------
-const WIR_PAGES = { people: peopleView, add: addPersonView, places: placesView, place: placeEditView, fit: fitView, settings: settingsView, bell: bellView, mapset: mapSetView, lang: langView, calsub: calSubView, account: accountView, about: aboutView, shop: () => listView_('shop'), errands: () => listView_('errands') };
+const WIR_PAGES = { guest: guestInfoView, register: registerView, verify: verifyView, login: loginView, forgot: forgotView, newpw: newPwView, invite: inviteView, join: joinView,
+  pwchange: pwChangeView, emailchange: emailChangeView, emailconfirm: emailConfirmView, delete: deleteView, people: peopleView, add: addPersonView, places: placesView, place: placeEditView, fit: fitView, settings: settingsView, bell: bellView, mapset: mapSetView, lang: langView, calsub: calSubView, account: accountView, about: aboutView, shop: () => listView_('shop'), errands: () => listView_('errands') };
 // every page fills the sheet, so the main button sits at the bottom like on the phone screens
 function wirRender(v) {
   const html = v.type === 'me' ? wirHub() : v.type === 'favs' ? gemerktView() : v.type === 'person' ? personView(v.id) : (WIR_PAGES[v.page] || wirHub)();
@@ -427,6 +431,7 @@ document.addEventListener('click', e => {
   const t = e.target.closest('button'); if (!t) return;
   const d = t.dataset;
   if (d.wir) {
+    if (['register', 'login', 'forgot', 'verify'].includes(d.wir)) { W.err = ''; if (d.wir !== 'verify') W.notice = ''; }
     if (d.wir === 'add') { W.add = { grp: 'family', role: '', perms: null, until: '', name: '' }; }
     if (d.wir === 'shop' || d.wir === 'errands') SH.menu = SH.pending = SH.editing = null;
     go({ type: 'wir', page: d.wir });
@@ -439,6 +444,13 @@ document.addEventListener('click', e => {
       const name = $('#onbName').value.trim();
       if (!name) { toast(tl('Bitte gib deinen Vornamen oder Spitznamen an.')); return $('#onbName').focus(); }
       ensureMe().name = name; save();
+      // a new account: the first step creates the Wir, the lists and everything from this phone go into it
+      if (hasToken() && !auth.family) {
+        W.busy = true; renderPanel();
+        createFamily(name, LANG === 'de' ? `${genitive(name)} Wir` : `${name}’s Us`, meAdult()?.role).then(() => { W.busy = false; W.onb = 2; renderPanel(); runPending(); },
+          x => { W.busy = false; toast(accountError(x)); renderPanel(); });
+        return;
+      }
     }
     if (W.onb === 2 && !d.skip) { const plz = $('#onbPlz').value.trim(); if (plz && !setPlzPlace(plz)) return toast(tl('Bitte eine Hamburger Postleitzahl eingeben.')); save(); }
     if (d.onb === 'done') return finishOnboarding();
@@ -524,4 +536,323 @@ document.addEventListener('change', e => {
   else if (el.id === 'plPlz' && W.place) W.place.plz = el.value.trim();
   else if (el.id === 'plAddr' && W.place) W.place.address = el.value.trim();
 });
+// ---------- Account pages: guest, register, confirm e-mail, sign in, passwords, invite ----------
+const hasToken = () => typeof auth !== 'undefined' && !!auth?.token;
+const genitive = n => /[sßxz]$/i.test(n) ? `${n}’` : `${n}s`;
+const isIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isAndroid = () => /Android/i.test(navigator.userAgent);
+const mailAppUrl = () => isIOS() ? 'message://' : isAndroid() ? 'intent://#Intent;action=android.intent.action.MAIN;category=android.intent.category.APP_EMAIL;end' : '';
+const pwField = (id, label, auto, extra = '') => `<div class="field"><label for="${id}">${label}</label><div class="pwbox"><input id="${id}" type="password" autocomplete="${auto}" minlength="8" required${extra}>
+  <button type="button" class="pweye" data-pweye="${id}" aria-label="${tl('Passwort zeigen')}">${svg('eye')}</button></div></div>`;
+const emailField = (id, value = '') => `<div class="field"><label for="${id}">${tl('E-Mail')}</label><input id="${id}" type="email" autocomplete="email" inputmode="email" required value="${esc(value)}" placeholder="anna@beispiel.de"></div>`;
+const errHtml = () => W.err ? `<p class="error" role="alert">${W.err}</p>` : '';
+const noticeHtml = () => W.notice ? `<p class="okbox" role="status">${svg('check')} ${esc(W.notice)}</p>` : '';
+const consentBox = id => `<label class="consent"><input type="checkbox" id="${id}" required> <span>${tl('Ich akzeptiere die')} <a href="legal.html#agb" target="_blank" rel="noopener"><b>${tl('Nutzungsbedingungen')}</b></a> ${tl('und den')} <a href="legal.html#datenschutz" target="_blank" rel="noopener"><b>${tl('Datenschutz')}</b></a>.</span></label>`;
+const pendingEmail = () => { try { return localStorage.getItem('djuu.pendingEmail') || ''; } catch (e) { return ''; } };
+
+function guestHub() {
+  return `<div class="wirhead guest"><span class="av lg ghost">${svg('user')}</span><h2>${tl('Wir')}<span class="sub">${tl('Nicht angemeldet · Daten nur auf diesem Gerät')}</span></h2></div>
+    <div class="card hero"><h4>${tl('Konto erstellen')}</h4><p class="text">${tl('Mit E-Mail und Passwort bleiben deine Infos auf allen Geräten und du kannst deine Familie verbinden.')}</p>
+      <button type="button" class="btn big primary" data-wir="register">${tl('Registrieren')}</button>
+      <button type="button" class="btn big" data-wir="login">${tl('Ich habe schon ein Konto')}</button>
+      <button type="button" class="linkbtn plus center" data-wir="guest">${tl('Als Gast weiter')}</button></div>
+    <div class="card"><h4 class="cardtitle">${tl('Deine Familie')}</h4><p class="note">${tl('Nach der Anmeldung kannst du Partner:in, Großeltern und andere verbinden und Einkauf und Termine teilen.')}</p></div>
+    <div class="card navlist">
+      <button type="button" class="navrow" data-lock="people"><span class="navic">${svg('user')}</span><span class="navtx"><b>${tl('Personen')}</b><small>${tl('Personen, Orte, Vorschläge')}</small></span>${svg('next')}</button>
+      ${navRow('settings', 'gear', tl('Einstellungen'), tl('Karte, Sprache'))}
+      ${navRow('login', 'card', tl('Konto & Abo'), tl('E-Mail, Abmelden'))}
+      ${navRow('about', 'info', tl('Über Djuu'), tl('Feedback, Rechtliches, Version'))}</div>`;
+}
+function guestInfoView() {
+  const ok = [[tl('Karte, Suche und Termine'), tl('Alle Orte, Kurse und Filter')], [tl('Details und Anmeldung'), tl('Öffnungszeiten, Infos, Kontakt')]];
+  const more = [[tl('Einkauf und Besorgungen'), tl('Gemeinsame Listen im Wir')], [tl('Gemerkt'), tl('Orte und Termine speichern')], [tl('Personen einladen'), tl('Einkauf, Besorgungen und Kalender teilen')],
+    [tl('Meine Orte und Vorschläge'), tl('Umkreis-Suche, passende Termine')], [tl('Auf allen Geräten'), tl('Nichts geht verloren')]];
+  const row = (ic, cls) => ([t, s]) => `<div class="navrow static"><span class="navic ${cls}">${svg(ic)}</span><span class="navtx"><b>${t}</b><small>${s}</small></span></div>`;
+  return `${head(tl('Gast'), tl('Du nutzt Djuu ohne Konto'))}
+    <div class="card navlist"><h4 class="cardtitle in">${tl('Das geht ohne Konto')}</h4>${ok.map(row('check', 'green')).join('')}</div>
+    <div class="card navlist"><h4 class="cardtitle in">${tl('Mit Konto zusätzlich')}</h4>${more.map(row('lock', '')).join('')}</div>
+    <div class="stick"><button type="button" class="btn big primary" data-wir="register">${tl('Konto erstellen')}</button><p class="note center">${tl('Kostenlos · nur E-Mail und Passwort')}</p></div>`;
+}
+function registerView() {
+  return `${head(tl('Konto erstellen'), tl('Kostenlos · dauert eine Minute'))}
+    <form id="regForm" novalidate>${emailField('regEmail', W.email || '')}${pwField('regPw', tl('Passwort'), 'new-password')}<p class="note">${tl('Mindestens 8 Zeichen.')}</p>
+      ${consentBox('regOk')}${errHtml()}
+      <button type="submit" class="btn big primary wide"${W.busy ? ' disabled' : ''}>${tl('Registrieren')}</button></form>
+    <p class="note center">${tl('Schon ein Konto?')} <button type="button" class="linkbtn strong" data-wir="login">${tl('Anmelden')}</button></p>
+    ${hint(tl('Mehr brauchen wir nicht. Name, Kinder und Orte trägst du später selbst und freiwillig ein.'))}`;
+}
+function verifyView() {
+  const left = Math.max(0, Math.ceil(((W.resendAt || 0) - Date.now()) / 1000)), app = mailAppUrl(), email = W.email || pendingEmail();
+  return `${head('', '')}<div class="verify"><span class="bigic">${svg('mail')}</span><h2 class="big">${tl('Bestätige deine E-Mail')}</h2>
+      <p class="muted">${tl('Wir haben dir einen Link geschickt an')}</p><p><b>${esc(email)}</b></p>
+      <p class="muted small">${tl('Tippe auf den Link in der E-Mail. Erst danach ist dein Konto aktiv. Schau auch im Spam-Ordner nach.')}</p></div>
+    ${noticeHtml()}${errHtml()}
+    ${app ? `<a class="btn big primary wide" href="${app}">${svg('mail')}${tl('E-Mail-App öffnen')}</a>` : ''}
+    <button type="button" class="btn big wide" id="resendBtn" data-resend="1"${left ? ' disabled' : ''}>${tl('Link erneut senden')}</button>
+    <p class="note center" id="resendNote">${left ? tl('Du kannst in {n} Sekunden einen neuen Link anfordern.', { n: left }) : tl('Kein Link angekommen? Fordere einen neuen an.')}</p>
+    <p class="center"><button type="button" class="linkbtn strong" data-wir="register">${tl('Falsche Adresse? E-Mail ändern')}</button></p>
+    ${W.pw ? `<p class="note center">${tl('Sobald du bestätigt hast, geht es hier automatisch weiter.')}</p>` : `<p class="center"><button type="button" class="linkbtn strong" data-wir="login">${tl('Schon bestätigt? Anmelden')}</button></p>`}`;
+}
+function loginView() {
+  return `${head(tl('Anmelden'))}${noticeHtml()}
+    <form id="loginForm" novalidate>${emailField('loginEmail', W.email || pendingEmail())}${pwField('loginPw', tl('Passwort'), 'current-password')}
+      <p><button type="button" class="linkbtn strong" data-wir="forgot">${tl('Passwort vergessen?')}</button></p>${errHtml()}
+      ${W.unverified ? `<p class="note">${tl('Noch nicht bestätigt?')} <button type="button" class="linkbtn strong" data-resend="login">${tl('Bestätigungslink erneut senden')}</button></p>` : ''}
+      <button type="submit" class="btn big primary wide"${W.busy ? ' disabled' : ''}>${tl('Anmelden')}</button></form>
+    <p class="note center">${tl('Neu hier?')} <button type="button" class="linkbtn strong" data-wir="register">${tl('Konto erstellen')}</button></p>`;
+}
+function forgotView() {
+  return `${head(tl('Passwort vergessen?'))}<p class="text">${tl('Gib deine E-Mail ein. Wir schicken dir einen Link, mit dem du ein neues Passwort wählst.')}</p>
+    <form id="forgotForm" novalidate>${emailField('forgotEmail', W.email || pendingEmail())}${noticeHtml()}${errHtml()}
+      <button type="submit" class="btn big primary wide"${W.busy ? ' disabled' : ''}>${tl('Link senden')}</button></form>`;
+}
+function newPwView() {
+  return `${head(tl('Neues Passwort'))}<form id="newpwForm" novalidate>${pwField('newPw', tl('Neues Passwort'), 'new-password')}<p class="note">${tl('Mindestens 8 Zeichen.')}</p>${errHtml()}
+    <button type="submit" class="btn big primary wide"${W.busy ? ' disabled' : ''}>${tl('Speichern')}</button></form>`;
+}
+const peopleDots = list => `<div class="avrow center">${(list || []).slice(0, 6).map((l, i) => `<span class="av" style="--c:${MEMBER_COLORS[i % MEMBER_COLORS.length]}">${esc(l)}</span>`).join('')}</div>`;
+function inviteView() {
+  const I = W.inviteInfo;
+  if (!I) { loadInviteInfo(); return `${head('')}<div class="empty"><b>${tl('Einladung wird geladen …')}</b></div>`; }
+  if (I.error) return `${head(tl('Einladung'))}<div class="empty"><b>${esc(I.error)}</b>${tl('Bitte die Person, dir einen neuen Link zu schicken.')}</div><button type="button" class="btn wide" data-invitedrop="1">${tl('Schließen')}</button>`;
+  return `<div class="invitehead">${peopleDots(I.people)}<h2 class="big center">${I.inviter ? tl('{name} lädt dich ins Wir ein', { name: esc(I.inviter) }) : tl('Du wurdest in ein Wir eingeladen')}</h2>
+      <p class="muted center">${tl('Zusammen seht ihr Einkauf, Besorgungen und Kalender. Du bekommst deinen eigenen Zugang.')}</p></div>
+    <form id="inviteForm" novalidate>${emailField('invEmail', W.email || '')}${pwField('invPw', tl('Passwort'), 'new-password')}<p class="note">${tl('Mindestens 8 Zeichen.')}</p>
+      ${consentBox('invOk')}${errHtml()}
+      <button type="submit" class="btn big primary wide"${W.busy ? ' disabled' : ''}>${tl('Konto erstellen und beitreten')}</button></form>
+    <p class="note center">${tl('Schon ein Konto?')} <button type="button" class="linkbtn strong" data-wir="login">${tl('Anmelden und beitreten')}</button></p>
+    <p class="center"><button type="button" class="linkbtn" data-invitedrop="1">${tl('Nein danke')}</button></p>`;
+}
+async function loadInviteInfo() {
+  if (W.inviteLoading || !SY.invite) return;
+  W.inviteLoading = true;
+  try { W.inviteInfo = await inviteInfo(SY.invite); } catch (e) { W.inviteInfo = { error: e.status === 404 ? (e.data?.message || tl('Diese Einladung gibt es nicht mehr.')) : tl('Keine Verbindung. Bitte später noch einmal.') }; }
+  W.inviteLoading = false; renderPanel();
+}
+const ROLES_JOIN = [tl('Elternteil'), tl('Oma / Opa'), tl('Tante / Onkel'), tl('Babysitter:in'), tl('Anderes …')];
+function joinView() {
+  const I = W.inviteInfo;
+  if (!I) loadInviteInfo();
+  return `${peopleDots(I?.people)}<h2 class="big">${I?.inviter ? tl('Du trittst {gen} Wir bei', { gen: esc(genitive(I.inviter)), name: esc(I.inviter) }) : tl('Du trittst dem Wir bei')}</h2>
+    <p class="muted text">${tl('Wie sollen wir dich nennen?')}</p>
+    <form id="joinForm" novalidate><div class="field"><label for="joinName">${tl('Vorname oder Spitzname')}</label><input id="joinName" maxlength="30" autocomplete="given-name" required value="${esc(W.joinName || '')}"></div>
+      <div class="field"><label>${tl('Deine Rolle')} <small class="muted">${tl('Freiwillig')}</small></label>${chipRow(ROLES_JOIN, W.joinRole, 'data-joinrole')}</div>${errHtml()}
+      <div class="stick"><button type="submit" class="btn big primary"${W.busy ? ' disabled' : ''}>${tl('Beitreten')}</button></div></form>`;
+}
+function accountSignedIn() {
+  return `${head(tl('Konto & Anmeldung'))}
+    <div class="card navlist acct"><div class="acctrow"><span class="navtx"><small>${tl('E-Mail')}</small><b>${esc(auth.email)}</b></span><span class="pill green">${tl('Bestätigt')}</span></div>
+      <button type="button" class="navrow" data-wir="emailchange"><span class="navic">${svg('mail')}</span><span class="navtx"><b>${tl('E-Mail ändern')}</b></span>${svg('next')}</button>
+      <button type="button" class="navrow" data-wir="pwchange"><span class="navic">${svg('gear')}</span><span class="navtx"><b>${tl('Passwort ändern')}</b></span>${svg('next')}</button>
+      <div class="navrow static"><span class="navic">${svg('card')}</span><span class="navtx"><b>${tl('Abo')}</b><small>${tl('Kostenlos')}</small></span></div></div>
+    ${hint(`${svg('check')} ${tl('Du bleibst angemeldet, bis du dich abmeldest. Deine Daten bleiben in deinem Konto.')}`)}
+    ${auth.family ? `<p class="note">${SY.online ? `<span class="syok">●</span> ${tl('Verbunden mit')} ${esc(auth.familyName || tl('eurem Wir'))}` : `<span class="syoff">●</span> ${tl('Offline, Änderungen werden nachgereicht')}`}${outbox.length ? ` · ${outbox.length} ${tl('noch nicht gesendet')}` : ''}</p>` : ''}
+    <button type="button" class="btn big wide" data-sylogout="1">${tl('Abmelden')}</button>
+    <p class="center"><button type="button" class="linkbtn danger" data-wir="delete">${tl('Konto löschen')}</button></p>`;
+}
+function pwChangeView() {
+  return `${head(tl('Passwort ändern'))}<form id="pwForm" novalidate>${pwField('pwOld', tl('Aktuelles Passwort'), 'current-password')}${pwField('pwNew', tl('Neues Passwort'), 'new-password')}
+    <p class="note">${tl('Mindestens 8 Zeichen. Andere Geräte musst du danach neu anmelden.')}</p>${errHtml()}
+    <button type="submit" class="btn big primary wide"${W.busy ? ' disabled' : ''}>${tl('Speichern')}</button></form>`;
+}
+function emailChangeView() {
+  return `${head(tl('E-Mail ändern'))}${noticeHtml()}<form id="emailForm" novalidate>${emailField('emNew')}${pwField('emPw', tl('Dein Passwort'), 'current-password')}
+    <p class="note">${tl('Wir schicken einen Link an die neue Adresse. Erst wenn du ihn öffnest, gilt sie.')}</p>${errHtml()}
+    <button type="submit" class="btn big primary wide"${W.busy ? ' disabled' : ''}>${tl('Link senden')}</button></form>`;
+}
+function emailConfirmView() {
+  return `${head(tl('Neue E-Mail bestätigen'))}<p class="text">${tl('Gib zur Sicherheit dein Passwort ein.')}</p>
+    <form id="emailConfirmForm" novalidate>${pwField('ecPw', tl('Passwort'), 'current-password')}${errHtml()}
+    <button type="submit" class="btn big primary wide"${W.busy ? ' disabled' : ''}>${tl('Bestätigen')}</button></form>`;
+}
+function deleteView() {
+  const me = meAdult(), others = members().filter(m => m.id !== auth?.member);
+  const text = me?.admin && others.length
+    ? tl('Du bist Admin. Wenn du dein Konto löschst, wird euer ganzes Wir gelöscht, für alle: Einkauf, Besorgungen, Gemerktes, Orte und Einträge. Betroffen: {names}.', { names: others.map(m => m.name).join(', ') })
+    : tl('Dein Konto und alle deine Daten werden gelöscht. Das lässt sich nicht rückgängig machen.');
+  return `${head(tl('Konto löschen'))}<p class="warnbox">${svg('info')} ${esc(text)}</p>
+    <form id="delForm" novalidate>${pwField('delPw', tl('Passwort zur Bestätigung'), 'current-password')}${errHtml()}
+      <button type="submit" class="btn big wide danger"${W.busy ? ' disabled' : ''}>${tl('Konto endgültig löschen')}</button></form>
+    <button type="button" class="btn ghost wide" data-back="1">${tl('Abbrechen')}</button>`;
+}
+
+// the sheet a guest sees on a locked feature; after signing in the action continues
+const LOCKS = {
+  merken: ['heart', tl('Zum Merken brauchst du ein Konto'), tl('Dann findest du deine Lieblingsorte und Termine auf jedem Gerät wieder.')],
+  people: ['user', tl('Dafür brauchst du ein Konto'), tl('Mit Konto verbindest du deine Familie, trägst eure Orte ein und bekommst passende Vorschläge.')],
+};
+function lockSheet(kind) {
+  document.getElementById('lock')?.remove();
+  const [ic, title, text] = LOCKS[kind] || LOCKS.people, el = document.createElement('div');
+  el.id = 'lock'; el.className = 'lockwrap';
+  el.innerHTML = `<div class="lockbg" data-lockclose="1"></div><div class="locksheet" role="dialog" aria-modal="true" aria-labelledby="lockT"><i class="lockgrip"></i>
+    <span class="bigic">${svg(ic)}</span><h3 id="lockT">${title}</h3><p class="muted">${text}</p>
+    <button type="button" class="btn big primary wide" data-lockgo="register">${tl('Konto erstellen')}</button>
+    <button type="button" class="btn big wide" data-lockgo="login">${tl('Anmelden')}</button>
+    <button type="button" class="linkbtn center" data-lockclose="1">${tl('Später')}</button></div>`;
+  document.body.appendChild(el);
+  el.querySelector('[data-lockgo]').focus();
+}
+const closeLock = () => document.getElementById('lock')?.remove();
+function openWir(page) { closeLock(); stack = [{ type: 'list' }]; go({ type: 'me' }, 'full'); setTab('me'); if (page) go({ type: 'wir', page }); }
+// after signing in: join the Wir from the invite, or create one (first step), or straight into the Wir
+function afterSignIn() {
+  W.err = ''; W.notice = ''; W.pw = null; W.unverified = false;
+  if (!auth.family) store.onboarded = false; else store.onboarded = true;
+  W.onb = 1; save();
+  openWir(!auth.family && SY.invite ? 'join' : null);
+  runPending();
+}
+function runPending() {
+  const P = W.pendingAction;
+  if (!P || !auth?.family) return;
+  W.pendingAction = null;
+  if (P.offer && !isSaved(P.offer) && OFFER_BY_ID.get(P.offer)) toggleSaved(P.offer);
+  if (P.place && !store.favorites.includes(P.place)) { store.favorites.push(P.place); store.favBy[P.place] = meId(); save(); toast(tl('Gemerkt. Du findest es unter „Gemerkt“.')); }
+}
+// friendly words for what the server says
+function accountError(e, kind) {
+  if (!e.status) return tl('Keine Verbindung. Bitte später noch einmal.');
+  const f = e.data?.data || {};
+  if (f.email?.code === 'validation_not_unique') return tl('Diese E-Mail hat schon ein Konto. Melde dich an.');
+  if (f.email) return tl('Bitte eine gültige E-Mail eingeben.');
+  if (f.password || f.oldPassword) return kind === 'pw' && f.oldPassword ? tl('Das aktuelle Passwort stimmt nicht.') : tl('Das Passwort braucht mindestens 8 Zeichen.');
+  if (f.token) return tl('Der Link ist abgelaufen oder wurde schon benutzt. Fordere einen neuen an.');
+  if (kind === 'login') return tl('E-Mail oder Passwort stimmt nicht.');
+  if (kind === 'check') return tl('Das Passwort stimmt nicht.');
+  if (e.status === 429) return tl('Zu viele Versuche. Bitte warte kurz.');
+  return esc(e.data?.message || tl('Das hat nicht geklappt.'));
+}
+async function busy(fn) { W.busy = true; W.err = ''; renderPanel(); try { await fn(); } finally { W.busy = false; renderPanel(); } }
+const val = id => ($('#' + id)?.value || '').trim();
+
+document.addEventListener('submit', async e => {
+  const id = e.target.id;
+  if (!['regForm', 'loginForm', 'forgotForm', 'newpwForm', 'inviteForm', 'joinForm', 'pwForm', 'emailForm', 'emailConfirmForm', 'delForm'].includes(id)) return;
+  e.preventDefault();
+  const fail = msg => { W.err = msg; renderPanel(); };
+  if (id === 'regForm' || id === 'inviteForm') {
+    const p = id === 'regForm' ? 'reg' : 'inv', email = val(p + 'Email'), pw = $('#' + p + 'Pw').value;
+    W.email = email;
+    if (!/^\S+@\S+\.\S+$/.test(email)) return fail(tl('Bitte eine gültige E-Mail eingeben.'));
+    if (pw.length < 8) return fail(tl('Das Passwort braucht mindestens 8 Zeichen.'));
+    if (!$('#' + p + 'Ok').checked) return fail(tl('Bitte stimme den Nutzungsbedingungen und dem Datenschutz zu.'));
+    await busy(async () => {
+      try { await register(email, pw); W.pw = pw; W.resendAt = Date.now() + 30000; W.notice = ''; stack.pop(); go({ type: 'wir', page: 'verify' }); }
+      catch (x) { W.err = accountError(x, 'reg'); }
+    });
+  }
+  else if (id === 'loginForm') {
+    const email = val('loginEmail'), pw = $('#loginPw').value;
+    W.email = email;
+    await busy(async () => {
+      try { await signIn(email, pw); afterSignIn(); toast(tl('Angemeldet.')); }
+      catch (x) { W.err = accountError(x, 'login'); W.unverified = !!x.status; }
+    });
+  }
+  else if (id === 'forgotForm') {
+    const email = val('forgotEmail'); W.email = email;
+    if (!/^\S+@\S+\.\S+$/.test(email)) return fail(tl('Bitte eine gültige E-Mail eingeben.'));
+    await busy(async () => { try { await requestReset(email); W.notice = tl('Wenn es ein Konto mit dieser E-Mail gibt, ist der Link unterwegs. Schau auch im Spam-Ordner nach.'); } catch (x) { W.err = accountError(x); } });
+  }
+  else if (id === 'newpwForm') {
+    const pw = $('#newPw').value;
+    if (pw.length < 8) return fail(tl('Das Passwort braucht mindestens 8 Zeichen.'));
+    await busy(async () => {
+      try { await confirmReset(W.resetToken, pw); W.resetToken = null; W.notice = tl('Neues Passwort gespeichert. Melde dich jetzt an.'); stack.pop(); go({ type: 'wir', page: 'login' }); }
+      catch (x) { W.err = accountError(x); }
+    });
+  }
+  else if (id === 'joinForm') {
+    const name = val('joinName');
+    W.joinName = name;
+    if (!name) return fail(tl('Bitte gib deinen Vornamen oder Spitznamen an.'));
+    await busy(async () => {
+      try { await joinFamily(SY.invite, name, W.joinRole || ''); store.onboarded = true; save(); W.inviteInfo = null; openWir(); toast(tl('Willkommen in eurem Wir!')); runPending(); }
+      catch (x) { W.err = accountError(x); }
+    });
+  }
+  else if (id === 'pwForm') {
+    const old = $('#pwOld').value, pw = $('#pwNew').value;
+    if (pw.length < 8) return fail(tl('Das Passwort braucht mindestens 8 Zeichen.'));
+    await busy(async () => { try { await changePassword(old, pw); back(); toast(tl('Passwort geändert.')); } catch (x) { W.err = accountError(x, 'pw'); } });
+  }
+  else if (id === 'emailForm') {
+    const email = val('emNew'), pw = $('#emPw').value;
+    if (!/^\S+@\S+\.\S+$/.test(email)) return fail(tl('Bitte eine gültige E-Mail eingeben.'));
+    await busy(async () => {
+      try { await requestEmailChange(pw, email); W.notice = tl('Link an {email} geschickt. Bis du ihn öffnest, bleibt deine bisherige E-Mail gültig.', { email }); }
+      catch (x) { W.err = accountError(x, 'check'); }
+    });
+  }
+  else if (id === 'emailConfirmForm') {
+    const pw = $('#ecPw').value;
+    await busy(async () => {
+      try { await confirmEmailChange(W.emailToken, pw); W.emailToken = null; if (hasToken()) logout(true); W.notice = tl('Neue E-Mail gespeichert. Bitte melde dich damit an.'); stack.pop(); go({ type: 'wir', page: 'login' }); }
+      catch (x) { W.err = accountError(x, 'check'); }
+    });
+  }
+  else if (id === 'delForm') {
+    const pw = $('#delPw').value;
+    await busy(async () => {
+      try { await deleteAccount(pw); home(); toast(tl('Dein Konto ist gelöscht.')); }
+      catch (x) { W.err = x.status === 400 ? tl('Das Passwort stimmt nicht.') : accountError(x); }
+    });
+  }
+});
+// guests: the heart and the places of the Wir need an account
+document.addEventListener('click', e => {
+  if (auth?.family) return;
+  const t = e.target.closest('[data-saveoffer], [data-fav], [data-lock]');
+  if (!t) return;
+  e.stopImmediatePropagation(); e.preventDefault();
+  if (t.dataset.lock) return lockSheet(t.dataset.lock);
+  W.pendingAction = t.dataset.saveoffer ? { offer: t.dataset.saveoffer } : { place: t.dataset.fav };
+  lockSheet('merken');
+}, true);
+document.addEventListener('click', async e => {
+  const t = e.target.closest('button'); if (!t) return;
+  const d = t.dataset;
+  if (d.lockclose) { closeLock(); W.pendingAction = null; }
+  else if (d.lockgo) openWir(d.lockgo);
+  else if (d.pweye) { const i = $('#' + d.pweye); i.type = i.type === 'password' ? 'text' : 'password'; t.classList.toggle('on', i.type === 'text'); }
+  else if (d.resend) {
+    const email = d.resend === 'login' ? val('loginEmail') : (W.email || pendingEmail());
+    if (!email) return;
+    try { await resendVerification(email); W.notice = tl('Neuer Link ist unterwegs.'); W.resendAt = Date.now() + 30000; } catch (x) { W.err = accountError(x); }
+    renderPanel();
+  }
+  else if (d.joinrole) { W.joinName = val('joinName'); W.joinRole = W.joinRole === d.joinrole ? '' : d.joinrole; renderPanel(); }
+  else if (d.invitedrop) { try { localStorage.removeItem('djuu.join'); } catch (x) { /* storage blocked */ } SY.invite = null; W.inviteInfo = null; home(); }
+});
+// the confirmation link was opened (maybe in another app): this page notices and continues by itself
+setInterval(async () => {
+  const v = view();
+  if (v.type !== 'wir' || v.page !== 'verify') return;
+  const left = Math.max(0, Math.ceil(((W.resendAt || 0) - Date.now()) / 1000)), b = $('#resendBtn'), n = $('#resendNote');
+  if (b) b.disabled = !!left;
+  if (n) n.textContent = left ? tl('Du kannst in {n} Sekunden einen neuen Link anfordern.', { n: left }) : tl('Kein Link angekommen? Fordere einen neuen an.');
+  if (!W.pw || W.trying || document.visibilityState !== 'visible' || (Date.now() / 1000 | 0) % 5) return;
+  W.trying = true;
+  try { await signIn(W.email || pendingEmail(), W.pw); afterSignIn(); toast(tl('E-Mail bestätigt. Willkommen bei Djuu!')); } catch (x) { /* not confirmed yet */ }
+  W.trying = false;
+}, 1000);
+// links from the mails: #verify=, #reset=, #email=; an invite link (sync.js) opens its page
+(() => {
+  const m = location.hash.match(/^#(verify|reset|email)=([\w.-]+)/);
+  if (!m) { if (SY.invite && !auth?.family) { store.welcomed = true; setTimeout(() => { $('#welcome')?.remove(); openWir(hasToken() ? null : 'invite'); }, 900); } return; }
+  history.replaceState(null, '', location.pathname);
+  store.welcomed = true; save();
+  const [, kind, token] = m;
+  setTimeout(async () => {
+    $('#welcome')?.remove();
+    if (kind === 'verify') {
+      try { await confirmVerification(token); W.notice = tl('E-Mail bestätigt. Du kannst dich jetzt anmelden.'); }
+      catch (e) { W.err = tl('Der Link ist abgelaufen oder wurde schon benutzt. Melde dich an oder fordere einen neuen an.'); }
+      openWir(hasToken() ? null : 'login');
+    } else if (kind === 'reset') { W.resetToken = token; openWir('newpw'); }
+    else { W.emailToken = token; openWir('emailconfirm'); }
+  }, 900);
+})();
+
 showWelcome();

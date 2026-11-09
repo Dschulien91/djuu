@@ -7,7 +7,7 @@
    User input is stored on this device only until the server exists (server-ready shape, see STORE). */
 'use strict'; // i18n-skip
 
-const VERSION = '0.35';
+const VERSION = '0.36';
 const CONTACT = window.DJUU_CONTACT || {}; // config.js: reports and feedback stay hidden until an address is set
 // Logo on light backgrounds, as specified in the design PDF.
 const LOGO = `<span class="logo" role="img" aria-label="djuu"><span style="color:#6B4EE6">d</span><span style="color:#0E8F84">j</span><span style="color:#D6336C">u</span><span style="color:#CC6A00">u</span>
@@ -57,6 +57,7 @@ const ICON = {
   scissors: '<circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4L8.1 15.9M14.5 14.5L20 20M8.1 8.1L12 12"/>',
   repeat: '<path d="M17 2l4 4-4 4"/><path d="M3 11V9a3 3 0 0 1 3-3h15"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a3 3 0 0 1-3 3H3"/>',
   next: '<path d="M9 5l7 7-7 7"/>',
+  eye: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>',
   bell: '<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15L6 16z"/><path d="M10 20.5a2.2 2.2 0 0 0 4 0"/>',
   cart: '<path d="M3 4h2.2l2.3 11h10.8l2-8H6.4"/><circle cx="9.5" cy="19.5" r="1.4"/><circle cx="17" cy="19.5" r="1.4"/>',
   list: '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',
@@ -1585,7 +1586,7 @@ EV.placeTab = 'stadtteil';
 EV.pending = new Set(); EV.dq = '';
 const KMS = [1, 2, 5, 10, 20];
 // the place the radius is measured from: chosen in the filter, else the one marked "Standard für Suchen", else the first
-const searchPlace = () => { const ps = (store.places || []).filter(p => p.lat); return ps.find(p => p.id === EV.place.placeId) || ps.find(p => p.def) || ps[0] || null; };
+const searchPlace = () => { if (typeof auth === 'undefined' || !auth?.family) return null; const ps = (store.places || []).filter(p => p.lat); return ps.find(p => p.id === EV.place.placeId) || ps.find(p => p.def) || ps[0] || null; };
 const homeOf = () => { const p = searchPlace(); return p ? { label: `${tl(p.name)} (${p.plz})`, lat: p.lat, lon: p.lon } : null; };
 const radiusOrigin = () => EV.place.gps || (homeOf() ? [homeOf().lat, homeOf().lon] : null);
 function evPlaceOk(o) {
@@ -1614,14 +1615,6 @@ function homeFieldHtml(id) {
     <datalist id="homeList">${GEO.plz.map(p => `<option value="${p[0]} (${esc(p[3])})"></option>`).join('')}${GEO.stadtteile.map(s => `<option value="${esc(s[0])}"></option>`).join('')}</datalist>
     <p class="note">${tl('PLZ oder Stadtteil reicht. Wird als „Zuhause“ unter Wir › Meine Orte gespeichert.')}</p></div>`;
 }
-function meineInfosHtml() {
-  const h = homeOf();
-  return `<div class="sec"><h4>${tl('Meine Infos')}</h4>
-    <p class="muted text">${tl('Nur auf diesem Handy. Wird nicht mit der Familie geteilt.')}</p>
-    <div class="field"><label for="langSel">${tl('Sprache · Language')}</label><select id="langSel">${Object.entries(LANGS).map(([c, n]) => `<option value="${c}"${c === LANG ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select></div>
-    ${homeFieldHtml('meHome')}
-    ${h ? `<p class="note">${tl('Zuhause:')} ${esc(h.label)}${tl('. Djuu nutzt es für „Umkreis von zu Hause“ bei den Terminen.')} <button type="button" class="linkbtn" data-homeclear="1">${tl('Entfernen')}</button></p>` : ''}</div>`;
-}
 function setHome(value) {
   if (!String(value || '').trim()) return;
   const h = parseHome(value);
@@ -1647,7 +1640,7 @@ function evPlaceHtml() {
       <button type="button" class="chip" data-open="evdistricts">${svg('pin')}${tl('Stadtteil wählen')}</button></div>`;
   } else if (!origin) {
     body = `<div class="fgrid">${all}</div>
-      <p class="text" style="margin-top:10px"><b>${tl('Umkreis von zu Hause')}</b></p>${homeFieldHtml('evHome')}
+      ${typeof auth !== 'undefined' && auth?.family ? `<p class="text" style="margin-top:10px"><b>${tl('Umkreis von zu Hause')}</b></p>${homeFieldHtml('evHome')}` : `<p class="note">${tl('Mit Konto misst Djuu auch von deinen Orten aus, zum Beispiel Zuhause oder Kita.')}</p>`}
       <button type="button" class="btn" data-evgps="1">${svg('locate')}${tl('Aktuellen Standort verwenden')}</button>
       <p class="note">${tl('Der aktuelle Standort gilt nur für diese Suche und wird nicht gespeichert.')}</p>`;
   } else {
@@ -1872,34 +1865,6 @@ function freshText() {
   return days === 0 ? tl('heute') : days === 1 ? tl('gestern') : tl('am {date}', { date: d.toLocaleDateString(LOCALE, { day: 'numeric', month: 'long' }) });
 }
 const freshHtml = () => DATA_AT.offers ? `<p class="fresh">${svg('check')}${esc(tl('Termine {when} aktualisiert', { when: freshText() }))}</p>` : '';
-function savedView() {
-  const pr = store.profile, now = new Date();
-  const maxYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  return `<div class="sec"><h4>${tl('Kinder')}</h4>
-      <p class="muted text">${tl('Mit dem Alter deiner Kinder zeigt Djuu passende Gruppen, Kurse und Orte. Der Tag ist freiwillig, Monat und Jahr reichen.')}</p>
-      <div id="kids">${pr.kids.map((k, i) => `<div class="kidrow">
-        <input id="kidName${i}" data-kid="${i}" data-k="name" value="${esc(k.name || '')}" placeholder="${tl('Name (optional)')}" maxlength="20" aria-label="Name von Kind ${i + 1}">
-        <button type="button" class="round" data-delkid="${i}" aria-label="${tl('Kind entfernen')}">${svg('close')}</button>
-        <input id="kidYm${i}" data-kid="${i}" data-k="ym" type="month" value="${esc(k.ym || '')}" max="${maxYm}" aria-label="Geburtsmonat von Kind ${i + 1}">
-        <select id="kidD${i}" data-kid="${i}" data-k="d" aria-label="Geburtstag (Tag, optional) von Kind ${i + 1}"><option value="">${tl('Tag (optional)')}</option>${Array.from({ length: 31 }, (_, j) => `<option${+k.d === j + 1 ? ' selected' : ''}>${j + 1}</option>`).join('')}</select>${kidMoreHtml(k, i)}</div>`).join('')}</div>
-      <button type="button" class="btn" data-addkid="1">${svg('plus')}${tl('Kind hinzufügen')}</button>
-      <div class="field"><label for="expecting">${tl('Baby unterwegs? Errechneter Termin (optional)')}</label><input id="expecting" type="date" value="${esc(pr.expecting || '')}" min="${ymd(today0())}"></div>
-      <div class="field"><label for="fedState">${tl('Bundesland (für eure Schulferien)')}</label><select id="fedState">${Object.entries(STATES).map(([c, n]) => `<option value="${c}"${(pr.state || 'DE-HH') === c ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select></div>
-      ${ferienCard(9999)}
-      <div class="field"><label for="dogs">${tl('Hunde in der Familie')}</label>
-        <div class="stepper"><button type="button" data-dogs="-1" aria-label="${tl('Weniger')}">–</button><b id="dogsN">${pr.dogs || 0}</b><button type="button" data-dogs="1" aria-label="${tl('Mehr')}">+</button></div></div>
-      <p class="note">${tl('Wenn ihr einen Hund habt, steht „Hunde erlaubt“ im Filter gleich oben.')}</p>
-    </div>
-    <div class="sec"><h4>${tl('Karte')}</h4>
-      <details class="stylefold"${state.styleOpen ? ' open' : ''}><summary><img src="icons/maps/${mapStyle().id}.jpg" alt="" width="60" height="40"><span><b>${tl('Kartenstil:')} ${esc(mapStyle().label)}</b><small>${tl('Ändern')}</small></span></summary>
-      ${MAP_STYLES.map(m => m.sec ? `<p class="stylesec">${esc(m.sec)}</p>` : `<button type="button" class="stylecard${mapStyle().id === m.id ? ' on' : ''}" data-mapstyle="${m.id}"><img src="icons/maps/${m.id}.jpg" alt="" loading="lazy" width="150" height="100"><span>${esc(m.label)}</span></button>`).join('')}</details>
-      <p class="note">${tl('Alle Kartenstile sind kostenlos und brauchen kein Konto. Die Wetteranzeige stammt vom Deutschen Wetterdienst über Bright Sky. Schulferien: Ferienordnung Hamburg, andere Bundesländer über OpenHolidays (ODbL). Die Spracheingabe in der Suche nutzt den Sprachdienst deines Browsers, dabei kann der Ton an dessen Anbieter gehen.')}</p>
-    </div>
-    <div class="sec"><h4>${tl('Über Djuu')}</h4>
-      <div class="melinks">${CONTACT.email ? `<a href="mailto:${esc(CONTACT.email)}?subject=${encodeURIComponent('Feedback zu Djuu')}">${tl('Feedback geben')}</a>` : ''}<a href="legal.html#impressum" target="_blank" rel="noopener">${tl('Impressum')}</a><a href="legal.html#agb" target="_blank" rel="noopener">${tl('Nutzungsbedingungen')}</a><a href="legal.html#datenschutz" target="_blank" rel="noopener">${tl('Datenschutz')}</a><a href="legal.html#daten" target="_blank" rel="noopener">${tl('Daten und Lizenzen')}</a></div>
-      <p class="note">${DATA_AT.offers ? `${esc(tl('Termine zuletzt {when} aktualisiert', { when: freshText() }))}. ` : ''}${tl('Version')} ${VERSION}</p></div>
-`;
-}
 function saveProfileField(el) {
   const pr = store.profile;
   if (el.dataset.kid != null) pr.kids[+el.dataset.kid][el.dataset.k] = el.value.trim();

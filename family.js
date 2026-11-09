@@ -23,30 +23,6 @@ const memberById = id => members().find(m => m.id === id);
 const meId = () => (memberById(store.profile.me) && store.profile.me) || store.profile.adults[0]?.id || null;
 const byLine = id => { const m = id && memberById(id); return m ? `<span class="by" style="--c:${m.color}">${esc(m.name)}</span>` : ''; };
 
-function adultsHtml() {
-  const pr = store.profile, ms = members();
-  return `<div class="sec"><h4>${tl('Erwachsene')}</h4>
-      <p class="muted text">${tl('Alles freiwillig. Die Namen zeigen später, wer etwas auf die Liste gesetzt hat.')}</p>
-      ${pr.adults.map((a, i) => `<div class="kidrow">
-        <input data-adult="${i}" data-k="name" value="${esc(a.name || '')}" placeholder="${tl('Name')}" maxlength="20" aria-label="Name von Erwachsener ${i + 1}">
-        ${a.account ? '<span class="round" aria-hidden="true"></span>' : `<button type="button" class="round" data-deladult="${i}" aria-label="${tl('Entfernen')}">${svg('close')}</button>`}
-        <input data-adult="${i}" data-k="work" value="${esc(a.work || '')}" placeholder="${tl('Arbeitszeiten (optional), z. B. Mo–Fr 8–16')}" maxlength="60" aria-label="${tl('Arbeitszeiten')}" class="wide"></div>`).join('')}
-      <button type="button" class="btn" data-addadult="1">${svg('plus')}${tl('Erwachsene*n hinzufügen')}</button>
-      ${ms.length && !(typeof auth !== 'undefined' && auth?.family) ? `<div class="field"><label for="meSel">${tl('Wer nutzt dieses Handy?')}</label><select id="meSel">${ms.filter(m => !m.kid || ms.every(x => x.kid)).map(m => `<option value="${m.id}"${meId() === m.id ? ' selected' : ''}>${esc(m.name)}</option>`).join('')}</select></div>` : ''}
-    </div>`;
-}
-// extra, optional details per child (shown folded under each child in "Wir")
-const kidMoreHtml = (k, i) => `<details class="kidmore"${k.school || k.size || k.shoe ? ' open' : ''}><summary>${tl('Kita, Schule, Größen')}</summary>
-  <input data-kid="${i}" data-k="school" value="${esc(k.school || '')}" placeholder="${tl('Kita oder Schule, Klasse')}" maxlength="60" aria-label="${tl('Kita oder Schule')}">
-  <input data-kid="${i}" data-k="size" value="${esc(k.size || '')}" placeholder="${tl('Kleidergröße, z. B. 104')}" maxlength="12" aria-label="${tl('Kleidergröße')}">
-  <input data-kid="${i}" data-k="shoe" value="${esc(k.shoe || '')}" placeholder="${tl('Schuhgröße')}" maxlength="8" aria-label="${tl('Schuhgröße')}"></details>`;
-
-function connectHtml() {
-  return `<div class="sec"><h4>${tl('Familie verbinden')}</h4>
-    <p class="text">${tl('Bald: Einladen per Link, dann sehen alle dieselben Listen, Gemerktes und Termine. Dazu kommen ein Familienkalender zum Abonnieren und „Wo seid ihr?“, mit dem man die anderen bitten kann, ihren Standort einmal zu senden.')}</p>
-    <p class="note">${tl('Bis dahin bleibt alles auf diesem Gerät.')}</p></div>`;
-}
-
 // ---------- Shopping: supermarket ----------
 // Categories in the order most German supermarkets put them; the app learns the order of your shop from how you tick items off.
 // Third column: German words. A German word also finds compounds that end in it ("wein" finds "Rotwein").
@@ -265,23 +241,12 @@ function errandHtml() {
     ${bought.length ? `<details class="fold"><summary>${tl('Gekauft (')}${bought.length})</summary><ol class="erlist">${bought.map(card).join('')}</ol></details>` : ''}`;
 }
 
-// ---------- The family tab ----------
-const FAM_SEGS = [['einkauf', tl('Einkauf')], ['besorgungen', tl('Besorgungen')], ['wir', tl('Wir')]];
-function familyView() {
-  const seg = state.famSeg || 'einkauf';
-  const n = openItems().length, e = store.errands.filter(x => x.state !== 'gekauft').length;
-  return `${head(tl('Familie'), typeof auth !== 'undefined' && auth?.family ? tl('Geteilt mit ') + esc(auth.familyName || tl('der Familie')) : tl('Bisher nur auf diesem Gerät'), false)}
-    <div class="famseg" role="tablist">${FAM_SEGS.map(([id, l]) => `<button type="button" role="tab" aria-selected="${seg === id}" class="${seg === id ? 'on' : ''}" data-famseg="${id}">${l}${id === 'einkauf' && n ? ` <span class="n">${n}</span>` : id === 'besorgungen' && e ? ` <span class="n">${e}</span>` : ''}</button>`).join('')}</div>
-    ${seg === 'einkauf' ? shopHtml() : seg === 'besorgungen' ? errandHtml() : `<div class="melogo">${LOGO}</div>${meineInfosHtml()}${syncHtml()}${adultsHtml()}${savedView()}`}`;
-}
-
 // ---------- Interaction ----------
 function shopItem(id) { return store.shop.items.find(i => i.id === id); }
 document.addEventListener('click', e => {
   const t = e.target.closest('button'); if (!t) return;
   const d = t.dataset, s = store.shop;
-  if (d.famseg) { state.famSeg = d.famseg; SH.menu = SH.pending = SH.editing = null; renderPanel(); }
-  else if (d.shtoggle) { const i = shopItem(d.shtoggle); i.done = !i.done; if (i.done) { i.doneBy = meId(); s.seq.push(i.cat); } SH.menu = null; save(); renderPanel(); }
+  if (d.shtoggle) { const i = shopItem(d.shtoggle); i.done = !i.done; if (i.done) { i.doneBy = meId(); s.seq.push(i.cat); } SH.menu = null; save(); renderPanel(); }
   else if (d.shmenu) { SH.menu = SH.menu === d.shmenu ? null : d.shmenu; renderPanel(); }
   else if (d.shlater) { shopItem(d.shlater).later = true; SH.menu = null; save(); renderPanel(); toast('Kommt beim nächsten Einkauf wieder.'); }
   else if (d.shnow) { shopItem(d.shnow).later = false; save(); renderPanel(); }
@@ -302,8 +267,6 @@ document.addEventListener('click', e => {
   else if (d.erstate) { const [id, st] = d.erstate.split('|'); store.errands.find(r => r.id === id).state = st; save(); renderPanel(); }
   else if (d.eredit) { SH.editing = SH.editing === d.eredit ? null : d.eredit; renderPanel(); }
   else if (d.erdel) { store.errands = store.errands.filter(r => r.id !== d.erdel); SH.editing = null; save(); renderPanel(); }
-  else if (d.addadult) { store.profile.adults.push({ id: pbId(), name: '', work: '' }); save(); renderPanel(); }
-  else if (d.deladult) { store.profile.adults.splice(+d.deladult, 1); save(); renderPanel(); }
 });
 document.addEventListener('submit', e => {
   if (e.target.id === 'shForm') { e.preventDefault(); const v = $('#shIn').value; if (v.trim()) addShopItem(v); }
@@ -312,7 +275,6 @@ document.addEventListener('submit', e => {
 document.addEventListener('change', e => {
   const el = e.target;
   if (el.dataset.adult != null) { store.profile.adults[+el.dataset.adult][el.dataset.k] = el.value.trim(); save(); }
-  if (el.id === 'meSel') { store.profile.me = el.value; save(); }
   if (el.dataset.erf) {
     const [id, k] = el.dataset.erf.split('|'), x = store.errands.find(r => r.id === id);
     if (k === 'link') { const u = el.value.trim() ? cleanUrl(el.value.trim()) : ''; if (u === null) return toast('Der Link sieht nicht richtig aus.'); x.link = u; }
