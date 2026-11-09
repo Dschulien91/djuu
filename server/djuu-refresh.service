@@ -1,0 +1,11 @@
+[Unit]
+Description=Djuu nightly event refresh (see /opt/djuu/refresh.sh)
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/djuu/refresh.sh
+# never let a hanging provider block the next night
+TimeoutStartSec=3h
+Nice=10

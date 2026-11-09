@@ -1,0 +1,12 @@
+[Unit]
+Description=Djuu event refresh every night at 04:00 German time
+
+[Timer]
+# 04:00 in Hamburg, summer and winter time handled by systemd
+OnCalendar=*-*-* 04:00:00 Europe/Berlin
+# runs after a downtime if 04:00 was missed
+Persistent=true
+RandomizedDelaySec=5min
+
+[Install]
+WantedBy=timers.target

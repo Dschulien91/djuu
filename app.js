@@ -1,4 +1,4 @@
-/* Djuu v0.28 – family map for Hamburg.
+/* Djuu v0.29 – family map for Hamburg.
    The map owns the screen: one chip row floats on top, map buttons on the right, the sheet starts as a slim bar.
    The chip row drills down one level at a time: Erleben or Service, then categories, then the tags of a category.
    A tapped pin opens a small card; search and favorites live in the bottom bar. Default view: playgrounds.
@@ -7,7 +7,7 @@
    User input is stored on this device only until the server exists (server-ready shape, see STORE). */
 'use strict'; // i18n-skip
 
-const VERSION = '0.28';
+const VERSION = '0.29';
 const CONTACT = window.DJUU_CONTACT || {}; // config.js: reports and feedback stay hidden until an address is set
 // Logo on light backgrounds, as specified in the design PDF.
 const LOGO = `<span class="logo" role="img" aria-label="djuu"><span style="color:#6B4EE6">d</span><span style="color:#0E8F84">j</span><span style="color:#D6336C">u</span><span style="color:#CC6A00">u</span>
@@ -1846,12 +1846,11 @@ function ferienView() {
     <p class="note">${state === 'Hamburg' ? '' : tl('Die Ferien gelten für euer Bundesland, die Orte liegen in Hamburg. ')}${tl('Sortiert nach Djuu-Tipps und Entfernung')}${kids.length ? tl(', passend zum Alter, soweit bekannt') : ''}.</p>`;
 }
 const DATA_AT = { offers: null };
-// "Termine aktualisiert heute, 05:12 Uhr": when the events were last collected
+// "Termine aktualisiert heute": the day the events were last collected (no time: it runs every night at 4)
 function freshText() {
   if (!DATA_AT.offers) return '';
   const d = new Date(DATA_AT.offers), days = Math.round((today0() - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 864e5);
-  const time = d.toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' });
-  return days === 0 ? tl('heute, {time} Uhr', { time }) : days === 1 ? tl('gestern, {time} Uhr', { time }) : tl('am {date}', { date: d.toLocaleDateString(LOCALE, { day: 'numeric', month: 'long' }) });
+  return days === 0 ? tl('heute') : days === 1 ? tl('gestern') : tl('am {date}', { date: d.toLocaleDateString(LOCALE, { day: 'numeric', month: 'long' }) });
 }
 const freshHtml = () => DATA_AT.offers ? `<p class="fresh">${svg('check')}${tl('Termine aktualisiert')} ${esc(freshText())}</p>` : '';
 function savedView() {
