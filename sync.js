@@ -37,15 +37,15 @@ const SPECS = {
     local: () => store.profile.adults.map(a => ({ ...a, _kind: 'adult' })).concat(store.profile.kids.filter(k => !k.remote).map(k => ({ ...k, _kind: 'kid' })), (store.profile.dogList || []).map(d => ({ ...d, _kind: 'dog' }))),
     key: x => x.id, newId: x => x.id,
     // group, admin, access and e-mail are not in here: only the admin changes them, through /api/djuu/member
-    payload: x => ({ name: (x.name || '').slice(0, 30) || (x._kind === 'kid' ? tl('Kind') : x._kind === 'dog' ? '' : tl('Erwachsene*r')), kind: x._kind, birth_ym: x.ym || '', birth_day: (String(x.ym || '').length === 7 && +x.d) || 0, birth_approx: !!x.approx, school: x.school || '', size: x.size || '', shoe: x.shoe || '', work: x.work || '', role: x.role || '' }),
+    payload: x => ({ name: (x.name || '').slice(0, 30) || (x._kind === 'kid' ? tl('Kind') : x._kind === 'dog' ? '' : tl('Erwachsene*r')), kind: x._kind, birth_ym: x.ym || '', birth_day: (String(x.ym || '').length === 7 && +x.d) || 0, birth_approx: !!x.approx, school: x.school || '', size: x.size || '', shoe: x.shoe || '', work: x.work || '', role: x.role || '', color: x.color || '', photo: x.photo || '' }),
     keep: s => s.account, // members with an account leave only by deleting their account
     setAll(rs) {
-      const kid = r => ({ id: r.id, name: r.name, ym: r.birth_ym, d: r.birth_day ? String(r.birth_day) : '', approx: !!r.birth_approx, school: r.school, size: r.size, shoe: r.shoe });
+      const kid = r => ({ id: r.id, name: r.name, ym: r.birth_ym, d: r.birth_day ? String(r.birth_day) : '', approx: !!r.birth_approx, school: r.school, size: r.size, shoe: r.shoe, color: r.color || '', photo: r.photo || '' });
       const lvl = v => v || 'edit';
-      store.profile.adults = rs.filter(r => r.kind === 'adult').map(r => ({ id: r.id, name: r.name, work: r.work, role: r.role || '', account: !!r.user, user: r.user || '', grp: r.grp || 'family', admin: !!r.is_admin,
+      store.profile.adults = rs.filter(r => r.kind === 'adult').map(r => ({ id: r.id, name: r.name, work: r.work, role: r.role || '', color: r.color || '', photo: r.photo || '', account: !!r.user, user: r.user || '', grp: r.grp || 'family', admin: !!r.is_admin,
         perms: { shop: lvl(r.perm_shop), errands: lvl(r.perm_errands), cal: lvl(r.perm_cal), saved: lvl(r.perm_saved) }, until: r.access_until ? String(r.access_until).slice(0, 10) : '', email: r.email || '', at: when(r.created) }));
       store.profile.kids = rs.filter(r => r.kind === 'kid').map(kid).concat(store.profile.kids.filter(k => k.remote)); // helpers: ages from helperKids()
-      store.profile.dogList = rs.filter(r => r.kind === 'dog').map(r => ({ id: r.id, name: r.name || '' })); // helpers get none
+      store.profile.dogList = rs.filter(r => r.kind === 'dog').map(r => ({ id: r.id, name: r.name || '', photo: r.photo || '' })); // helpers get none
     },
     shadowExtra: r => ({ account: !!r.user }),
   },
@@ -182,6 +182,10 @@ async function loadAll() {
   }
   store.profile.me = auth.member;
   await helperKids();
+  try { const f = await api('GET', `/api/collections/families/records/${auth.family}`); auth.familyName = f.name; store.wirPhoto = f.photo || ''; writeJson(AUTH_KEY, auth); } catch (e) { /* keep */ }
+  // news: what others created since this phone last looked (the first time only remembers the moment)
+  if (store.newsSince) for (const coll of ['shop_items', 'errands', 'saved_offers', 'members']) for (const r of (data[coll] || [])) if (when(r.created) > store.newsSince) newsFromRecord(coll, r);
+  store.newsSince = Date.now(); holidayNews(); assignColors();
   saveShadow(); saveLocal();
   await loadPings();
 }
@@ -191,13 +195,14 @@ function connectRealtime() {
   es = new EventSource(API + '/api/realtime');
   es.addEventListener('PB_CONNECT', async e => {
     try {
-      await api('POST', '/api/realtime', { clientId: JSON.parse(e.data).clientId, subscriptions: COLLS.concat('pings') });
+      await api('POST', '/api/realtime', { clientId: JSON.parse(e.data).clientId, subscriptions: COLLS.concat('pings', 'families') });
       SY.online = true;
       if (SY.connectedBefore) { await flush(); await loadAll(); rerender(); } // events may have been missed while away
       SY.connectedBefore = true;
     } catch (x) { /* retried on the next connect */ }
   });
   for (const coll of COLLS) es.addEventListener(coll, e => applyRemote(coll, JSON.parse(e.data)));
+  es.addEventListener('families', e => { const { action, record } = JSON.parse(e.data); if (action === 'update' && record.id === auth?.family) { auth.familyName = record.name; store.wirPhoto = record.photo || ''; writeJson(AUTH_KEY, auth); saveLocal(); rerender(); } });
   es.addEventListener('pings', e => { const { action, record } = JSON.parse(e.data); SY.pings = SY.pings.filter(p => p.id !== record.id); if (action !== 'delete') SY.pings.unshift(record); showPingBar(); });
 }
 // Server records as last seen, per collection; local data = these plus own changes still waiting in the outbox.
@@ -221,6 +226,9 @@ function applyRemote(coll, { action, record }) {
   if (action !== 'delete') RECS[coll].push(record);
   if (outbox.some(o => o.coll === coll && o.id === record.id)) return; // our own change is still on its way and wins
   spec.setAll(withPending(coll));
+  if (action === 'create') newsFromRecord(coll, record);
+  if (coll === 'members') assignColors();
+  store.newsSince = Date.now();
   const k = spec.recordKey ? spec.recordKey(record) : record.id;
   if (action === 'delete') delete sh[k];
   else { const x = spec.local().find(x => spec.key(x) === k); if (x) sh[k] = { id: record.id, p: JSON.stringify(spec.payload(x)), ...(spec.shadowExtra ? spec.shadowExtra(record) : {}) }; }
@@ -337,7 +345,7 @@ function logout(silent) {
   if (es) { es.close(); es = null; }
   auth = null; outbox = []; shadow = {}; SY.pings = [];
   writeJson(AUTH_KEY, null); writeJson(OUT_KEY, null); writeJson(SHADOW_KEY, null);
-  showPingBar(); if (!silent) toast(tl('Abgemeldet.'));
+  showPingBar(); if (typeof updateBell === 'function') updateBell(); if (!silent) toast(tl('Abgemeldet.'));
   rerender();
 }
 // the warning and the password are asked in Wir › Konto & Anmeldung (wir.js)
@@ -346,7 +354,7 @@ async function deleteAccount(password) {
   // nothing of the deleted account stays on this phone either
   Object.assign(store.shop, { items: [], history: {}, learned: {}, rank: {}, trips: 0, seq: [] });
   store.errands = []; store.savedOffers = []; store.favorites = []; store.favBy = {}; store.visits = {}; store.places = []; store.fit = null;
-  store.profile.adults = []; store.profile.kids = []; store.profile.dogList = []; store.kidPhotos = {}; store.onboarded = false;
+  store.profile.adults = []; store.profile.kids = []; store.profile.dogList = []; store.wirPhoto = ''; store.news = []; store.newsSince = 0; store.onboarded = false;
   logout(true); saveLocal();
 }
 

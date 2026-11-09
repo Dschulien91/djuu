@@ -20,7 +20,11 @@ store.places = store.places || [];
 if (!Array.isArray(store.profile.dogList)) store.profile.dogList = Array.from({ length: Math.max(0, Math.min(9, +store.profile.dogs || 0)) }, () => ({ id: pbId(), name: '' }));
 delete store.profile.dogs;
 store.favBy = store.favBy || {};
-store.kidPhotos = store.kidPhotos || {}; // children's photos stay on this device, never synced
+// photos belong to the person and are shared like the person (children: family group only); old phone-only photos move in
+if (store.kidPhotos) {
+  for (const x of store.profile.kids.concat(store.profile.dogList || [])) if (store.kidPhotos[x.id] && !x.photo) x.photo = store.kidPhotos[x.id];
+  delete store.kidPhotos;
+}
 for (const a of store.profile.adults) { a.grp = a.grp || 'family'; a.perms = a.perms || { ...DEFAULT_PERMS[a.grp] }; }
 // the old single "Zuhause" becomes the first of "Meine Orte"
 if (store.profile.home && !store.places.length) {
@@ -72,14 +76,15 @@ function setBirth(k, part, value) {
   k.approx = false; // what was entered now is what we know
   return true;
 }
+// a person: the photo with a ring in their colour, else the first letter on their colour (dark text on yellow)
 function avatarHtml(m, size = '') {
-  const photo = m.kid && store.kidPhotos[m.id];
-  return photo ? `<span class="av ${size}"><img src="${photo}" alt=""></span>` : `<span class="av ${size}" style="--c:${m.color}" aria-hidden="true">${esc((m.name || '?').slice(0, 1).toUpperCase())}</span>`;
+  return m.photo ? `<span class="av ring ${size}" style="--c:${m.color}"><img src="${m.photo}" alt=""></span>`
+    : `<span class="av ${size}" style="--c:${m.color};color:${onColor(m.color)}" aria-hidden="true">${esc((m.name || '?').slice(0, 1).toUpperCase())}</span>`;
 }
 const adultById = id => store.profile.adults.find(a => a.id === id);
 const dogs = () => store.profile.dogList || [];
 const dogName = d => d.name || tl('Hund');
-const dogAv = (d, size = '') => store.kidPhotos[d.id] ? `<span class="av dog ${size}" aria-hidden="true"><img src="${store.kidPhotos[d.id]}" alt=""></span>` : `<span class="av dog ${size}" aria-hidden="true">${svg('paw')}</span>`;
+const dogAv = (d, size = '') => d.photo ? `<span class="av dog ring ${size}" style="--c:var(--sun)"><img src="${d.photo}" alt=""></span>` : `<span class="av dog ${size}" aria-hidden="true">${svg('paw')}</span>`;
 // dogs, like children, can be added and changed by the family group (not by helpers)
 const canEditFamily = () => isAdmin() || meAdult()?.grp === 'family';
 const kidById = id => store.profile.kids.find(k => k.id === id);
@@ -120,7 +125,9 @@ function wirHub() {
   const person = m => `<button type="button" class="avbtn" data-wirperson="${m.id}" aria-label="${esc(m.name)}">${avatarHtml(m)}</button>`;
   const humans = ms.filter(m => !m.kid && adultById(m.id)?.grp !== 'helper').concat(ms.filter(m => m.kid), ms.filter(m => !m.kid && adultById(m.id)?.grp === 'helper')).map(person);
   const pets = dogs().map(d => `<button type="button" class="avbtn dogav" data-wirdog="${d.id}" aria-label="${esc(dogName(d))}">${dogAv(d)}<small>${esc(dogName(d))}</small></button>`);
-  const slots = isAdmin() ? 5 : 6, all = humans.length + pets.length; // one row on a phone, the add button included
+  // as many avatars as fit in one row (52 px each, the line before the dogs, the add button), then "+N"
+  const width = ($('#panelBody')?.clientWidth || 360) - 32 - 28 - (pets.length ? 12 : 0);
+  const slots = Math.max(3, Math.floor((width + 8) / 52) - (isAdmin() ? 1 : 0)), all = humans.length + pets.length;
   const over = all > slots, room = over ? slots - 1 : all, h = Math.min(humans.length, room), dg = room - h;
   const more = over ? [`<button type="button" class="avbtn" data-wir="people" aria-label="${tl('Alle anzeigen')}"><span class="av more">+${all - room}</span></button>`] : [];
   const shown = humans.slice(0, h).concat(dg ? [`<span class="avsep" aria-hidden="true"></span>`].concat(pets.slice(0, dg)) : [], more);
@@ -129,8 +136,7 @@ function wirHub() {
   const tile = (open, icon, title, n_) => `<button type="button" class="tile" data-wir="${open}"><span class="navic">${svg(icon)}</span>${n_ ? `<span class="n">${n_}</span>` : ''}<b>${title}</b><small>${signedIn() ? tl('Gemeinsam') : tl('Auf diesem Gerät')}</small></button>`;
   const placesSub = store.places.filter(p => p.mine !== false).map(p => tl(p.name)).slice(0, 3).join(', ');
   const me = meAdult();
-  return `<div class="wirhead"><h2>${tl('Wir')}<span class="sub">${esc(auth.familyName || tl('Deine Familie in Djuu'))}</span></h2>
-      <button type="button" class="round" data-wir="bell" aria-label="${tl('Benachrichtigungen')}">${svg('bell')}</button></div>
+  return `${wirHeadHtml()}
     ${expired(me) && signedIn() ? hint(tl('Dein Zugang ist abgelaufen. Der Admin kann ihn verlängern.')) : ''}
     <div class="card people"><div class="cardhead"><h4>${tl('Personen')}</h4><button type="button" class="linkbtn" data-wir="people">${tl('Verwalten')}</button></div>
       <div class="avrow">${shown.join('')}
@@ -146,14 +152,49 @@ function wirHub() {
       ${navRow('about', 'info', tl('Über Djuu'), tl('Feedback, Rechtliches, Version'))}</div>`;
 }
 
+// the head of the Wir: its photo (76 px) or first letter, the name, and what I am here
+const wirName = () => auth?.familyName || tl('Euer Wir');
+const adminColor = () => (members().find(m => adultById(m.id)?.admin) || members()[0])?.color || MEMBER_COLORS[0];
+function wirAvatar(size = 'xl') {
+  return store.wirPhoto ? `<span class="av ring ${size}" style="--c:${adminColor()}"><img src="${store.wirPhoto}" alt=""></span>`
+    : `<span class="av ${size}" style="--c:${adminColor()};color:${onColor(adminColor())}" aria-hidden="true">${esc(wirName().slice(0, 1).toUpperCase())}</span>`;
+}
+function wirHeadHtml() {
+  const me = meAdult(), admin = isAdmin();
+  const what = admin ? tl('Du bist Admin') : me?.grp === 'helper' ? (me.role ? tl(me.role) : tl('Helfer:in')) : tl('Familie');
+  return `<div class="wirtop"><span class="photobox">${wirAvatar()}${admin ? `<button type="button" class="cambtn" data-lookphoto="wir|" aria-label="${tl('Foto des Wir ändern')}">${svg('camera')}</button>` : ''}</span>
+    <span class="wirtx">${admin ? `<button type="button" class="wirname${wirName().length > 18 ? ' long' : ''}" data-wir="wirname" aria-label="${tl('Namen des Wir ändern')}">${esc(wirName())}</button>` : `<b class="wirname${wirName().length > 18 ? ' long' : ''}">${esc(wirName())}</b>`}<small>${esc(what)}</small></span></div>`;
+}
+function wirNameView() {
+  return `${head(tl('Name des Wir'))}<form id="wirNameForm"><div class="field"><label for="wirNameIn">${tl('Name')}</label><input id="wirNameIn" maxlength="60" value="${esc(wirName())}" required></div>
+    <p class="note">${tl('Zum Beispiel „Annas Wir“ oder „Familie Schulz“. Alle im Wir sehen ihn.')}</p>
+    <div class="stick"><button type="submit" class="btn big primary">${tl('Speichern')}</button></div></form>`;
+}
+// photo, name and colour of one entry: the big avatar with the camera, and how others will see the person
+function looksTop(x, kind, nameField) {
+  const m = kind === 'dog' ? null : members().find(y => y.id === x.id) || { ...x, color: x.color || MEMBER_COLORS[0] };
+  const edit = kind === 'dog' ? canEditFamily() : canEditLooks(x), av = kind === 'dog' ? dogAv(x, 'xl') : avatarHtml(m, 'xl');
+  return `<div class="looktop"><span class="photobox">${av}${edit ? `<button type="button" class="cambtn" data-lookphoto="${kind}|${x.id}" aria-label="${tl('Foto ändern')}">${svg('camera')}</button>` : ''}</span>
+      ${edit ? `<button type="button" class="linkbtn strong" data-lookphoto="${kind}|${x.id}">${x.photo ? tl('Foto ändern') : tl('Foto hinzufügen')} · ${tl('freiwillig')}</button>` : ''}</div>
+    ${nameField}
+    ${kind !== 'dog' && edit ? `<div class="field"><label>${tl('Farbe')} <small class="muted">${tl('Gilt für Listen, Filter und Kalender')}</small></label>${colorPicker(x.id, m.color)}</div>
+      <div class="field"><label>${tl('So sieht man {name}', { name: esc(m.name) })}</label>
+        <div class="previewrow" style="--c:${m.color}"><span class="navtx"><b>${tl('Babyschwimmen')}</b><small>${tl('Mi · 10:00')} · ${esc(m.name)}</small></span>${avatarHtml(m, 'xs')}</div></div>` : ''}
+    <p class="note">${kind === 'kid' ? tl('Das Foto von {name} sehen nur Mitglieder der Familie.', { name: esc(x.name || tl('Kind')) }) : kind === 'dog' ? tl('Das Foto sehen nur Mitglieder der Familie.') : tl('Alle im Wir sehen das Foto.')}</p>`;
+}
+
 // ---------- First steps (name is the only thing that is needed) ----------
 function onboardingView() {
   const dots = `<div class="dots" aria-label="${tl('Schritt')} ${W.onb} / 3">${[1, 2, 3].map(i => `<i class="${i === W.onb ? 'on' : ''}"></i>`).join('')}</div>`;
   const me = meAdult();
   if (W.onb === 1) {
-    return `${dots}<h2 class="big">${tl('Wer bist du?')}</h2><p class="muted text">${tl('Damit deine Familie dich erkennt.')}</p>
+    const c = me?.color || MEMBER_COLORS[0], av = { name: me?.name || '?', color: c, photo: me?.photo };
+    return `${dots}<h2 class="big">${tl('Wer bist du?')}</h2>
+      <div class="looktop"><span class="photobox" id="onbAv">${avatarHtml(av, 'xl')}<button type="button" class="cambtn" data-lookphoto="me|" aria-label="${tl('Foto hinzufügen')}">${svg('camera')}</button></span>
+        <button type="button" class="linkbtn strong" data-lookphoto="me|">${me?.photo ? tl('Foto ändern') : tl('Foto hinzufügen')} · ${tl('freiwillig')}</button></div>
       <div class="field"><label for="onbName">${tl('Vorname oder Spitzname')}</label><input id="onbName" maxlength="30" autocomplete="given-name" value="${esc(me?.name || '')}"></div>
       <div class="field"><label>${tl('Deine Rolle')} <small class="muted">${tl('Freiwillig')}</small></label>${chipRow(ROLES_ME, me?.role, 'data-onbrole')}</div>
+      <div class="field"><label>${tl('Deine Farbe')} <small class="muted">${tl('So erkennt dich deine Familie in Listen und Filtern')}</small></label>${colorPicker('me', c)}</div>
       <div class="stick"><button type="button" class="btn big primary" data-onb="2"${W.busy ? ' disabled' : ''}>${tl('Weiter')}</button></div>`;
   }
   if (W.onb === 2) {
@@ -247,10 +288,11 @@ function personView(id) {
   const m = members().find(x => x.id === id), i = store.profile.adults.indexOf(a), self = id === meId();
   const admin = isAdmin(), canEditAccess = admin && !a.admin, canEditName = admin || self;
   const invited = a.at ? new Date(a.at).toLocaleDateString(LOCALE, { day: 'numeric', month: 'short' }) : '';
-  return `${head(esc(a.name || tl('Person')), esc(a.role ? tl(a.role) : (a.grp === 'helper' ? tl('Helfer:in') : tl('Familie'))))}
-    <div class="card who">${avatarHtml(m, 'lg')}<span class="navtx"><b>${a.account || !signedIn() && self ? tl('Eigener Zugang') : tl('Ohne eigenen Zugang')}</b>
-      <small>${[invited && `${a.account ? tl('Eingeladen am') : tl('Eingetragen am')} ${invited}`, a.email].filter(Boolean).map(esc).join(' · ') || (a.admin ? tl('Admin dieses Wir') : '')}</small></span></div>
-    ${canEditName ? `<div class="field"><label for="pName">${tl('Vorname oder Spitzname')}</label><input id="pName" data-adult="${i}" data-k="name" maxlength="30" value="${esc(a.name || '')}"></div>
+  const access = a.account ? tl('eigener Zugang') : tl('ohne eigenen Zugang');
+  return `${head(tl('{name} bearbeiten', { name: esc(a.name || tl('Person')) }), `${esc(a.grp === 'helper' ? tl('Helfer:in') : tl('Familie'))} · ${access}`)}
+    ${looksTop(a, 'adult', canEditName ? `<div class="field"><label for="pName">${tl('Vorname oder Spitzname')}</label><input id="pName" data-adult="${i}" data-k="name" maxlength="30" value="${esc(a.name || '')}"></div>` : '')}
+    <p class="note">${[invited && `${a.account ? tl('Eingeladen am') : tl('Eingetragen am')} ${invited}`, a.email].filter(Boolean).map(esc).join(' · ') || (a.admin ? tl('Admin dieses Wir') : '')}</p>
+    ${canEditName ? `
       <div class="field"><label>${tl('Rolle')} <small class="muted">${tl('Freiwillig')}</small></label>${chipRow(a.grp === 'helper' ? ROLES_HELPER : self ? ROLES_ME : ROLES_FAMILY, a.role, 'data-prole')}</div>
       <div class="field"><label for="pWork">${tl('Arbeitszeiten')} <small class="muted">${tl('Freiwillig')}</small></label><input id="pWork" data-adult="${i}" data-k="work" maxlength="60" placeholder="${tl('z. B. Mo–Fr 8–16')}" value="${esc(a.work || '')}"></div>` : ''}
     <div class="sec"><h4>${tl('Zugang')}<small>${a.admin ? tl('Admins sehen und bearbeiten alles.') : admin ? `${tl('Du bestimmst als Admin, was')} ${esc(a.name || tl('diese Person'))} ${tl('sieht')}` : tl('Nur der Admin kann das ändern.')}</small></h4>
@@ -260,34 +302,30 @@ function personView(id) {
       (a.until ? `<div class="field"><input id="pUntil" data-puntildate="${id}" type="date" value="${esc(a.until)}" aria-label="${tl('Endet am')}"></div>` : '') : ''}
     ${admin && signedIn() && a.account && a.grp !== 'helper' && !self ? toggleRow(`data-padmin="${id}"`, !!a.admin, tl('Zweiter Admin'), tl('Darf Personen einladen und den Zugang ändern')) : ''}
     ${signedIn() && a.account && !self ? `<button type="button" class="btn wide" data-syask="${id}">${svg('pin')}${tl('Fragen: Wo bist du?')}</button><p class="note">${tl('Die Person entscheidet selbst, ob sie ihren Standort einmal schickt. Er wird nach 24 Stunden gelöscht.')}</p>` : ''}
-    ${admin && !self ? `<button type="button" class="btn wide danger" data-premove="${id}">${tl('Person entfernen')}</button>` : ''}`;
+    ${admin && !self ? `<button type="button" class="btn wide danger" data-premove="${id}">${tl('Person entfernen')}</button>` : ''}
+    <div class="stick"><button type="button" class="btn big primary" data-looksave="1">${tl('Speichern')}</button></div>`;
 }
 function kidView(k) {
-  const i = store.profile.kids.indexOf(k), m = members().find(x => x.id === k.id), photo = store.kidPhotos[k.id];
+  const i = store.profile.kids.indexOf(k), m = members().find(x => x.id === k.id);
   if (k.remote) return `${head(esc(k.name || tl('Kind')), esc(kidAgeText(k)))}<div class="card who">${avatarHtml(m, 'lg')}<span class="navtx"><b>${tl('Kind')}</b><small>${tl('Kinderdaten bleiben in der Familie. Du siehst nur Name und Alter.')}</small></span></div>`;
-  return `${head(esc(k.name || tl('Kind')), esc(kidAgeText(k)))}
-    <div class="card who">${avatarHtml(m, 'lg')}<span class="navtx"><b>${tl('Kind')}</b><small>${tl('Nur ein Eintrag, kein Zugang')}</small></span>
-      <label class="btn sm">${svg('camera')}${photo ? tl('Foto ändern') : tl('Foto (optional)')}<input type="file" accept="image/*" data-kidphoto="${k.id}" hidden></label></div>
-    ${photo ? `<p class="note">${tl('Das Foto bleibt nur auf diesem Handy und wird nicht geteilt.')} <button type="button" class="linkbtn" data-kidphotodel="${k.id}">${tl('Entfernen')}</button></p>` : `<p class="note">${tl('Ein Foto bleibt nur auf diesem Handy und wird nicht geteilt.')}</p>`}
-    <div class="field"><label for="kName">${tl('Vorname oder Spitzname')}</label><input id="kName" data-kid="${i}" data-k="name" maxlength="20" value="${esc(k.name || '')}"></div>
+  return `${head(tl('{name} bearbeiten', { name: esc(k.name || tl('Kind')) }), `${tl('Kind')} · ${tl('nur ein Eintrag, kein Zugang')} · ${esc(kidAgeText(k))}`)}
+    ${looksTop(k, 'kid', `<div class="field"><label for="kName">${tl('Vorname oder Spitzname')}</label><input id="kName" data-kid="${i}" data-k="name" maxlength="20" value="${esc(k.name || '')}"></div>`)}
     ${k.approx ? hint(tl('Das Alter ist ungefähr. Mit dem Geburtsdatum passen die Vorschläge genauer.')) : ''}
     ${birthHtml(i, k)}
     <div class="field"><label for="kSchool">${tl('Kita oder Schule')}</label><input id="kSchool" data-kid="${i}" data-k="school" maxlength="60" placeholder="${tl('Kita oder Schule, Klasse')}" value="${esc(k.school || '')}"></div>
     <div class="kidline"><div class="field"><label for="kSize">${tl('Kleidergröße')}</label><input id="kSize" data-kid="${i}" data-k="size" maxlength="12" placeholder="104" value="${esc(k.size || '')}"></div>
       <div class="field"><label for="kShoe">${tl('Schuhgröße')}</label><input id="kShoe" data-kid="${i}" data-k="shoe" maxlength="8" placeholder="28" value="${esc(k.shoe || '')}"></div></div>
     <p class="note">${tl('Die Größen stehen bei Besorgungen für dieses Kind.')}</p>
-    ${isAdmin() || meAdult()?.grp === 'family' ? `<button type="button" class="btn wide danger" data-kidremove="${k.id}">${tl('Eintrag entfernen')}</button>` : ''}`;
+    ${isAdmin() || meAdult()?.grp === 'family' ? `<button type="button" class="btn wide danger" data-kidremove="${k.id}">${tl('Eintrag entfernen')}</button>` : ''}
+    <div class="stick"><button type="button" class="btn big primary" data-looksave="1">${tl('Speichern')}</button></div>`;
 }
 
 function dogView() {
   const d = dogs().find(x => x.id === view().id);
   if (!d) return `${head(tl('Hund'))}<div class="empty"><b>${tl('Diesen Eintrag gibt es nicht mehr.')}</b></div>`;
   const i = dogs().indexOf(d), edit = canEditFamily();
-  const photo = store.kidPhotos[d.id];
-  return `${head(esc(dogName(d)), tl('Hund'))}<div class="card who">${dogAv(d, 'lg')}<span class="navtx"><b>${tl('Hund')}</b><small>${tl('Nur ein Eintrag, kein Zugang')}</small></span>
-      ${edit ? `<label class="btn sm">${svg('camera')}${photo ? tl('Foto ändern') : tl('Foto (optional)')}<input type="file" accept="image/*" data-kidphoto="${d.id}" hidden></label>` : ''}</div>
-    ${photo ? `<p class="note">${tl('Das Foto bleibt nur auf diesem Handy und wird nicht geteilt.')}${edit ? ` <button type="button" class="linkbtn" data-kidphotodel="${d.id}">${tl('Entfernen')}</button>` : ''}</p>` : edit ? `<p class="note">${tl('Ein Foto bleibt nur auf diesem Handy und wird nicht geteilt.')}</p>` : ''}
-    ${edit ? `<div class="field"><label for="dName">${tl('Name')} <small class="muted">${tl('freiwillig')}</small></label><input id="dName" data-dogname="${i}" maxlength="30" value="${esc(d.name)}"></div>` : ''}
+  return `${head(tl('{name} bearbeiten', { name: esc(dogName(d)) }), `${tl('Hund')} · ${tl('nur ein Eintrag, kein Zugang')}`)}
+    ${looksTop(d, 'dog', edit ? `<div class="field"><label for="dName">${tl('Name')} <small class="muted">${tl('freiwillig')}</small></label><input id="dName" data-dogname="${i}" maxlength="30" value="${esc(d.name)}"></div>` : '')}
     <p class="note">${tl('Mit einem Hund im Wir zeigt Djuu bei Orten und Terminen, ob Hunde erlaubt sind, und im Filter „Mit Hund“.')}</p>
     ${edit ? `<button type="button" class="btn wide danger" data-dogdel="${d.id}">${tl('Eintrag entfernen')}</button>` : ''}`;
 }
@@ -367,7 +405,7 @@ function gemerktView() {
         <span class="savedside">${ro ? svg('heart') : `<button type="button" class="hearton" data-fav="${p.id}" aria-label="${tl('Nicht mehr merken')}">${svg('heart')}</button>`}${mark(b)}</span></li>`).join('')}</ol>`
       : `<div class="empty"><b>${tl('Noch keine Orte gemerkt.')}</b>${tl('Tippe bei einem Ort auf das Herz. Gemerkte Orte siehst du auch auf der Karte.')}</div>`;
   } else {
-    body = offers.length ? `<ol class="savedlist">${offers.map(([d, o, s]) => `<li class="savedcard ev"><button type="button" class="savedmain" data-offer="${esc(o.id)}"><span class="datebox"><b>${d.getDate()}</b><small>${esc(d.toLocaleDateString(LOCALE, { month: 'short' }))}</small></span><span class="navtx"><b>${esc(titleOf(o))}</b><small>${esc([fmtDay(d), o.time_from && o.time_from + tl(' Uhr'), o.venue].filter(Boolean).join(' · '))}</small></span></button>
+    body = offers.length ? `<ol class="savedlist">${offers.map(([d, o, s]) => `<li class="savedcard ev" style="--c:${by(s.by)?.color || 'transparent'}"><button type="button" class="savedmain" data-offer="${esc(o.id)}"><span class="datebox"><b>${d.getDate()}</b><small>${esc(d.toLocaleDateString(LOCALE, { month: 'short' }))}</small></span><span class="navtx"><b>${esc(titleOf(o))}</b><small>${esc([fmtDay(d), o.time_from && o.time_from + tl(' Uhr'), o.venue].filter(Boolean).join(' · '))}</small></span></button>
         <span class="savedside">${ro ? svg('heart') : `<button type="button" class="hearton" data-saveoffer="${esc(o.id)}" aria-label="${tl('Nicht mehr merken')}">${svg('heart')}</button>`}${mark(s.by)}</span>
         <div class="savedacts"><button type="button" class="chip" data-ics="${esc(o.id)}">${svg('cal')}${tl('Zum Kalender')}</button><button type="button" class="chip${W.remind === o.id ? ' on' : ''}" data-remind="${esc(o.id)}">${svg('bell')}${tl('Erinnerung')}</button></div>
         ${W.remind === o.id ? `<div class="savedacts"><span class="muted">${tl('Erinnern:')}</span><button type="button" class="chip" data-remindat="${esc(o.id)}|P1D">${tl('1 Tag vorher')}</button><button type="button" class="chip" data-remindat="${esc(o.id)}|PT1H">${tl('1 Stunde vorher')}</button></div>` : ''}</li>`).join('')}</ol>
@@ -387,7 +425,10 @@ function settingsView() {
     ${signedIn() && perm('cal') !== 'none' ? navRow('calsub', 'cal', tl('Familienkalender'), tl('In der Kalender-App abonnieren')) : ''}
     ${navRow('account', 'user', tl('Konto & Anmeldung'), tl('E-Mail, Abmelden'))}</div>`;
 }
-const bellView = () => `${head(tl('Benachrichtigungen'))}<div class="empty"><b>${tl('Noch keine Mitteilungen.')}</b>${tl('Hier erscheinen bald Erinnerungen an gemerkte Termine und Neuigkeiten aus eurem Wir.')}</div>`;
+// Einstellungen › Benachrichtigungen: which news come today; choosing them comes later
+const bellView = () => `${head(tl('Benachrichtigungen'))}<p class="text">${tl('Neuigkeiten findest du über die Glocke auf der Karte. Im Moment meldet Djuu:')}</p>
+  <div class="card navlist">${['shop', 'errands', 'saved', 'wir', 'tipp'].map(k => { const [l, ic, c] = NEWS_AREAS[k]; return `<div class="navrow static"><span class="newsic" style="--c:${c}">${svg(ic)}</span><span class="navtx"><b>${l}</b><small>${{ shop: tl('Wenn jemand etwas auf die Einkaufsliste setzt'), errands: tl('Wenn jemand eine Besorgung plant'), saved: tl('Wenn jemand einen Termin merkt'), wir: tl('Wenn jemand eurem Wir beitritt'), tipp: tl('Zwei Wochen vor den Schulferien') }[k]}</small></span></div>`; }).join('')}</div>
+  <p class="note">${tl('Bald kannst du hier selbst wählen, welche Meldungen kommen. Mitteilungen aufs Handy fragt Djuu erst, wenn es Sinn ergibt.')}</p>`;
 const mapSetView = () => `${head(tl('Karte'), tl('Standardansicht'))}<div class="stylegrid">${MAP_STYLES.map(m => m.sec ? `<p class="stylesec">${esc(m.sec)}</p>` : `<button type="button" class="stylecard${mapStyle().id === m.id ? ' on' : ''}" data-mapstyle="${m.id}"><img src="icons/maps/${m.id}.jpg" alt="" loading="lazy" width="150" height="100"><span>${esc(m.label)}</span></button>`).join('')}</div>
   <p class="note">${tl('Alle Kartenstile sind kostenlos und brauchen kein Konto.')}</p>`;
 const langView = () => `${head(tl('Sprache'), 'Language')}<div class="card navlist">${Object.entries(LANGS).map(([c, n]) => `<button type="button" class="navrow" data-setlang="${c}"><span class="navtx"><b>${esc(n)}</b></span>${c === LANG ? svg('check') : ''}</button>`).join('')}</div>
@@ -427,12 +468,12 @@ function closeWelcome(next) {
 }
 
 // ---------- Rendering ----------
-const WIR_PAGES = { dog: dogView, guest: guestInfoView, register: registerView, verify: verifyView, login: loginView, forgot: forgotView, newpw: newPwView, invite: inviteView, join: joinView,
+const WIR_PAGES = { news: () => newsView(), wirname: wirNameView, dog: dogView, guest: guestInfoView, register: registerView, verify: verifyView, login: loginView, forgot: forgotView, newpw: newPwView, invite: inviteView, join: joinView,
   pwchange: pwChangeView, emailchange: emailChangeView, emailconfirm: emailConfirmView, delete: deleteView, people: peopleView, add: addPersonView, places: placesView, place: placeEditView, fit: fitView, settings: settingsView, bell: bellView, mapset: mapSetView, lang: langView, calsub: calSubView, account: accountView, about: aboutView, shop: () => listView_('shop'), errands: () => listView_('errands') };
 // every page fills the sheet, so the main button sits at the bottom like on the phone screens
 function wirRender(v) {
   // pages that need an account show the sign-in instead (for example after signing out on another page)
-  const needsAccount = v.type === 'person' || ['dog', 'people', 'add', 'places', 'place', 'fit', 'shop', 'errands', 'calsub', 'pwchange', 'emailchange', 'delete'].includes(v.page);
+  const needsAccount = v.type === 'person' || ['news', 'wirname', 'dog', 'people', 'add', 'places', 'place', 'fit', 'shop', 'errands', 'calsub', 'pwchange', 'emailchange', 'delete'].includes(v.page);
   const html = needsAccount && !auth?.family && !(hasToken() && ['pwchange', 'emailchange', 'delete'].includes(v.page)) ? loginView()
     : v.type === 'me' ? wirHub() : v.type === 'favs' ? gemerktView() : v.type === 'person' ? personView(v.id) : (WIR_PAGES[v.page] || wirHub)();
   return `<div class="pagewrap">${html}</div>`;
@@ -476,18 +517,6 @@ async function removePerson(id) {
   store.profile.adults = store.profile.adults.filter(x => x.id !== id);
   save(); back();
 }
-// resize a photo to a small square on this device; it never leaves the phone
-function readPhoto(file, id) {
-  const img = new Image(), url = URL.createObjectURL(file);
-  img.onload = () => {
-    const s = 192, c = document.createElement('canvas'), k = Math.min(img.width, img.height);
-    c.width = c.height = s;
-    c.getContext('2d').drawImage(img, (img.width - k) / 2, (img.height - k) / 2, k, k, 0, 0, s, s);
-    store.kidPhotos[id] = c.toDataURL('image/jpeg', .82); URL.revokeObjectURL(url); save(); renderPanel();
-  };
-  img.onerror = () => toast(tl('Dieses Bild lässt sich nicht öffnen.'));
-  img.src = url;
-}
 function finishOnboarding() { store.onboarded = true; save(); W.onb = 1; renderPanel(); }
 
 // ---------- Interaction ----------
@@ -501,6 +530,12 @@ document.addEventListener('click', e => {
     go({ type: 'wir', page: d.wir });
   }
   else if (d.wirperson) go({ type: 'person', id: d.wirperson });
+  else if (d.lookphoto) openLooksPhoto(d.lookphoto);
+  else if (d.color) {
+    const [key, c] = d.color.split('|'), x = key === 'me' ? ensureMe() : adultById(key) || kidById(key);
+    if (x && (key === 'me' || canEditLooks(x))) { x.color = c; save(); renderPanel(); }
+  }
+  else if (d.looksave) { back(); toast(tl('Gespeichert.')); }
   else if (d.wirdog) go({ type: 'wir', page: 'dog', id: d.wirdog });
   else if (d.adddog) {
     if (d.adddog === 'inline') { store.profile.dogList.push({ id: pbId(), name: '' }); save(); renderPanel(); }
@@ -508,7 +543,7 @@ document.addEventListener('click', e => {
   }
   else if (d.dogdel) {
     if (view().page === 'dog' && !confirm(tl('Diesen Eintrag entfernen?'))) return;
-    store.profile.dogList = dogs().filter(x => x.id !== d.dogdel); delete store.kidPhotos[d.dogdel]; save();
+    store.profile.dogList = dogs().filter(x => x.id !== d.dogdel); save();
     if (view().page === 'dog') back(); else renderPanel();
   }
   else if (d.welcome) closeWelcome(d.welcome);
@@ -551,8 +586,7 @@ document.addEventListener('click', e => {
   }
   else if (d.prole) { const a = adultById(view().id); if (a) { a.role = a.role === d.prole ? '' : d.prole; save(); renderPanel(); } }
   else if (d.premove) removePerson(d.premove);
-  else if (d.kidremove) { if (!confirm(tl('Diesen Eintrag entfernen?'))) return; store.profile.kids = store.profile.kids.filter(k => k.id !== d.kidremove); delete store.kidPhotos[d.kidremove]; save(); back(); }
-  else if (d.kidphotodel) { delete store.kidPhotos[d.kidphotodel]; save(); renderPanel(); }
+  else if (d.kidremove) { if (!confirm(tl('Diesen Eintrag entfernen?'))) return; store.profile.kids = store.profile.kids.filter(k => k.id !== d.kidremove); save(); back(); }
   else if (d.placeedit) {
     const p = store.places.find(x => x.id === d.placeedit);
     W.place = p ? { ...p } : { id: '', name: store.places.some(x => x.name === tl('Zuhause')) ? '' : tl('Zuhause'), plz: '', address: '', shared: false, def: !store.places.some(x => x.def) };
@@ -583,12 +617,48 @@ document.addEventListener('click', e => {
   else if (d.remindat) { const [id, at] = d.remindat.split('|'); downloadIcs([OFFER_BY_ID.get(id)], 'djuu-erinnerung.ics', at); W.remind = null; renderPanel(); }
   else if (d.setlang) { store.lang = d.setlang; save(); location.reload(); }
 });
+// the photo sheet for the Wir, my own entry (first step) or a person, child or dog
+function openLooksPhoto(key) {
+  const [kind, id] = key.split('|');
+  if (kind === 'wir') {
+    return photoSheet({ title: tl('Foto von {name}', { name: wirName() }), hint: tl('Alle im Wir sehen es'), avatar: wirAvatar('md'), hasPhoto: !!store.wirPhoto,
+      onPhoto: url => setWirLooks({ photo: url }), onRemove: () => setWirLooks({ photo: '' }) });
+  }
+  const x = kind === 'me' ? ensureMe() : kind === 'dog' ? dogs().find(y => y.id === id) : adultById(id) || kidById(id);
+  if (!x) return;
+  const name = kind === 'dog' ? dogName(x) : x.name || '';
+  const av = kind === 'dog' ? dogAv(x, 'md') : avatarHtml(members().find(y => y.id === x.id) || { ...x, color: x.color || MEMBER_COLORS[0] }, 'md');
+  photoSheet({ title: kind === 'me' ? tl('Dein Foto') : tl('Foto von {name}', { name }), hint: kind === 'kid' || kind === 'dog' ? tl('Nur die Familie sieht es') : tl('Alle im Wir sehen es'),
+    avatar: av, hasPhoto: !!x.photo, selfie: kind === 'me' || x.id === meId(),
+    onPhoto: url => { x.photo = url; save(); renderPanel(); }, onRemove: () => { x.photo = ''; save(); renderPanel(); } });
+}
+// photo and name of the Wir live on the server (only the admin may change them)
+async function setWirLooks(body) {
+  try { await api('PATCH', `/api/collections/families/records/${auth.family}`, body); }
+  catch (e) { return toast(!e.status ? tl('Keine Verbindung. Bitte später noch einmal.') : [400, 403, 404].includes(e.status) ? tl('Nur der Admin kann das ändern.') : tl('Das hat nicht geklappt.')); }
+  if ('photo' in body) store.wirPhoto = body.photo;
+  if ('name' in body) { auth.familyName = body.name; writeJson(AUTH_KEY, auth); }
+  save(); renderPanel();
+}
+
 // the person using this phone: created on the first step if there is none yet
 function ensureMe() {
   let me = meAdult();
   if (!me) { me = { id: pbId(), name: '', work: '', grp: 'family', perms: { ...DEFAULT_PERMS.family }, admin: true }; store.profile.adults.unshift(me); store.profile.me = me.id; }
   return me;
 }
+document.addEventListener('submit', e => {
+  if (e.target.id !== 'wirNameForm') return;
+  e.preventDefault();
+  const n = $('#wirNameIn').value.trim();
+  if (n) setWirLooks({ name: n.slice(0, 60) }).then(() => back());
+});
+document.addEventListener('input', e => {
+  if (e.target.id !== 'onbName') return;
+  const me = meAdult(), box = $('#onbAv .av:not(.ring)');
+  if (box) box.textContent = (e.target.value.trim() || '?').slice(0, 1).toUpperCase();
+  if (me) me.name = e.target.value.trim();
+});
 document.addEventListener('change', e => {
   const el = e.target, d = el.dataset;
   if (d.perm) {
@@ -610,7 +680,6 @@ document.addEventListener('change', e => {
     if (k && setBirth(k, part, el.value) && key !== 'new') { save(); renderTop(); }
     renderPanel();
   }
-  else if (d.kidphoto && el.files[0]) readPhoto(el.files[0], d.kidphoto);
   else if (el.id === 'plName' && W.place) W.place.name = el.value.trim();
   else if (el.id === 'plPlz' && W.place) W.place.plz = el.value.trim();
   else if (el.id === 'plAddr' && W.place) W.place.address = el.value.trim();

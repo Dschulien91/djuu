@@ -7,21 +7,29 @@
 // ---------- Members ----------
 // ids in the server's format (15 lowercase letters and digits), so items need no renaming when the family is shared
 function pbId() { const a = 'abcdefghijklmnopqrstuvwxyz0123456789', b = crypto.getRandomValues(new Uint8Array(15)); return Array.from(b, x => a[x % 36]).join(''); }
-const MEMBER_COLORS = ['#6B4EE6', '#0E8F84', '#D6336C', '#CC6A00', '#1971C2', '#2F9E44', '#9C36B5'];
+// the six person colours: Viola, Petrol, Rosa, Orange, Gelb, Nachtblau. Text on yellow is dark.
+const MEMBER_COLORS = ['#6B4EE6', '#0E8F84', '#D6336C', '#CC6A00', '#FFD166', '#1F1B4D'];
+const onColor = c => c === '#FFD166' ? '#1F1B4D' : '#FFFFFF';
+const textOn = c => c === '#FFD166' ? '#8A6100' : c; // the colour as text on white
 store.profile.adults = store.profile.adults || [];
 for (const k of store.profile.kids) k.id = k.id || pbId();
 for (const a of store.profile.adults) a.id = a.id || pbId();
 save();
+// everyone with their own colour (chosen or given automatically, see looks.js) and photo
 function members() {
   const pr = store.profile;
-  return pr.adults.map((a, i) => ({ id: a.id, name: a.name || `${tl('Erwachsene*r')} ${i + 1}`, kid: false }))
-    .concat(pr.kids.map((k, i) => ({ id: k.id, name: k.name || `${tl('Kind')} ${i + 1}`, kid: true, size: k.size, shoe: k.shoe })))
-    .map((m, i) => ({ ...m, color: MEMBER_COLORS[i % MEMBER_COLORS.length] }));
+  const list = pr.adults.map((a, i) => ({ id: a.id, name: a.name || `${tl('Erwachsene*r')} ${i + 1}`, kid: false, color: a.color, photo: a.photo || '' }))
+    .concat(pr.kids.map((k, i) => ({ id: k.id, name: k.name || `${tl('Kind')} ${i + 1}`, kid: true, size: k.size, shoe: k.shoe, color: k.color, photo: k.photo || '' })));
+  // people whose colour is not stored yet get a free one for display, the same on every phone
+  const used = new Set(list.map(m => m.color).filter(c => MEMBER_COLORS.includes(c)));
+  let n = 0;
+  for (const m of list) if (!MEMBER_COLORS.includes(m.color)) { m.color = MEMBER_COLORS.find(c => !used.has(c)) || MEMBER_COLORS[n++ % MEMBER_COLORS.length]; used.add(m.color); }
+  return list;
 }
 const memberById = id => members().find(m => m.id === id);
 // who is using this device: chosen in "Wir", else the first adult
 const meId = () => (memberById(store.profile.me) && store.profile.me) || store.profile.adults[0]?.id || null;
-const byLine = id => { const m = id && memberById(id); return m ? `<span class="by" style="--c:${m.color}">${esc(m.name)}</span>` : ''; };
+const byLine = id => { const m = id && memberById(id); return m ? `<span class="by" style="--c:${textOn(m.color)}">${esc(m.name)}</span>` : ''; };
 
 // ---------- Shopping: supermarket ----------
 // Categories in the order most German supermarkets put them; the app learns the order of your shop from how you tick items off.
