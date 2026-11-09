@@ -165,7 +165,14 @@ def run():
 
 OFFER_COLS = ['id', 'title', 'kind', 'topic', 'age_min_m', 'age_max_m', 'for_parents', 'weekday', 'time_from', 'time_to',
               'start_date', 'end_date', 'sessions', 'schedule', 'price', 'free', 'registration', 'venue', 'address',
-              'lat', 'lon', 'place_id', 'url', 'provider', 'source_id', 'audience', 'district']
+              'lat', 'lon', 'place_id', 'url', 'provider', 'source_id', 'audience', 'district', 'dogs']
+
+# Dogs at events, set by hand (the importers replace the offers table every night, this table stays):
+# 'auch' = explicitly also with a dog (walks, dog meadows), 'ja' = dogs allowed, 'leine' = on a lead only, 'nein' = no dogs.
+# Events without an entry take the rule of their place in the app.
+DOGS_SCHEMA = """CREATE TABLE IF NOT EXISTS offer_dogs (
+  offer_id TEXT PRIMARY KEY, dogs TEXT NOT NULL CHECK (dogs IN ('auch', 'ja', 'leine', 'nein')), note TEXT, set_at TEXT
+)"""
 
 # Who takes part: 'kinder' (children, also together with a parent) or 'erwachsene' (adults only, not always parents).
 ADULT_TOPICS = {'geburtsvorbereitung', 'rueckbildung', 'beratung', 'erste_hilfe', 'eltern_thema'}
@@ -189,7 +196,9 @@ def export_offers(con, places, sidx, dup_of=None):
     from merge import similar
     ensure(con)
     today = now()[:10]
-    cols = OFFER_COLS[:-2]  # 'audience' and 'district' are computed here
+    cols = OFFER_COLS[:-3]  # 'audience', 'district' and 'dogs' are added here
+    con.execute(DOGS_SCHEMA)
+    dogs = dict(con.execute('SELECT offer_id, dogs FROM offer_dogs').fetchall())
     stadtteil = stadtteil_finder()
     pos = {p[0]: (p[3], p[4]) for p in places}
     rows = con.execute(f"SELECT {','.join(cols)} FROM offers WHERE COALESCE(end_date, start_date, '9999') >= ?", (today,)).fetchall()
@@ -227,6 +236,7 @@ def export_offers(con, places, sidx, dup_of=None):
         la, lo = pos.get(o['place_id'], (o['lat'], o['lon']))
         o['district'] = stadtteil(la, lo) if la and lo else None
         o['source_id'] = sidx.get(o['source_id'], -1)
+        o['dogs'] = dogs.get(o['id'])
         out.append([o[c] for c in OFFER_COLS])
     path = ROOT / 'data' / 'offers.json'
     path.write_text(json.dumps({'version': 1, 'generated': now(), 'cols': OFFER_COLS, 'offers': out}, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')

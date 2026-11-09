@@ -16,6 +16,9 @@ const FIT_TAGS = [tl('Alleinerziehend'), tl('Regenbogenfamilie'), tl('Zwei Zuhau
 const PLACE_NAMES = [tl('Zuhause'), tl('Arbeit'), tl('Kita'), tl('Oma & Opa')];
 
 store.places = store.places || [];
+// dogs are entries in the Wir (a name is optional); an old count ("Hunde in der Familie: 2") becomes that many entries
+if (!Array.isArray(store.profile.dogList)) store.profile.dogList = Array.from({ length: Math.max(0, Math.min(9, +store.profile.dogs || 0)) }, () => ({ id: pbId(), name: '' }));
+delete store.profile.dogs;
 store.favBy = store.favBy || {};
 store.kidPhotos = store.kidPhotos || {}; // children's photos stay on this device, never synced
 for (const a of store.profile.adults) { a.grp = a.grp || 'family'; a.perms = a.perms || { ...DEFAULT_PERMS[a.grp] }; }
@@ -74,6 +77,11 @@ function avatarHtml(m, size = '') {
   return photo ? `<span class="av ${size}"><img src="${photo}" alt=""></span>` : `<span class="av ${size}" style="--c:${m.color}" aria-hidden="true">${esc((m.name || '?').slice(0, 1).toUpperCase())}</span>`;
 }
 const adultById = id => store.profile.adults.find(a => a.id === id);
+const dogs = () => store.profile.dogList || [];
+const dogName = d => d.name || tl('Hund');
+const dogAv = (d, size = '') => `<span class="av dog ${size}" aria-hidden="true">${svg('paw')}</span>`;
+// dogs, like children, can be added and changed by the family group (not by helpers)
+const canEditFamily = () => isAdmin() || meAdult()?.grp === 'family';
 const kidById = id => store.profile.kids.find(k => k.id === id);
 function badgeOf(a) {
   if (a.admin) return [tl('Admin'), ''];
@@ -107,7 +115,13 @@ function wirHub() {
   if (!store.onboarded) return onboardingView();
   const ms = members(), kids = ms.filter(m => m.kid), adults = store.profile.adults;
   const fam = adults.filter(a => a.grp !== 'helper').length, help = adults.filter(a => a.grp === 'helper').length;
-  const count = [fam && `${fam} ${tl('Familie')}`, kids.length && `${kids.length} ${kids.length === 1 ? tl('Kind') : tl('Kinder')}`, help && `${help} ${help === 1 ? tl('Helfer:in') : tl('Helfer:innen')}`].filter(Boolean).join(' · ');
+  const nd = dogs().length;
+  const count = [fam && `${fam} ${tl('Familie')}`, kids.length && `${kids.length} ${kids.length === 1 ? tl('Kind') : tl('Kinder')}`, help && `${help} ${help === 1 ? tl('Helfer:in') : tl('Helfer:innen')}`, nd && `${nd} ${nd === 1 ? tl('Hund') : tl('Hunde')}`].filter(Boolean).join(' · ');
+  const order = ms.filter(m => !m.kid && adultById(m.id)?.grp !== 'helper').concat(ms.filter(m => m.kid)).map(m => `<button type="button" class="avbtn" data-wirperson="${m.id}" aria-label="${esc(m.name)}">${avatarHtml(m)}</button>`)
+    .concat(dogs().map(d => `<button type="button" class="avbtn dogav" data-wirdog="${d.id}" aria-label="${esc(dogName(d))}">${dogAv(d)}<small>${esc(dogName(d))}</small></button>`))
+    .concat(ms.filter(m => !m.kid && adultById(m.id)?.grp === 'helper').map(m => `<button type="button" class="avbtn" data-wirperson="${m.id}" aria-label="${esc(m.name)}">${avatarHtml(m)}</button>`));
+  const slots = isAdmin() ? 5 : 6; // one row on a phone, the add button included
+  const shown = order.length > slots ? order.slice(0, slots - 1).concat(`<button type="button" class="avbtn" data-wir="people" aria-label="${tl('Alle anzeigen')}"><span class="av more">+${order.length - slots + 1}</span></button>`) : order;
   const shop = perm('shop'), err = perm('errands');
   const n = openItems().length, e = store.errands.filter(x => x.state !== 'gekauft').length;
   const tile = (open, icon, title, n_) => `<button type="button" class="tile" data-wir="${open}"><span class="navic">${svg(icon)}</span>${n_ ? `<span class="n">${n_}</span>` : ''}<b>${title}</b><small>${signedIn() ? tl('Gemeinsam') : tl('Auf diesem Gerät')}</small></button>`;
@@ -117,7 +131,7 @@ function wirHub() {
       <button type="button" class="round" data-wir="bell" aria-label="${tl('Benachrichtigungen')}">${svg('bell')}</button></div>
     ${expired(me) && signedIn() ? hint(tl('Dein Zugang ist abgelaufen. Der Admin kann ihn verlängern.')) : ''}
     <div class="card people"><div class="cardhead"><h4>${tl('Personen')}</h4><button type="button" class="linkbtn" data-wir="people">${tl('Verwalten')}</button></div>
-      <div class="avrow">${ms.map(m => `<button type="button" class="avbtn" data-wirperson="${m.id}" aria-label="${esc(m.name)}">${avatarHtml(m)}</button>`).join('')}
+      <div class="avrow">${shown.join('')}
         ${isAdmin() ? `<button type="button" class="avbtn" data-wir="add" aria-label="${tl('Person hinzufügen')}"><span class="av add">${svg('plus')}</span></button>` : ''}</div>
       <p class="note">${count || tl('Noch niemand eingetragen.')}</p></div>
     ${shop !== 'none' || err !== 'none' ? `<div class="tiles">${shop !== 'none' ? tile('shop', 'cart', tl('Einkauf'), n) : ''}${err !== 'none' ? tile('errands', 'list', tl('Besorgungen'), e) : ''}</div>` : ''}
@@ -147,6 +161,9 @@ function onboardingView() {
         ${birthHtml(i, k, false)}</div>`).join('')}
       ${store.profile.kids.length ? `<p class="note">${tl('Geburtsdatum: Nur das Jahr ist Pflicht. Je genauer, desto besser passen die Vorschläge.')}</p>` : ''}
       <button type="button" class="linkbtn plus" data-addkid="1">${svg('plus')}${tl('Kind hinzufügen')}</button>
+      <div class="field"><label>${tl('Habt ihr einen Hund?')} <small class="muted">${tl('freiwillig')}</small></label>
+        ${dogs().map((d, i) => `<div class="dogline">${dogAv(d)}<input data-dogname="${i}" value="${esc(d.name)}" placeholder="${tl('Name (freiwillig)')}" maxlength="30" aria-label="${tl('Name')}"><button type="button" class="round sm" data-dogdel="${d.id}" aria-label="${tl('Entfernen')}">${svg('close')}</button></div>`).join('')}
+        <button type="button" class="linkbtn plus" data-adddog="inline">${svg('plus')}${tl('Hund hinzufügen')}</button></div>
       <div class="field"><label for="onbPlz">${tl('Wo seid ihr zuhause?')} <small class="muted">${tl('freiwillig')}</small></label>
         <input id="onbPlz" inputmode="numeric" maxlength="5" placeholder="20251" value="${esc(home?.plz || '')}"><p class="note">${tl('Nur die Postleitzahl. Eine Adresse brauchen wir nicht.')}</p></div>
       <div class="stick"><button type="button" class="btn big primary" data-onb="3">${tl('Weiter')}</button><button type="button" class="btn ghost" data-onb="3" data-skip="1">${tl('Überspringen')}</button></div>`;
@@ -175,23 +192,30 @@ function peopleView() {
   return `${head(tl('Personen'), `${tl('Wir')} · ${ms.length} ${ms.length === 1 ? tl('Person') : tl('Personen')}`)}
     ${group(tl('Familie'), tl('Mit eigenem Zugang'), adults.filter(a => a.grp !== 'helper').map(adultRow))}
     ${group(tl('Kinder'), tl('Nur ein Eintrag, kein Zugang'), kids.map(m => { const k = kidById(m.id); return row(m, kidAgeText(k) + (k.approx && !k.remote ? ` · ${tl('Geburtsdatum ergänzen')}` : ''), null); }))}
+    ${meAdult()?.grp === 'helper' ? '' : `<div class="sec"><h4>${tl('Hunde')}<small>${tl('Für Hinweise, wo Hunde erlaubt sind')}</small></h4>
+      ${dogs().length ? `<ol class="card plist">${dogs().map(d => `<li><button type="button" class="prow" data-wirdog="${d.id}">${dogAv(d)}<span class="navtx"><b>${esc(dogName(d))}</b></span>${svg('next')}</button></li>`).join('')}</ol>` : ''}
+      ${canEditFamily() ? `<button type="button" class="linkbtn plus" data-adddog="1">${svg('plus')}${tl('Hund hinzufügen')}</button>` : ''}</div>`}
     ${group(tl('Helfer:innen'), tl('Du bestimmst, was sie sehen'), adults.filter(a => a.grp === 'helper').map(adultRow))}
     ${moreAboutHtml()}
     ${isAdmin() ? `<div class="stick"><button type="button" class="btn big primary" data-wir="add">${svg('plus')}${tl('Person hinzufügen')}</button></div>` : ''}`;
 }
-// family details that are not people: baby on the way, school holidays, dogs (kept from before)
+// family details that are not people: baby on the way, school holidays (kept from before)
 function moreAboutHtml() {
   const pr = store.profile;
   return `<details class="fold"><summary>${tl('Mehr über euch')} <small class="muted">${tl('freiwillig')}</small></summary>
     <div class="field"><label for="expecting">${tl('Baby unterwegs? Errechneter Termin (optional)')}</label><input id="expecting" type="date" value="${esc(pr.expecting || '')}" min="${ymd(today0())}"></div>
     <div class="field"><label for="fedState">${tl('Bundesland (für eure Schulferien)')}</label><select id="fedState">${Object.entries(STATES).map(([c, n]) => `<option value="${c}"${(pr.state || 'DE-HH') === c ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select></div>
-    <div class="field"><label for="dogs">${tl('Hunde in der Familie')}</label>
-      <div class="stepper"><button type="button" data-dogs="-1" aria-label="${tl('Weniger')}">–</button><b id="dogsN">${pr.dogs || 0}</b><button type="button" data-dogs="1" aria-label="${tl('Mehr')}">+</button></div></div></details>`;
+    </details>`;
 }
 
 function addPersonView() {
-  const A = W.add, seg = `<div class="segs" role="tablist">${[['family', tl('Familie')], ['kid', tl('Kind')], ['helper', tl('Helfer:in')]].map(([g, l]) =>
+  const A = W.add, seg = `<div class="segs" role="tablist">${[['family', tl('Familie')], ['kid', tl('Kind')], ['dog', tl('Hund')], ['helper', tl('Helfer:in')]].map(([g, l]) =>
     `<button type="button" role="tab" aria-selected="${A.grp === g}" class="${A.grp === g ? 'on' : ''}" data-addgrp="${g}">${l}</button>`).join('')}</div>`;
+  if (A.grp === 'dog') {
+    return `${head(tl('Person hinzufügen'))}${seg}<p class="muted text">${tl('Mit einem Hund im Wir zeigt Djuu bei Orten und Terminen, ob Hunde erlaubt sind.')}</p>
+      <div class="field"><label for="addName">${tl('Name')} <small class="muted">${tl('freiwillig')}</small></label><input id="addName" maxlength="30" value="${esc(A.name)}"></div>
+      <div class="stick"><button type="button" class="btn big primary" data-addsave="dog">${tl('Speichern')}</button></div>`;
+  }
   if (A.grp === 'kid') {
     return `${head(tl('Person hinzufügen'))}${seg}<p class="muted text">${tl('Nur ein Eintrag für passende Vorschläge. Kinder haben keinen Zugang.')}</p>
       <div class="field"><label for="addName">${tl('Vorname oder Spitzname')}</label><input id="addName" maxlength="20" value="${esc(A.name)}"></div>
@@ -251,6 +275,16 @@ function kidView(k) {
       <div class="field"><label for="kShoe">${tl('Schuhgröße')}</label><input id="kShoe" data-kid="${i}" data-k="shoe" maxlength="8" placeholder="28" value="${esc(k.shoe || '')}"></div></div>
     <p class="note">${tl('Die Größen stehen bei Besorgungen für dieses Kind.')}</p>
     ${isAdmin() || meAdult()?.grp === 'family' ? `<button type="button" class="btn wide danger" data-kidremove="${k.id}">${tl('Eintrag entfernen')}</button>` : ''}`;
+}
+
+function dogView() {
+  const d = dogs().find(x => x.id === view().id);
+  if (!d) return `${head(tl('Hund'))}<div class="empty"><b>${tl('Diesen Eintrag gibt es nicht mehr.')}</b></div>`;
+  const i = dogs().indexOf(d), edit = canEditFamily();
+  return `${head(esc(dogName(d)), tl('Hund'))}<div class="card who">${dogAv(d, 'lg')}<span class="navtx"><b>${tl('Hund')}</b><small>${tl('Nur ein Eintrag, kein Zugang')}</small></span></div>
+    ${edit ? `<div class="field"><label for="dName">${tl('Name')} <small class="muted">${tl('freiwillig')}</small></label><input id="dName" data-dogname="${i}" maxlength="30" value="${esc(d.name)}"></div>` : ''}
+    <p class="note">${tl('Mit einem Hund im Wir zeigt Djuu bei Orten und Terminen, ob Hunde erlaubt sind, und im Filter „Mit Hund“.')}</p>
+    ${edit ? `<button type="button" class="btn wide danger" data-dogdel="${d.id}">${tl('Eintrag entfernen')}</button>` : ''}`;
 }
 
 // ---------- Meine Orte ----------
@@ -388,12 +422,12 @@ function closeWelcome(next) {
 }
 
 // ---------- Rendering ----------
-const WIR_PAGES = { guest: guestInfoView, register: registerView, verify: verifyView, login: loginView, forgot: forgotView, newpw: newPwView, invite: inviteView, join: joinView,
+const WIR_PAGES = { dog: dogView, guest: guestInfoView, register: registerView, verify: verifyView, login: loginView, forgot: forgotView, newpw: newPwView, invite: inviteView, join: joinView,
   pwchange: pwChangeView, emailchange: emailChangeView, emailconfirm: emailConfirmView, delete: deleteView, people: peopleView, add: addPersonView, places: placesView, place: placeEditView, fit: fitView, settings: settingsView, bell: bellView, mapset: mapSetView, lang: langView, calsub: calSubView, account: accountView, about: aboutView, shop: () => listView_('shop'), errands: () => listView_('errands') };
 // every page fills the sheet, so the main button sits at the bottom like on the phone screens
 function wirRender(v) {
   // pages that need an account show the sign-in instead (for example after signing out on another page)
-  const needsAccount = v.type === 'person' || ['people', 'add', 'places', 'place', 'fit', 'shop', 'errands', 'calsub', 'pwchange', 'emailchange', 'delete'].includes(v.page);
+  const needsAccount = v.type === 'person' || ['dog', 'people', 'add', 'places', 'place', 'fit', 'shop', 'errands', 'calsub', 'pwchange', 'emailchange', 'delete'].includes(v.page);
   const html = needsAccount && !auth?.family && !(hasToken() && ['pwchange', 'emailchange', 'delete'].includes(v.page)) ? loginView()
     : v.type === 'me' ? wirHub() : v.type === 'favs' ? gemerktView() : v.type === 'person' ? personView(v.id) : (WIR_PAGES[v.page] || wirHub)();
   return `<div class="pagewrap">${html}</div>`;
@@ -462,6 +496,16 @@ document.addEventListener('click', e => {
     go({ type: 'wir', page: d.wir });
   }
   else if (d.wirperson) go({ type: 'person', id: d.wirperson });
+  else if (d.wirdog) go({ type: 'wir', page: 'dog', id: d.wirdog });
+  else if (d.adddog) {
+    if (d.adddog === 'inline') { store.profile.dogList.push({ id: pbId(), name: '' }); save(); renderPanel(); }
+    else { W.add = { grp: 'dog', role: '', perms: null, until: '', name: '' }; go({ type: 'wir', page: 'add' }); }
+  }
+  else if (d.dogdel) {
+    if (view().page === 'dog' && !confirm(tl('Diesen Eintrag entfernen?'))) return;
+    store.profile.dogList = dogs().filter(x => x.id !== d.dogdel); save();
+    if (view().page === 'dog') back(); else renderPanel();
+  }
   else if (d.welcome) closeWelcome(d.welcome);
   else if (d.onbrole) { const me = ensureMe(); me.role = me.role === d.onbrole ? '' : d.onbrole; save(); renderPanel(); }
   else if (d.onb) {
@@ -494,6 +538,7 @@ document.addEventListener('click', e => {
       if (!A.ym) return toast(tl('Bitte mindestens das Geburtsjahr angeben.'));
       store.profile.kids.push({ id: pbId(), name, ym: A.ym, d: A.d || '' }); save(); back(); return;
     }
+    if (d.addsave === 'dog') { store.profile.dogList.push({ id: pbId(), name }); save(); back(); return; }
     if (d.addsave === 'invite') return sendInvite();
     if (!name) return toast(tl('Bitte gib einen Namen an.'));
     store.profile.adults.push({ id: pbId(), name, work: '', role: A.role, grp: A.grp, perms: { ...A.perms }, until: A.grp === 'helper' ? A.until : '', at: Date.now() });
@@ -551,6 +596,7 @@ document.addEventListener('change', e => {
   else if (d.puntil) setAccess(d.puntil, { until: el.checked ? ymd(addDays(today0(), 14)) : '' });
   else if (d.puntildate) setAccess(d.puntildate, { until: el.value });
   else if (d.padmin) { if (el.checked || confirm(tl('Admin-Rechte wirklich wegnehmen?'))) setAccess(d.padmin, { admin: el.checked }); else el.checked = true; }
+  else if (d.dogname != null) { const x = dogs()[+d.dogname]; if (x) { x.name = el.value.trim(); save(); } }
   else if (d.plshared) W.place.shared = el.checked;
   else if (d.pldef) W.place.def = el.checked;
   else if (d.birth) {

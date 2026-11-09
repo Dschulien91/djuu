@@ -7,7 +7,7 @@
    User input is stored on this device only until the server exists (server-ready shape, see STORE). */
 'use strict'; // i18n-skip
 
-const VERSION = '0.38';
+const VERSION = '0.39';
 const CONTACT = window.DJUU_CONTACT || {}; // config.js: reports and feedback stay hidden until an address is set
 // Logo on light backgrounds, as specified in the design PDF.
 const LOGO = `<span class="logo" role="img" aria-label="djuu"><span style="color:#6B4EE6">d</span><span style="color:#0E8F84">j</span><span style="color:#D6336C">u</span><span style="color:#CC6A00">u</span>
@@ -419,7 +419,7 @@ function filterVal(p, f) {
   const v = attrVal(p, f).v;
   return v === 'yes' || v === 'limited' ? true : v === 'no' ? false : null;
 }
-const relevantAttrs = p => ATTRS.filter(a => !a.groups || a.groups.includes(groupOf(p).id));
+const relevantAttrs = p => ATTRS.filter(a => (!a.groups || a.groups.includes(groupOf(p).id)) && (a.id !== 'hund' || hasDog()));
 
 // ---------- Data ----------
 function buildPlace(row) {
@@ -518,6 +518,22 @@ function ageText(a) {
 }
 function kidLabel(m) { return ageText({ min: m, max: m }); }
 const hasFamily = () => store.profile.kids.some(k => kidAge(k)) || !!store.profile.expecting;
+// Dogs of the Wir (Wir › Personen › Hunde). Without a dog, no dog hints, filters or symbols are shown anywhere.
+const hasDog = () => (store.profile.dogList || []).length > 0;
+const DOG_TEXT = { auch: tl('Auch mit Hund'), ja: tl('Hunde erlaubt'), leine: tl('Nur an der Leine'), nein: tl('Hunde nicht erlaubt') };
+// a place: what people told us, else OpenStreetMap (dog=yes / leashed / no ...); unknown -> null
+function dogOf(p) {
+  if (!p) return null;
+  const v = (userAnswers(p.id, 'hund')[0]?.v || p.f?.dog?.[0] || '').toLowerCase();
+  return /leash/.test(v) ? 'leine' : /^(yes|outside|offleash|unleashed)/.test(v) ? 'ja' : v === 'no' ? 'nein' : null;
+}
+// an event: marked by hand (offers.dogs), or what was entered with an own event, else the rule of its place
+function offerDog(o) {
+  if (o.dogs) return o.dogs;
+  if (o.own) { const v = o.attrs?.hund; return v === 'leashed' ? 'leine' : v === 'yes' ? 'ja' : v === 'no' ? 'nein' : null; }
+  return dogOf(o.place_id && byId.get(o.place_id));
+}
+const dogChip = v => hasDog() && v ? `<span class="dogchip ${v}">${svg('paw')}${esc(DOG_TEXT[v])}</span>` : '';
 // true = fits one of the children (or the pregnancy), false = fits none, null = no profile / no age info
 function offerFits(o) {
   if (!hasFamily()) return null;
@@ -929,7 +945,8 @@ function offerInArea(o) {
 const PROP_TAGS = new Set(Object.values(TAGS).flat().filter(t => t.p).map(t => t.id).concat('groessere'));
 function itemHtml(p, d) {
   const yes = [...p.tags].filter(t => PROP_TAGS.has(t)).slice(0, 2).map(t => `<span>${esc(TAG_LABEL[t])}</span>`)
-    .concat(relevantAttrs(p).filter(a => attrVal(p, a.id).v === 'yes' && ![...p.tags].some(t => PROP_TAGS.has(t) && TAG_LABEL[t] === a.label)).slice(0, 2).map(a => `<span>${esc(a.label)}</span>`)).join('');
+    .concat(dogChip(dogOf(p)) || [])
+    .concat(relevantAttrs(p).filter(a => a.id !== 'hund' && attrVal(p, a.id).v === 'yes' && ![...p.tags].some(t => PROP_TAGS.has(t) && TAG_LABEL[t] === a.label)).slice(0, 2).map(a => `<span>${esc(a.label)}</span>`)).join('');
   const ot = openText(p);
   return `<li><button type="button" class="item" data-id="${p.id}">${badge(p)}
     <span><h3>${esc(p.name)}${p.f.tipp ? ` <span class="tipdot" title="${tl('Djuu-Tipp')}">${svg('star', '')}</span>` : ''}</h3><span class="meta">${esc(CAT_LABEL[p.cat] || '')}${ot ? ' · ' + ot : ''}</span>${yes ? `<span class="mini">${yes}</span>` : ''}</span>
@@ -949,8 +966,8 @@ function showPlace(id, fromMap) {
 // small card for a tapped pin: the map stays visible, a tap opens the full page
 function cardView(id) {
   const p = byId.get(id), d = dist(origin(), [p.lat, p.lon]), fav = store.favorites.includes(id), ot = openText(p);
-  const yes = [...p.tags].filter(t => PROP_TAGS.has(t)).slice(0, 2).map(t => `<span>${esc(TAG_LABEL[t])}</span>`)
-    .concat(relevantAttrs(p).filter(a => attrVal(p, a.id).v === 'yes' && ![...p.tags].some(t => PROP_TAGS.has(t) && TAG_LABEL[t] === a.label)).slice(0, 2).map(a => `<span>${esc(a.label)}</span>`)).join('');
+  const yes = [...p.tags].filter(t => PROP_TAGS.has(t)).slice(0, 2).map(t => `<span>${esc(TAG_LABEL[t])}</span>`).concat(dogChip(dogOf(p)) || [])
+    .concat(relevantAttrs(p).filter(a => a.id !== 'hund' && attrVal(p, a.id).v === 'yes' && ![...p.tags].some(t => PROP_TAGS.has(t) && TAG_LABEL[t] === a.label)).slice(0, 2).map(a => `<span>${esc(a.label)}</span>`)).join('');
   return `<div class="pincard"><button type="button" class="pinmain" data-detail="${id}">${badge(p)}
       <span><h3>${esc(p.name)}${p.f.tipp ? ` <span class="tipdot" title="${tl('Djuu-Tipp')}">${svg('star', '')}</span>` : ''}</h3>
       <span class="meta">${esc(CAT_LABEL[p.cat] || '')}${ot ? ' · ' + ot : ''}${state.me ? ' · ' + fmtDist(d) : ''}</span>${yes ? `<span class="mini">${yes}</span>` : ''}</span></button>
@@ -973,8 +990,9 @@ async function detailView(id) {
   const d = dist(origin(), [p.lat, p.lon]);
   const fav = store.favorites.includes(id);
   const known = [];
-  for (const a of relevantAttrs(p)) { const r = attrVal(p, a.id); if (r.v) known.push([a, r]); }
-  for (const a of ATTRS) if (!relevantAttrs(p).includes(a) && attrVal(p, a.id).v) known.push([a, attrVal(p, a.id)]);
+  for (const a of relevantAttrs(p)) { const r = attrVal(p, a.id); if (r.v && a.id !== 'hund') known.push([a, r]); }
+  for (const a of ATTRS) if (a.id !== 'hund' && !relevantAttrs(p).includes(a) && attrVal(p, a.id).v) known.push([a, attrVal(p, a.id)]);
+  const dog = dogChip(dogOf(p));
   const reviews = store.reviews.filter(r => r.placeId === id && !store.reports.some(x => x.targetId === r.id));
   const avg = reviews.filter(r => r.stars).length ? (reviews.reduce((s, r) => s + (r.stars || 0), 0) / reviews.filter(r => r.stars).length).toFixed(1).replace('.', ',') : null;
   const ages = [...new Set(store.contributions.filter(c => c.placeId === id).flatMap(c => c.ages || []))];
@@ -985,7 +1003,7 @@ async function detailView(id) {
   const photos = await photoTags(store.contributions.filter(c => c.placeId === id).flatMap(c => c.photoIds || []).concat(reviews.flatMap(r => r.photoIds || [])));
   const extra = [
     f.description && esc(f.description[0]),
-    f.dog_rule && `<b>${esc(f.dog_rule[0])}</b>`,
+    hasDog() && f.dog_rule && `<b>${esc(f.dog_rule[0])}</b>`,
     f.water_status && `<b>${tl('Wasserqualität:')}</b> ${esc(f.water_status[0])}`,
     f.age_groups && `<b>${tl('Für Altersgruppen:')}</b> ${esc(f.age_groups[0])} ${tl('Jahre')}`,
     f.care_types && `${tl('Betreuung:')} ${esc(f.care_types[0])}`,
@@ -1022,7 +1040,7 @@ async function detailView(id) {
     ${stars ? `<div class="sec"><h4>${tl('Bewertung')}</h4><p class="text"><b class="stars-read">★ ${String(stars).replace('.', ',')}</b> ${tl('von 5')}${f.review_text ? `</p><p class="text">„${esc(f.review_text[0].slice(0, 280))}“` : ''}</p><p class="note">${tl('Von Nutzern über Mangrove, einer offenen Bewertungsplattform.')}</p></div>` : ''}
     ${photos ? `<div class="photos" style="margin-top:12px">${photos}</div>` : ''}
     <div class="sec"><h4>${tl('Auf einen Blick')}</h4>
-      ${known.length || p.gear || ages.length || p.tags.size ? `<div class="facts">${known.map(factChip).join('')}
+      ${known.length || dog || p.gear || ages.length || p.tags.size ? `<div class="facts">${dog}${known.map(factChip).join('')}
         ${[...p.tags].filter(t => t !== p.cat && TAG_LABEL[t]).map(t => `<span class="fact neutral">${esc(TAG_LABEL[t])}</span>`).join('')}
         ${p.gear ? GEAR.filter(g => p.gear.has(g.id)).map(g => `<span class="fact neutral">${esc(g.label)}</span>`).join('') : ''}
         ${ages.map(a => `<span class="fact neutral">${esc(AGES.find(x => x.id === a)?.label || a)}</span>`).join('')}</div>`
@@ -1121,12 +1139,13 @@ function filtersView() {
     const live = all.filter(x => state.filters.has(x.id) || count(x.id) > 0);
     const main = live.filter(x => state.filters.has(x.id) || CORE_FILTERS.has(x.id) || count(x.id) >= RARE_BELOW);
     rare.push(...live.filter(x => !main.includes(x)));
-    if (sorted) main.sort((a, b) => (store.profile.dogs > 0 ? (b.id === 'hund') - (a.id === 'hund') : 0) || CORE_FILTERS.has(b.id) - CORE_FILTERS.has(a.id) || count(b.id) - count(a.id));
+    if (sorted) main.sort((a, b) => (hasDog() ? (b.id === 'hund') - (a.id === 'hund') : 0) || CORE_FILTERS.has(b.id) - CORE_FILTERS.has(a.id) || count(b.id) - count(a.id));
     return main.length ? `<div class="sec"><h4>${title}</h4><div class="fgrid">${main.map(chipFor).join('')}</div></div>` : '';
   };
   const total = last.match.length + (state.showUnknown ? last.unknown.length : 0);
   const timeBlock = block(tl('Öffnungszeiten'), TIME_FILTERS);
-  const attrBlock = block(tl('Ausstattung'), ATTRS.filter(fits), true);
+  if (!hasDog()) state.filters.delete('hund');
+  const attrBlock = block(tl('Ausstattung'), ATTRS.filter(a => fits(a) && (a.id !== 'hund' || hasDog())), true);
   const ageBlock = !state.groups.size || ['spielen', 'entdecken', 'familie'].some(g => state.groups.has(g)) ? block(tl('Alter'), AGE_FILTERS.filter(a => !a.family || hasFamily())) : '';
   const gearBlock = !state.groups.size || state.groups.has('spielen') ? block(tl('Spielgeräte'), GEAR, true) : '';
   return `${head(tl('Filter'), state.groups.size ? tl('für ') + [...state.groups].map(g => GROUP[g].label).join(', ') : tl('für alle Orte'))}
@@ -1340,7 +1359,7 @@ function searchView() {
     <div id="searchHome"${state.sq ? ' hidden' : ''}>
       <div class="tools" style="margin-top:12px"><button type="button" class="tool${state.area.type !== 'all' ? ' on' : ''}" data-open="area">${svg('pin')}<span>${esc(areaLabel())}</span></button></div>
       ${MODES.map(catBlock).join('')}
-      <div class="sec"><h4>${tl('Schnelle Fragen')}</h4><ol class="list">${PRESETS.map(p => `<li><button type="button" class="item" data-preset="${p.id}"><span class="badge" style="--c:var(--brand)">${svg(p.icon, '')}</span><span><h3>${esc(p.label)}</h3></span><span></span></button></li>`).join('')}</ol></div>
+      <div class="sec"><h4>${tl('Schnelle Fragen')}</h4><ol class="list">${PRESETS.filter(p => hasDog() || !/hund/.test(p.id)).map(p => `<li><button type="button" class="item" data-preset="${p.id}"><span class="badge" style="--c:var(--brand)">${svg(p.icon, '')}</span><span><h3>${esc(p.label)}</h3></span><span></span></button></li>`).join('')}</ol></div>
       <button type="button" class="btn" data-group-all="1">${tl('Alle Orte zeigen')}</button>
     </div>`;
 }
@@ -1431,7 +1450,8 @@ const fitNames = () => familyAges().filter(k => k.months >= 0).map(k => `${k.nam
 const EV_SECTIONS = [
   { id: 'time', title: tl('Uhrzeit'), any: true, two: true, items: [['vormittag', tl('Vormittag'), o => hourOf(o) != null && hourOf(o) < 12], ['mittag', tl('Mittag'), o => hourOf(o) >= 12 && hourOf(o) < 15],
     ['nachmittag', tl('Nachmittag'), o => hourOf(o) >= 15 && hourOf(o) < 18], ['abend', tl('Abend'), o => hourOf(o) >= 18]] },
-  { id: 'aud', title: tl('Für wen'), any: true, items: [['kinder', tl('Für Kinder'), o => o.audience === 'kinder'], ['erwachsene', tl('Für Erwachsene'), o => o.audience === 'erwachsene']] },
+  { id: 'aud', title: tl('Für wen'), any: true, items: [['kinder', tl('Für Kinder'), o => o.audience === 'kinder'], ['erwachsene', tl('Für Erwachsene'), o => o.audience === 'erwachsene'],
+    ['hund', tl('Mit Hund'), o => ['auch', 'ja', 'leine'].includes(offerDog(o)), () => hasDog()]] },
   { id: 'age', title: tl('Alter'), any: true, two: true, show: () => EV.f.has('kinder'), note: tl('Nur Termine, bei denen der Anbieter ein Alter nennt.'),
     items: [['fit', () => tl('Passt zu ') + fitNames(), o => offerFits(o) === true, () => hasFamily() && familyAges().some(k => k.months >= 0)],
       ['a0', tl('bis 1'), ageIs(0, 12)], ['a1', '1–2', ageIs(12, 36)], ['a3', '3–5', ageIs(36, 72)], ['a6', '6–9', ageIs(72, 120)], ['a10', '10+', ageIs(120, 216)]] },
@@ -1460,7 +1480,7 @@ function evPass(o, skip) {
 // raw = without Wann/Wochentag, Ort and search (for which topics exist on this page at all)
 function evBase(raw = false, skipPlace = false) {
   const t = today0(), r = raw ? null : rangeOf(), p = EV.page;
-  const own = p === 'alle' || p === 'termin' ? store.events.map(e => ({ title: e.title, kind: 'termin', start_date: e.date, time_from: e.time, lat: e.lat, lon: e.lon, venue: tl('von dir eingetragen'), topic: 'sonstiges', own: true })) : [];
+  const own = p === 'alle' || p === 'termin' ? store.events.map(e => ({ title: e.title, kind: 'termin', start_date: e.date, time_from: e.time, lat: e.lat, lon: e.lon, venue: tl('von dir eingetragen'), topic: 'sonstiges', own: true, attrs: e.attrs })) : [];
   let list = OFFERS.filter(o => p === 'alle' || o.kind === p).concat(own)
     .map(o => [r ? firstIn(o, r[0], r[1]) : nextDate(o), o]).filter(([d]) => d && (r || d - t < (cardPage() ? 120 : 56) * 864e5));
   if (raw) return list;
@@ -1513,7 +1533,7 @@ function evTags(o, withRecurring) {
     o.registration === 'nötig' && `<span class="tag reg">${svg('edit')}${tl('Anmeldung nötig')}</span>`,
     o.registration === 'offen' && `<span class="tag ok">${svg('check')}${tl('ohne Anmeldung')}</span>`,
     o.registration === 'Warteliste' && `<span class="tag reg">${tl('Warteliste')}</span>`,
-    o.free === 1 && `<span>${tl('kostenlos')}</span>`].filter(Boolean).join('');
+    o.free === 1 && `<span>${tl('kostenlos')}</span>`, dogChip(offerDog(o))].filter(Boolean).join('');
 }
 const timeRange = o => o.time_from ? `${o.time_from}${o.time_to ? '–' + o.time_to : ''}` : '';
 // one row in a day list (Alle, Einmalig, Gemerkt)
@@ -1762,7 +1782,7 @@ function offerView(id) {
       ${o.schedule ? `<p class="note">${tl('Laut Anbieter:')} ${esc(o.schedule)}</p>` : ''}</div>
     <div class="sec"><h4>${tl('Wo')}</h4><p class="text">${esc(o.venue || '')}${o.address ? `<br>${esc(o.address)}` : ''}${d != null ? `<br><span class="muted">${fmtDist(d)} ${tl('von dir')}</span>` : ''}</p>
       ${place ? `<button type="button" class="btn" data-id="${place.id}">${svg('pin')}${tl('Auf der Karte')}</button>` : ''}</div>
-    <div class="sec"><h4>${tl('Für wen')}</h4><p class="text">${esc(who)}${fits === true ? ` · <b class="yes">${tl('passt zu euch')}</b>` : ''}</p></div>
+    <div class="sec"><h4>${tl('Für wen')}</h4><p class="text">${esc(who)}${fits === true ? ` · <b class="yes">${tl('passt zu euch')}</b>` : ''}</p>${dogChip(offerDog(o)) ? `<div class="facts">${dogChip(offerDog(o))}</div>` : ''}</div>
     <div class="sec"><h4>${tl('Kosten und Anmeldung')}</h4><p class="text">${o.free ? tl('Kostenlos') : o.price ? esc(o.price) : tl('Preis beim Anbieter')}${o.registration ? ' · ' + esc(REG_TEXT[o.registration] || o.registration) : ''}</p></div>
     <a class="btn big primary" href="${esc(o.url)}" target="_blank" rel="noopener" style="margin-top:16px">${tl('Zum Anbieter')}${o.registration === 'nötig' ? tl(' und anmelden') : ''}</a>
     <p class="note">${tl('Angaben vom Anbieter, ohne Gewähr. Änderungen und Absagen erfährst du dort.')}</p>`;
@@ -1922,9 +1942,11 @@ function startWizard({ place, type } = {}) {
 }
 const wizHeader = () => `<div class="progress"><span>${tl('Schritt')} ${Math.min(wiz.step, 3)} ${tl('von 3')}</span><div class="bar"><i style="width:${Math.min(wiz.step, 3) / 3 * 100}%"></i></div></div>`;
 function triRow(id) {
+  if (id === 'hund' && !hasDog()) return '';
   const a = wizAttr(id), v = wiz.data.attrs[id] || 'unknown';
+  const answers = id === 'hund' ? [['yes', tl('Ja')], ['leashed', tl('Leine')], ['no', tl('Nein')], ['unknown', tl('Weiß nicht')]] : [['yes', tl('Ja')], ['no', tl('Nein')], ['unknown', tl('Weiß nicht')]];
   return `<div class="tri"><span class="tri-label">${esc(a.label)}</span><span class="seg" role="radiogroup" aria-label="${esc(a.label)}">
-    ${[['yes', tl('Ja')], ['no', tl('Nein')], ['unknown', tl('Weiß nicht')]].map(([k, l]) => `<button type="button" role="radio" aria-checked="${v === k}" class="${v === k ? 'on ' + k : ''}" data-tri="${id}" data-v="${k}">${l}</button>`).join('')}
+    ${answers.map(([k, l]) => `<button type="button" role="radio" aria-checked="${v === k}" class="${v === k ? 'on ' + k : ''}" data-tri="${id}" data-v="${k}">${l}</button>`).join('')}
   </span></div>`;
 }
 function nameSuggestions(text) {
@@ -2180,7 +2202,6 @@ document.addEventListener('click', async e => {
   else if (ds.wx) { if (ds.wx === 'rain') { state.io = state.io === 'drinnen' ? null : 'drinnen'; state.preset = null; refresh(); } else { const pr = PRESETS.find(x => x.id === 'hitze'); state.preset = pr.id; state.groups = new Set(pr.groups); state.tags = new Set(pr.tags); state.cats.clear(); state.level = 1; refresh(); home(desktop() ? 'full' : 'peek'); } }
   else if (ds.addkid) { store.profile.kids.push({ id: pbId(), name: '', ym: '' }); save(); renderPanel(); setTimeout(() => $('#kidYm' + (store.profile.kids.length - 1))?.focus(), 50); }
   else if (ds.delkid) { store.profile.kids.splice(+ds.delkid, 1); save(); renderPanel(); }
-  else if (ds.dogs) { store.profile.dogs = Math.max(0, Math.min(9, (store.profile.dogs || 0) + +ds.dogs)); save(); $('#dogsN').textContent = store.profile.dogs; renderTop(); }
   else if (ds.report) { store.reports.push({ targetType: 'review', targetId: ds.report, at: Date.now() }); save(); toast('Auf diesem Gerät ausgeblendet.'); renderPanel(); }
   else if (ds.sos) go({ type: 'sos', kind: ds.sos });
 });

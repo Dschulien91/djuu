@@ -34,10 +34,10 @@ const memberRef = id => (isPbId(id) && members().some(m => m.id === id) ? id : '
 const OFFER_SNAP = ['title', 'url', 'venue', 'address', 'provider', 'kind', 'weekday', 'time_from', 'time_to', 'start_date', 'end_date'];
 const SPECS = {
   members: {
-    local: () => store.profile.adults.map(a => ({ ...a, _kind: 'adult' })).concat(store.profile.kids.filter(k => !k.remote).map(k => ({ ...k, _kind: 'kid' }))),
+    local: () => store.profile.adults.map(a => ({ ...a, _kind: 'adult' })).concat(store.profile.kids.filter(k => !k.remote).map(k => ({ ...k, _kind: 'kid' })), (store.profile.dogList || []).map(d => ({ ...d, _kind: 'dog' }))),
     key: x => x.id, newId: x => x.id,
     // group, admin, access and e-mail are not in here: only the admin changes them, through /api/djuu/member
-    payload: x => ({ name: (x.name || '').slice(0, 30) || (x._kind === 'kid' ? tl('Kind') : tl('Erwachsene*r')), kind: x._kind, birth_ym: x.ym || '', birth_day: (String(x.ym || '').length === 7 && +x.d) || 0, birth_approx: !!x.approx, school: x.school || '', size: x.size || '', shoe: x.shoe || '', work: x.work || '', role: x.role || '' }),
+    payload: x => ({ name: (x.name || '').slice(0, 30) || (x._kind === 'kid' ? tl('Kind') : x._kind === 'dog' ? '' : tl('Erwachsene*r')), kind: x._kind, birth_ym: x.ym || '', birth_day: (String(x.ym || '').length === 7 && +x.d) || 0, birth_approx: !!x.approx, school: x.school || '', size: x.size || '', shoe: x.shoe || '', work: x.work || '', role: x.role || '' }),
     keep: s => s.account, // members with an account leave only by deleting their account
     setAll(rs) {
       const kid = r => ({ id: r.id, name: r.name, ym: r.birth_ym, d: r.birth_day ? String(r.birth_day) : '', approx: !!r.birth_approx, school: r.school, size: r.size, shoe: r.shoe });
@@ -45,6 +45,7 @@ const SPECS = {
       store.profile.adults = rs.filter(r => r.kind === 'adult').map(r => ({ id: r.id, name: r.name, work: r.work, role: r.role || '', account: !!r.user, user: r.user || '', grp: r.grp || 'family', admin: !!r.is_admin,
         perms: { shop: lvl(r.perm_shop), errands: lvl(r.perm_errands), cal: lvl(r.perm_cal), saved: lvl(r.perm_saved) }, until: r.access_until ? String(r.access_until).slice(0, 10) : '', email: r.email || '', at: when(r.created) }));
       store.profile.kids = rs.filter(r => r.kind === 'kid').map(kid).concat(store.profile.kids.filter(k => k.remote)); // helpers: ages from helperKids()
+      store.profile.dogList = rs.filter(r => r.kind === 'dog').map(r => ({ id: r.id, name: r.name || '' })); // helpers get none
     },
     shadowExtra: r => ({ account: !!r.user }),
   },
@@ -345,7 +346,7 @@ async function deleteAccount(password) {
   // nothing of the deleted account stays on this phone either
   Object.assign(store.shop, { items: [], history: {}, learned: {}, rank: {}, trips: 0, seq: [] });
   store.errands = []; store.savedOffers = []; store.favorites = []; store.favBy = {}; store.visits = {}; store.places = []; store.fit = null;
-  store.profile.adults = []; store.profile.kids = []; store.kidPhotos = {}; store.onboarded = false;
+  store.profile.adults = []; store.profile.kids = []; store.profile.dogList = []; store.kidPhotos = {}; store.onboarded = false;
   logout(true); saveLocal();
 }
 
