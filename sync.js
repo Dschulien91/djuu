@@ -36,11 +36,14 @@ const SPECS = {
   members: {
     local: () => store.profile.adults.map(a => ({ ...a, _kind: 'adult' })).concat(store.profile.kids.map(k => ({ ...k, _kind: 'kid' }))),
     key: x => x.id, newId: x => x.id,
-    payload: x => ({ name: (x.name || '').slice(0, 30) || (x._kind === 'kid' ? tl('Kind') : tl('Erwachsene*r')), kind: x._kind, birth_ym: x.ym || '', birth_day: +x.d || 0, school: x.school || '', size: x.size || '', shoe: x.shoe || '', work: x.work || '' }),
+    // group, admin, access and e-mail are not in here: only the admin changes them, through /api/djuu/member
+    payload: x => ({ name: (x.name || '').slice(0, 30) || (x._kind === 'kid' ? tl('Kind') : tl('Erwachsene*r')), kind: x._kind, birth_ym: x.ym || '', birth_day: +x.d || 0, school: x.school || '', size: x.size || '', shoe: x.shoe || '', work: x.work || '', role: x.role || '' }),
     keep: s => s.account, // members with an account leave only by deleting their account
     setAll(rs) {
       const kid = r => ({ id: r.id, name: r.name, ym: r.birth_ym, d: r.birth_day ? String(r.birth_day) : '', school: r.school, size: r.size, shoe: r.shoe });
-      store.profile.adults = rs.filter(r => r.kind === 'adult').map(r => ({ id: r.id, name: r.name, work: r.work, account: !!r.user }));
+      const lvl = v => v || 'edit';
+      store.profile.adults = rs.filter(r => r.kind === 'adult').map(r => ({ id: r.id, name: r.name, work: r.work, role: r.role || '', account: !!r.user, user: r.user || '', grp: r.grp || 'family', admin: !!r.is_admin,
+        perms: { shop: lvl(r.perm_shop), errands: lvl(r.perm_errands), cal: lvl(r.perm_cal), saved: lvl(r.perm_saved) }, until: r.access_until ? String(r.access_until).slice(0, 10) : '', email: r.email || '', at: when(r.created) }));
       store.profile.kids = rs.filter(r => r.kind === 'kid').map(kid);
     },
     shadowExtra: r => ({ account: !!r.user }),
@@ -63,8 +66,8 @@ const SPECS = {
   },
   saved_places: {
     local: () => store.favorites.map(id => ({ id })), key: x => x.id,
-    payload: x => ({ place_id: x.id }),
-    setAll(rs) { store.favorites = rs.map(r => r.place_id); },
+    payload: x => ({ place_id: x.id, saved_by: memberRef(store.favBy?.[x.id]) }),
+    setAll(rs) { store.favorites = rs.map(r => r.place_id); store.favBy = Object.fromEntries(rs.map(r => [r.place_id, r.saved_by])); },
     recordKey: r => r.place_id,
   },
   visits: {
@@ -73,6 +76,16 @@ const SPECS = {
     setAll(rs) { store.visits = {}; for (const r of rs.sort((a, b) => a.day.localeCompare(b.day))) (store.visits[r.offer_id] || (store.visits[r.offer_id] = [])).push(r.day); },
     recordKey: r => r.offer_id + '|' + r.day,
     same: (a, b) => a.offer_id === b.offer_id && a.day === b.day, // who added it does not matter
+  },
+  // Meine Orte: my own places (private or shared with the Wir) plus the places others shared; only my own ones go up
+  places: {
+    filter: '',
+    local: () => (store.places || []).filter(x => x.mine !== false), key: x => x.id, newId: x => x.id,
+    payload: x => ({ owner: auth.userId, family: x.shared ? auth.family : '', name: (x.name || '').slice(0, 40), plz: x.plz || '', address: x.address || '', lat: x.lat || 0, lon: x.lon || 0, shared: !!x.shared, is_default: !!x.def }),
+    setAll(rs) {
+      const byUser = u => store.profile.adults.find(a => a.user && a.user === u)?.name || '';
+      store.places = rs.map(r => { const mine = r.owner === auth.userId; return { id: r.id, name: r.name, plz: r.plz, address: r.address, lat: r.lat, lon: r.lon, shared: r.shared, def: mine && r.is_default, mine, byName: mine ? '' : byUser(r.owner) }; });
+    },
   },
   shop_memory: {
     local: () => [{ k: 'm' }], key: () => 'm',
@@ -108,7 +121,7 @@ function diffAll() {
       if (!s) {
         const id = spec.newId && isPbId(spec.newId(x)) ? spec.newId(x) : pbId();
         sh[k] = { id, p: ps };
-        queue({ coll, op: 'create', id, data: { ...p, id, family: auth.family } });
+        queue({ coll, op: 'create', id, data: { family: auth.family, ...p, id } });
       } else if (s.p !== ps && !(spec.same && spec.same(JSON.parse(s.p), p))) {
         s.p = ps;
         queue({ coll, op: 'update', id: s.id, data: p });
@@ -151,9 +164,13 @@ save = function () { saveLocal(); if (auth?.family) scheduleSync(); };
 async function loadAll() {
   const f = `family='${auth.family}'`;
   const data = {};
-  for (const coll of COLLS) data[coll] = await listAll(coll, f);
+  for (const coll of COLLS) {
+    try { data[coll] = await listAll(coll, SPECS[coll].filter ?? f); }
+    catch (e) { if (!e.status) throw e; data[coll] = null; } // a collection the server does not have (yet): keep what is on this phone
+  }
   for (const coll of COLLS) {
     const spec = SPECS[coll], rs = data[coll];
+    if (!rs) continue;
     RECS[coll] = rs;
     spec.setAll(rs);
     shadow[coll] = {};
@@ -211,7 +228,7 @@ function rerender() {
   const a = document.activeElement;
   if (a && a.matches && a.matches('#panelBody input, #panelBody textarea, #panelBody select')) { pendingRender = true; return; }
   pendingRender = false;
-  if (['me', 'favs', 'events', 'offer', 'detail'].includes(view().type)) renderPanel();
+  if (['me', 'favs', 'events', 'offer', 'detail', 'wir', 'person'].includes(view().type)) renderPanel();
 }
 document.addEventListener('focusout', () => setTimeout(() => { if (pendingRender) rerender(); }, 200));
 
@@ -305,11 +322,18 @@ function logout(silent) {
   rerender();
 }
 async function deleteAccount() {
-  if (!confirm(tl('Konto wirklich löschen? Du verlässt damit auch die Familie. Die Listen der Familie bleiben für die anderen erhalten.'))) return;
+  const me = store.profile.adults.find(x => x.id === auth.member), others = members().filter(m => m.id !== auth.member);
+  const msg = me?.admin && others.length
+    ? tl('Achtung: Du bist Admin. Wenn du dein Konto löschst, wird euer ganzes Wir gelöscht, für alle: Einkauf, Besorgungen, Gemerktes, Orte und Einträge. Betroffen: {names}. Wirklich löschen?', { names: others.map(m => m.name).join(', ') })
+    : tl('Konto wirklich löschen? Alle deine Daten werden entfernt.');
+  if (!confirm(msg)) return;
   try {
-    if (auth.member) await api('DELETE', `/api/collections/members/records/${auth.member}`).catch(() => {});
-    await api('DELETE', `/api/collections/users/records/${auth.userId}`);
-    logout(true); toast('Dein Konto ist gelöscht.');
+    await api('POST', '/api/djuu/delete-account');
+    // nothing of the deleted account stays on this phone either
+    Object.assign(store.shop, { items: [], history: {}, learned: {}, rank: {}, trips: 0, seq: [] });
+    store.errands = []; store.savedOffers = []; store.favorites = []; store.favBy = {}; store.visits = {}; store.places = []; store.fit = null;
+    store.profile.adults = []; store.profile.kids = []; store.kidPhotos = {}; store.onboarded = false;
+    logout(true); saveLocal(); toast('Dein Konto ist gelöscht.'); home();
   } catch (e) { toast('Löschen hat nicht geklappt. Bitte mit Netz noch einmal versuchen.'); }
 }
 
@@ -386,22 +410,22 @@ function syncHtml() {
       ${SY.invite ? '' : `<p class="note">${tl('Wurdest du eingeladen? Öffne einfach den Link aus der Einladung.')}</p>`}
       ${err}<button type="button" class="linkbtn" data-sylogout="1">${tl('Abmelden')}</button></div>`;
   }
-  const others = members().filter(m => !m.kid && m.id !== auth.member && store.profile.adults.find(a => a.id === m.id)?.account);
-  return `<div class="sec syncbox"><h4>${esc(auth.familyName || tl('Familie'))}</h4>
-    <p class="text">${SY.online ? `<span class="syok">●</span> ${tl('Verbunden')}` : `<span class="syoff">●</span> ${tl('Offline, Änderungen werden nachgereicht')}`}${outbox.length ? ` · ${outbox.length} ${tl('noch nicht gesendet')}` : ''}</p>
-    <button type="button" class="btn" data-syinvite="1">${svg('share')}${tl('Familienmitglied einladen')}</button>
-    ${others.length ? `<h4 class="shcat">${tl('Wo seid ihr?')}</h4><div class="fgrid">${others.map(m => `<button type="button" class="chip" data-syask="${m.id}">${svg('pin')}${esc(m.name)} fragen</button>`).join('')}</div>
-      <p class="note">${tl('Die Person entscheidet selbst, ob sie ihren Standort einmal schickt. Er wird nach 24 Stunden gelöscht.')}</p>` : ''}
-    <h4 class="shcat">${tl('Familienkalender')}</h4>
-    ${SY.calToken ? `<p class="text">${tl('Alle gemerkten Termine erscheinen automatisch in eurem Kalender.')}</p>
+  return `<div class="card navlist acct"><div class="acctrow"><span class="navtx"><small>${tl('E-Mail')}</small><b>${esc(auth.email)}</b></span><span class="pill green">${tl('Bestätigt')}</span></div>
+      <div class="acctrow"><span class="navic">${svg('card')}</span><span class="navtx"><b>${tl('Abo')}</b><small>${tl('Kostenlos')}</small></span></div></div>
+    <p class="hintbox">${svg('check')} ${tl('Du bleibst angemeldet, bis du dich abmeldest. Deine Daten bleiben in deinem Konto.')}</p>
+    <p class="note">${SY.online ? `<span class="syok">●</span> ${tl('Verbunden mit')} ${esc(auth.familyName || tl('eurem Wir'))}` : `<span class="syoff">●</span> ${tl('Offline, Änderungen werden nachgereicht')}`}${outbox.length ? ` · ${outbox.length} ${tl('noch nicht gesendet')}` : ''}</p>
+    <button type="button" class="btn wide" data-sylogout="1">${tl('Abmelden')}</button>
+    <button type="button" class="linkbtn danger center" data-sydelete="1">${tl('Konto löschen')}</button>`;
+}
+// the family calendar subscription (Wir › Einstellungen › Familienkalender)
+function calHtml() {
+  if (!auth?.family) return '';
+  return SY.calToken ? `<p class="text">${tl('Alle gemerkten Termine erscheinen automatisch in eurem Kalender.')}</p>
       <div class="calmenu"><a class="btn" href="${esc(calUrl())}">${svg('cal')}${tl('iPhone, Mac, Outlook: abonnieren')}</a>
       <a class="btn" href="https://calendar.google.com/calendar/r?cid=${encodeURIComponent(calUrl())}" target="_blank" rel="noopener">${svg('cal')}${tl('Google Kalender: abonnieren')}</a>
       <button type="button" class="linkbtn" data-sycalcopy="1">${tl('Adresse kopieren')}</button> <button type="button" class="linkbtn" data-sycalrenew="1">${tl('Neue Adresse (alte wird ungültig)')}</button></div>
       <p class="note">${tl('Kalender-Apps holen Änderungen meist alle paar Stunden. Wer die Adresse hat, sieht eure gemerkten Termine, also nur in der Familie teilen.')}</p>`
-      : '<button type="button" class="btn" data-sycal="1">' + svg('cal') + `${tl('Familienkalender einrichten')}</button>`}
-    <h4 class="shcat">${tl('Konto')}</h4>
-    <p class="note">${tl('Angemeldet als')} ${esc(auth.email)}.</p>
-    <div class="fgrid"><button type="button" class="chip" data-sylogout="1">${tl('Abmelden')}</button><button type="button" class="chip" data-sydelete="1">${tl('Konto löschen')}</button></div></div>`;
+    : `<p class="text">${tl('Abonniere eure gemerkten Termine in der Kalender-App deines Handys.')}</p><button type="button" class="btn" data-sycal="1">${svg('cal')}${tl('Familienkalender einrichten')}</button>`;
 }
 
 // ---------- Interaction ----------
@@ -444,7 +468,7 @@ window.addEventListener('online', () => { SY.online = true; flush(); });
   const m = location.hash.match(/^#join=([A-Za-z0-9]+)/);
   if (m) { sessionStorage.setItem('djuu.join', m[1]); history.replaceState(null, '', location.pathname); }
   SY.invite = sessionStorage.getItem('djuu.join');
-  if (SY.invite && !(auth?.family)) setTimeout(() => { state.famSeg = 'wir'; stack = [{ type: 'list' }]; go({ type: 'me' }, 'full'); setTab('me'); }, 1200);
+  if (SY.invite && !(auth?.family)) setTimeout(() => { store.onboarded = true; store.welcomed = true; document.getElementById('welcome')?.remove(); stack = [{ type: 'list' }]; go({ type: 'me' }, 'full'); setTab('me'); go({ type: 'wir', page: 'account' }); }, 1200);
   else if (SY.invite && auth?.family) { sessionStorage.removeItem('djuu.join'); SY.invite = null; setTimeout(() => toast('Du bist schon in einer Familie.'), 1500); }
 })();
 if (API) setTimeout(startSession, 800); // after offers are loaded, so saved offers carry full calendar data

@@ -56,4 +56,32 @@ function ics(name, items) {
 // JSON fields come back as raw text in hooks
 function parseJson(t) { try { return JSON.parse(t || "{}"); } catch (e) { return {}; } }
 
-module.exports = { memberOf, ics, parseJson };
+// ---------- Wir: access per area ----------
+const PERMS = ["perm_shop", "perm_errands", "perm_cal", "perm_saved"];
+const FULL = { perm_shop: "edit", perm_errands: "edit", perm_cal: "edit", perm_saved: "edit" };
+const HELPER = { perm_shop: "view", perm_errands: "view", perm_cal: "view", perm_saved: "none" };
+// only known areas and levels; missing ones get the default of the group
+function cleanPerms(p, grp) {
+  const base = grp === "helper" ? HELPER : FULL, out = {};
+  for (const k of PERMS) { const v = p && p[k]; out[k] = ["none", "view", "edit"].includes(v) ? v : base[k]; }
+  return out;
+}
+function makeAccount(m, { grp, role, admin, perms, email }) {
+  m.set("grp", grp); m.set("role", String(role || "").slice(0, 30)); m.set("is_admin", !!admin); m.set("email", String(email || "").slice(0, 120));
+  for (const k of PERMS) m.set(k, perms[k]);
+}
+function linkUser(tx, userId, memberId) { const usr = tx.findRecordById("users", userId); usr.set("member", memberId); tx.save(usr); }
+function canSee(m, perm) {
+  if (m.getString("access_until") && m.getDateTime("access_until").before(new DateTime())) return false;
+  const v = m.getString(perm);
+  return v === "view" || v === "edit";
+}
+// "2026-11-30" -> the end of that day in Hamburg (stored in UTC; 23:59 winter time)
+function endOfDay(ymd) {
+  const s = String(ymd).slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) throw new BadRequestError("Ungültiges Datum.");
+  return new DateTime(s + " 22:59:59.000Z");
+}
+
+module.exports = { memberOf, ics, parseJson, PERMS, FULL, cleanPerms, makeAccount, linkUser, canSee, endOfDay };
+

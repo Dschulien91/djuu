@@ -7,7 +7,7 @@
    User input is stored on this device only until the server exists (server-ready shape, see STORE). */
 'use strict'; // i18n-skip
 
-const VERSION = '0.33';
+const VERSION = '0.34';
 const CONTACT = window.DJUU_CONTACT || {}; // config.js: reports and feedback stay hidden until an address is set
 // Logo on light backgrounds, as specified in the design PDF.
 const LOGO = `<span class="logo" role="img" aria-label="djuu"><span style="color:#6B4EE6">d</span><span style="color:#0E8F84">j</span><span style="color:#D6336C">u</span><span style="color:#CC6A00">u</span>
@@ -56,6 +56,18 @@ const ICON = {
   book: '<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H12v16H6.5A2.5 2.5 0 0 0 4 21.5z"/><path d="M20 5.5A2.5 2.5 0 0 0 17.5 3H12v16h5.5a2.5 2.5 0 0 1 2.5 2.5z"/>',
   scissors: '<circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4L8.1 15.9M14.5 14.5L20 20M8.1 8.1L12 12"/>',
   repeat: '<path d="M17 2l4 4-4 4"/><path d="M3 11V9a3 3 0 0 1 3-3h15"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a3 3 0 0 1-3 3H3"/>',
+  next: '<path d="M9 5l7 7-7 7"/>',
+  bell: '<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15L6 16z"/><path d="M10 20.5a2.2 2.2 0 0 0 4 0"/>',
+  cart: '<path d="M3 4h2.2l2.3 11h10.8l2-8H6.4"/><circle cx="9.5" cy="19.5" r="1.4"/><circle cx="17" cy="19.5" r="1.4"/>',
+  list: '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',
+  gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/>',
+  card: '<rect x="3" y="5.5" width="18" height="13" rx="2.5"/><path d="M3 10h18M7 15h4"/>',
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.6v.01"/>',
+  link: '<path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1"/>',
+  camera: '<path d="M4 8h3l1.5-2.5h7L17 8h3v11H4z"/><circle cx="12" cy="13.2" r="3.4"/>',
+  lock: '<rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/>',
+  mail: '<rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M3.5 6.5l8.5 6.5 8.5-6.5"/>',
+  globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.5 3.8 5.5 3.8 9s-1.2 6.5-3.8 9c-2.6-2.5-3.8-5.5-3.8-9S9.4 5.5 12 3z"/>',
   user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/>',
   pin: '<path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/>',
   undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/>',
@@ -818,7 +830,7 @@ window.addEventListener('popstate', () => {
   if (!canClose()) return history.back(); // the spare entry was left over: leave for real
   closeTop(); arm();
 });
-function go(v, size) { if (view().type === v.type && v.type !== 'detail') stack.pop(); stack.push(v); renderPanel(); setSize(size || 'full'); }
+function go(v, size) { if (view().type === v.type && !['detail', 'wir', 'person'].includes(v.type)) stack.pop(); stack.push(v); renderPanel(); setSize(size || 'full'); }
 function back() { stack.pop(); if (!stack.length) stack = [{ type: 'list' }]; clearSel(); renderPanel(); if (view().type === 'list') setSize(desktop() ? 'full' : 'half'); else if (view().type === 'card') setSize('card'); if (view().type === 'list') setTab('map'); arm(); }
 function home(size = 'peek') { stack = [{ type: 'list' }]; clearSel(); renderPanel(); setSize(size); setTab('map'); }
 function setSize(s) {
@@ -844,12 +856,11 @@ async function renderPanel() {
   else if (v.type === 'search') body.innerHTML = searchView();
   else if (v.type === 'sos') body.innerHTML = sosView(v.kind);
   else if (v.type === 'events') body.innerHTML = eventsView();
-  else if (v.type === 'favs') body.innerHTML = favsView();
+  else if (['favs', 'me', 'wir', 'person'].includes(v.type)) body.innerHTML = wirRender(v);
   else if (v.type === 'offer') body.innerHTML = offerView(v.id);
   else if (v.type === 'evfilters') body.innerHTML = evFiltersView();
   else if (v.type === 'evtopics') body.innerHTML = evTopicsView();
   else if (v.type === 'evdistricts') body.innerHTML = evDistrictsView();
-  else if (v.type === 'me') body.innerHTML = familyView();
   else if (v.type === 'rate') { body.innerHTML = rateView(v.id); bindRate(v.id); }
   else if (v.type === 'report') body.innerHTML = reportView(v.id);
   else if (v.type === 'wizard') { renderWizard(); return; }
@@ -1573,7 +1584,9 @@ EV.place = { mode: 'all', districts: new Set(), km: 5, gps: null };
 EV.placeTab = 'stadtteil';
 EV.pending = new Set(); EV.dq = '';
 const KMS = [1, 2, 5, 10, 20];
-const homeOf = () => store.profile.home && store.profile.home.lat ? store.profile.home : null;
+// the place the radius is measured from: chosen in the filter, else the one marked "Standard für Suchen", else the first
+const searchPlace = () => { const ps = (store.places || []).filter(p => p.lat); return ps.find(p => p.id === EV.place.placeId) || ps.find(p => p.def) || ps[0] || null; };
+const homeOf = () => { const p = searchPlace(); return p ? { label: `${tl(p.name)} (${p.plz})`, lat: p.lat, lon: p.lon } : null; };
 const radiusOrigin = () => EV.place.gps || (homeOf() ? [homeOf().lat, homeOf().lon] : null);
 function evPlaceOk(o) {
   const P = EV.place;
@@ -1599,7 +1612,7 @@ function homeFieldHtml(id) {
   return `<div class="field"><label for="${id}">${tl('Zuhause')}</label>
     <input id="${id}" data-home="1" list="homeList" autocomplete="off" placeholder="${tl('PLZ oder Stadtteil, z. B. 20535')}" value="${esc(h?.label || '')}">
     <datalist id="homeList">${GEO.plz.map(p => `<option value="${p[0]} (${esc(p[3])})"></option>`).join('')}${GEO.stadtteile.map(s => `<option value="${esc(s[0])}"></option>`).join('')}</datalist>
-    <p class="note">${tl('PLZ oder Stadtteil reicht. Gespeichert wird nur der Mittelpunkt, nur auf diesem Handy.')}</p></div>`;
+    <p class="note">${tl('PLZ oder Stadtteil reicht. Wird als „Zuhause“ unter Wir › Meine Orte gespeichert.')}</p></div>`;
 }
 function meineInfosHtml() {
   const h = homeOf();
@@ -1613,7 +1626,11 @@ function setHome(value) {
   if (!String(value || '').trim()) return;
   const h = parseHome(value);
   if (!h) return toast('Nicht gefunden. Bitte eine Hamburger PLZ oder einen Stadtteil eingeben.');
-  store.profile.home = h; save();
+  // becomes "Zuhause" in Meine Orte (postcode only; a Stadtteil gets its nearest postcode)
+  const plz = (h.label.match(/\b\d{5}\b/) || [])[0] || GEO.plz.map(x => [dist([h.lat, h.lon], [x[1], x[2]]), x[0]]).sort((a, b) => a[0] - b[0])[0]?.[1] || '';
+  const g = GEO.plz.find(x => x[0] === plz) || [plz, h.lat, h.lon];
+  store.places.push({ id: pbId(), name: tl('Zuhause'), plz, address: '', lat: g[1], lon: g[2], shared: false, def: !store.places.some(p => p.def), mine: true });
+  save();
   toast(`${tl('Zuhause:')} ${h.label}`);
   renderPanel();
 }
@@ -1639,7 +1656,8 @@ function evPlaceHtml() {
       <div class="kmcustom${P.mode === 'radius' && !KMS.includes(P.km) ? ' on' : ''}"><label for="evKm">${tl('Eigene km')}</label>
         <input id="evKm" type="number" min="0.5" max="50" step="0.5" inputmode="decimal" value="${P.mode === 'radius' && !KMS.includes(P.km) ? String(P.km) : ''}" placeholder="z. B. 3,5">
         <input id="evKmRange" type="range" min="0.5" max="50" step="0.5" value="${P.km}" aria-label="Umkreis in Kilometern, ${kmText(P.km)}"></div>
-      <p class="note">${tl('Luftlinie,')} ${P.gps ? tl('vom aktuellen Standort') : `${tl('von zu Hause:')} ${esc(homeOf().label)}`}.
+      ${!P.gps && (store.places || []).filter(p => p.lat).length > 1 ? `<div class="fgrid fromrow"><span class="muted">${tl('Von:')}</span>${store.places.filter(p => p.lat).map(p => `<button type="button" class="chip${searchPlace() === p ? ' on' : ''}" data-evorigin="${p.id}">${searchPlace() === p ? svg('check') : svg('pin')}${esc(tl(p.name))}</button>`).join('')}</div>` : ''}
+      <p class="note">${tl('Luftlinie,')} ${P.gps ? tl('vom aktuellen Standort') : `${tl('von')} ${esc(homeOf().label)}`}.
         ${P.gps ? (homeOf() ? ` <button type="button" class="linkbtn" data-evgpsoff="1">${tl('Zuhause verwenden')}</button>` : '') : ` <button type="button" class="linkbtn" data-evgps="1">${tl('Aktuellen Standort verwenden')}</button>`}</p>`;
   }
   return `<div class="sec"><div class="sechead"><h4>${tl('Ort')}</h4>${tab}</div>${body}</div>`;
@@ -1758,7 +1776,7 @@ function gcalUrl(o) {
   if (c.rrule) q.set('recur', 'RRULE:' + c.rrule);
   return 'https://calendar.google.com/calendar/render?' + q;
 }
-function icsFile(list) {
+function icsFile(list, alarm) {
   const stamp = new Date().toISOString().replace(/[-:]/g, '').slice(0, 15) + 'Z';
   const fold = l => { const out = []; while (l.length > 60) { out.push(l.slice(0, 60)); l = ' ' + l.slice(60); } out.push(l); return out.join('\r\n'); };
   const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Djuu//Termine//DE', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
@@ -1769,13 +1787,14 @@ function icsFile(list) {
     lines.push('BEGIN:VEVENT', `UID:${o.id}@djuu`, `DTSTAMP:${stamp}`, `DTSTART${tz}:${c.start}`, `DTEND${tz}:${c.end}`, `SUMMARY:${icsText(titleOf(o))}`,
       `LOCATION:${icsText(c.where)}`, `DESCRIPTION:${icsText(c.desc)}`, `URL:${o.url}`);
     if (c.rrule) lines.push('RRULE:' + c.rrule);
+    if (alarm) lines.push('BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${icsText(titleOf(o))}`, `TRIGGER:-${alarm}`, 'END:VALARM');
     lines.push('END:VEVENT');
   }
   lines.push('END:VCALENDAR');
   return lines.map(fold).join('\r\n') + '\r\n';
 }
-function downloadIcs(list, name) {
-  const url = URL.createObjectURL(new Blob([icsFile(list)], { type: 'text/calendar;charset=utf-8' }));
+function downloadIcs(list, name, alarm) {
+  const url = URL.createObjectURL(new Blob([icsFile(list, alarm)], { type: 'text/calendar;charset=utf-8' }));
   const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 5000);
   toast('Kalender-Datei erstellt. Öffne sie, um die Termine einzutragen.');
@@ -2073,7 +2092,7 @@ const TABS = [
   { id: 'search', label: tl('Suchen'), icon: 'search' },
   { id: 'events', label: tl('Termine'), icon: 'cal' },
   { id: 'favs', label: tl('Gemerkt'), icon: 'heart' },
-  { id: 'me', label: tl('Familie'), icon: 'user' },
+  { id: 'me', label: tl('Wir'), icon: 'user' },
 ];
 function setTab(id) {
   state.tab = id;
@@ -2128,9 +2147,9 @@ document.addEventListener('click', async e => {
       () => toast('Standort nicht verfügbar. Bitte im Browser erlauben.'), { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 });
   }
   else if (ds.evgpsoff) { EV.place.gps = null; renderPanel(); }
+  else if (ds.evorigin) { EV.place.placeId = ds.evorigin; EV.place.gps = null; renderPanel(); }
   else if (ds.evdreset) { EV.pending.clear(); refreshDistrictList(); }
   else if (ds.evdapply) { EV.place.districts = new Set(EV.pending); EV.place.mode = EV.pending.size ? 'districts' : 'all'; if (EV.pending.size) EV.place.gps = null; back(); }
-  else if (ds.homeclear) { delete store.profile.home; save(); if (EV.place.mode === 'radius' && !EV.place.gps) EV.place.mode = 'all'; renderPanel(); }
   else if (ds.evreset) evReset();
   else if (ds.evshow) evShow();
   else if (ds.offer) go({ type: 'offer', id: ds.offer }, 'full');
@@ -2158,7 +2177,7 @@ document.addEventListener('click', async e => {
     else if (ds.tab === 'add') startWizard();
     else { stack = [{ type: 'list' }]; go({ type: ds.tab }, 'full'); setTab(ds.tab); }
   }
-  else if (ds.fav) { const i = store.favorites.indexOf(ds.fav); i >= 0 ? store.favorites.splice(i, 1) : store.favorites.push(ds.fav); save(); toast(i >= 0 ? tl('Nicht mehr gemerkt.') : tl('Gemerkt. Du findest es unter „Gemerkt“.')); renderPanel(); }
+  else if (ds.fav) { const i = store.favorites.indexOf(ds.fav); if (i >= 0) { store.favorites.splice(i, 1); delete store.favBy[ds.fav]; } else { store.favorites.push(ds.fav); store.favBy[ds.fav] = meId(); } save(); toast(i >= 0 ? tl('Nicht mehr gemerkt.') : tl('Gemerkt. Du findest es unter „Gemerkt“.')); renderPanel(); }
   else if (ds.share) {
     const p = byId.get(ds.share), url = location.origin + location.pathname + '#' + p.id;
     if (navigator.share) navigator.share({ title: p.name, text: p.name + tl(' auf Djuu'), url }).catch(() => {});

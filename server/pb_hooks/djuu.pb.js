@@ -18,7 +18,9 @@ routerAdd("POST", "/api/djuu/family", (e) => {
     tx.save(fam);
     const me = new Record(tx.findCollectionByNameOrId("members"));
     me.set("family", fam.id); me.set("user", e.auth.id); me.set("name", myName); me.set("kind", "adult"); me.set("color", "#6B4EE6");
+    u.makeAccount(me, { grp: "family", role: body.role, admin: true, perms: u.FULL, email: e.auth.email() });
     tx.save(me);
+    u.linkUser(tx, e.auth.id, me.id);
     const mem = new Record(tx.findCollectionByNameOrId("shop_memory"));
     mem.set("family", fam.id); mem.set("history", {}); mem.set("learned", {}); mem.set("rank", {}); mem.set("trips", 0);
     tx.save(mem);
@@ -32,9 +34,14 @@ routerAdd("POST", "/api/djuu/invite", (e) => {
   const u = require(`${__hooks}/djuu_utils.js`);
   const me = u.memberOf(e.app, e.auth.id);
   if (!me) throw new BadRequestError("Du bist in keiner Familie.");
+  if (!me.getBool("is_admin")) throw new ForbiddenError("Nur der Admin kann Personen einladen.");
+  const body = e.requestInfo().body || {};
+  const grp = body.grp === "helper" ? "helper" : "family";
   const token = $security.randomString(32);
   const inv = new Record(e.app.findCollectionByNameOrId("invites"));
   inv.set("family", me.get("family")); inv.set("token_hash", $security.sha256(token)); inv.set("created_by", me.id);
+  inv.set("grp", grp); inv.set("role", String(body.role || "").slice(0, 30)); inv.set("perms", u.cleanPerms(body.perms, grp));
+  if (body.until) inv.set("access_until", u.endOfDay(body.until));
   inv.set("expires", new DateTime().addDate(0, 0, 7));
   e.app.save(inv);
   return e.json(200, { token });
@@ -55,7 +62,11 @@ routerAdd("POST", "/api/djuu/join", (e) => {
   e.app.runInTransaction((tx) => {
     const me = new Record(tx.findCollectionByNameOrId("members"));
     me.set("family", inv.get("family")); me.set("user", e.auth.id); me.set("name", myName); me.set("kind", "adult");
+    const grp = inv.getString("grp") || "family";
+    u.makeAccount(me, { grp, role: body.role || inv.getString("role"), admin: false, perms: u.cleanPerms(u.parseJson(inv.getString("perms")), grp), email: e.auth.email() });
+    if (inv.getString("access_until")) me.set("access_until", inv.get("access_until"));
     tx.save(me);
+    u.linkUser(tx, e.auth.id, me.id);
     inv.set("used", new DateTime());
     tx.save(inv);
     out = { family: inv.get("family"), member: me.id };
@@ -68,6 +79,7 @@ routerAdd("POST", "/api/djuu/calendar", (e) => {
   const u = require(`${__hooks}/djuu_utils.js`);
   const me = u.memberOf(e.app, e.auth.id);
   if (!me) throw new BadRequestError("Du bist in keiner Familie.");
+  if (!u.canSee(me, "perm_cal")) throw new ForbiddenError("Kein Zugriff auf den Kalender.");
   const fam = e.app.findRecordById("families", me.get("family"));
   if ((e.requestInfo().body || {}).renew || !fam.get("cal_token")) { fam.set("cal_token", $security.randomString(40)); e.app.save(fam); }
   return e.json(200, { token: fam.get("cal_token") });
@@ -90,3 +102,73 @@ routerAdd("GET", "/api/djuu/cal/{token}", (e) => {
 cronAdd("djuu_ping_cleanup", "17 * * * *", () => {
   $app.db().newQuery("DELETE FROM pings WHERE created < {:t}").bind({ t: new DateTime().addDate(0, 0, -1).string() }).execute();
 });
+
+// The admin changes a person's group, role, access, end date or admin flag. There is always at least one admin.
+routerAdd("POST", "/api/djuu/member", (e) => {
+  const u = require(`${__hooks}/djuu_utils.js`);
+  const me = u.memberOf(e.app, e.auth.id);
+  if (!me || !me.getBool("is_admin")) throw new ForbiddenError("Nur der Admin kann den Zugang ändern.");
+  const body = e.requestInfo().body || {};
+  let m;
+  try { m = e.app.findRecordById("members", String(body.id || "")); } catch (err) { throw new NotFoundError("Person nicht gefunden."); }
+  if (m.getString("family") !== me.getString("family")) throw new NotFoundError("Person nicht gefunden.");
+  if (m.getString("kind") === "kid") throw new BadRequestError("Kinder haben keinen Zugang.");
+  if (body.grp === "family" || body.grp === "helper") m.set("grp", body.grp);
+  if (body.role != null) m.set("role", String(body.role).slice(0, 30));
+  if (body.perms) { const p = u.cleanPerms(body.perms, m.getString("grp")); for (const k in p) m.set(k, p[k]); }
+  if (body.until !== undefined) m.set("access_until", body.until ? u.endOfDay(body.until) : "");
+  if (body.admin !== undefined) {
+    const on = !!body.admin;
+    if (on && (!m.getString("user") || m.getString("grp") !== "family")) throw new BadRequestError("Admin kann nur ein Erwachsener aus der Familie mit eigenem Zugang sein.");
+    if (!on && m.getBool("is_admin")) {
+      const admins = e.app.findRecordsByFilter("members", "family = {:f} && is_admin = true", "", 0, 0, { f: m.getString("family") });
+      if (admins.length < 2) throw new BadRequestError("Es muss immer mindestens einen Admin geben.");
+    }
+    m.set("is_admin", on);
+  }
+  if (m.getBool("is_admin")) { for (const p of u.PERMS) m.set(p, "edit"); m.set("access_until", ""); } // an admin always has full access
+  e.app.save(m);
+  return e.json(200, { ok: true });
+}, $apis.requireAuth());
+
+// The admin removes a person from the Wir. Their account stays, without a Wir.
+routerAdd("POST", "/api/djuu/remove", (e) => {
+  const u = require(`${__hooks}/djuu_utils.js`);
+  const me = u.memberOf(e.app, e.auth.id);
+  if (!me || !me.getBool("is_admin")) throw new ForbiddenError("Nur der Admin kann Personen entfernen.");
+  const id = String((e.requestInfo().body || {}).id || "");
+  if (id === me.id) throw new BadRequestError("Du kannst dich nicht selbst entfernen. Lösche dazu dein Konto.");
+  let m;
+  try { m = e.app.findRecordById("members", id); } catch (err) { throw new NotFoundError("Person nicht gefunden."); }
+  if (m.getString("family") !== me.getString("family")) throw new NotFoundError("Person nicht gefunden.");
+  e.app.runInTransaction((tx) => {
+    if (m.getString("user")) {
+      try { const usr = tx.findRecordById("users", m.getString("user")); usr.set("member", ""); tx.save(usr); } catch (err) { /* gone */ }
+      for (const pl of tx.findRecordsByFilter("places", "owner = {:o} && family != ''", "", 0, 0, { o: m.getString("user") })) { pl.set("family", ""); pl.set("shared", false); tx.save(pl); }
+    }
+    tx.delete(m);
+  });
+  return e.json(200, { ok: true });
+}, $apis.requireAuth());
+
+// Delete my account. The admin deletes the whole Wir with everything in it (the app warns and lists who is affected);
+// everyone else deletes their own person, their places and what they saved.
+routerAdd("POST", "/api/djuu/delete-account", (e) => {
+  const u = require(`${__hooks}/djuu_utils.js`);
+  const me = u.memberOf(e.app, e.auth.id);
+  const userId = e.auth.id;
+  e.app.runInTransaction((tx) => {
+    if (me && me.getBool("is_admin")) {
+      const fam = tx.findRecordById("families", me.getString("family"));
+      for (const m of tx.findRecordsByFilter("members", "family = {:f} && user != ''", "", 0, 0, { f: fam.id })) {
+        try { const usr = tx.findRecordById("users", m.getString("user")); usr.set("member", ""); tx.save(usr); } catch (err) { /* gone */ }
+      }
+      tx.delete(fam); // members, lists, saved, visits, invites and shared places go with it (cascade)
+    } else if (me) {
+      for (const coll of ["saved_offers", "saved_places"]) for (const r of tx.findRecordsByFilter(coll, "saved_by = {:m}", "", 0, 0, { m: me.id })) tx.delete(r);
+      tx.delete(me);
+    }
+    tx.delete(tx.findRecordById("users", userId)); // own places go with it (cascade)
+  });
+  return e.json(200, { ok: true });
+}, $apis.requireAuth());
