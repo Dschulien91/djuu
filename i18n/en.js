@@ -278,7 +278,7 @@ window.DJUU_I18N.en = {
   'und {n} weitere': 'and {n} more', 'oder': 'or', '{n} {unit} zeigen': 'Show {n} {unit}', 'und': 'and', 'deine@email.de': 'you@example.com',
   // static labels in index.html
   '{n} Sterne': '{n} stars', 'keine': 'none', 'geschlossen': 'closed',
-  'heute': 'today', 'gestern': 'yesterday', 'am {date}': 'on {date}', 'aktualisiert': 'updated', 'jeden {day}': 'every {day}',
+  'heute': 'today', 'gestern': 'yesterday', 'am {date}': 'on {date}', '{when} aktualisiert': 'updated {when}', 'Termine {when} aktualisiert': 'Events updated {when}', 'Termine zuletzt {when} aktualisiert': 'Events last updated {when}', 'jeden {day}': 'every {day}',
   'kostenlos': 'free', 'bis': 'to', 'ganztags': 'all day',
   'Kategorien und Tags': 'Categories and tags', 'Ort eintragen': 'Add a place', 'Mein Standort': 'My location',
   'Dringend: nächstes WC, Wickeltisch, Windeln oder Apotheke': 'Urgent: nearest toilet, changing table, nappies or pharmacy', 'Bereiche': 'Sections',

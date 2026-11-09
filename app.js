@@ -1,4 +1,4 @@
-/* Djuu v0.29 – family map for Hamburg.
+/* Djuu v0.30 – family map for Hamburg.
    The map owns the screen: one chip row floats on top, map buttons on the right, the sheet starts as a slim bar.
    The chip row drills down one level at a time: Erleben or Service, then categories, then the tags of a category.
    A tapped pin opens a small card; search and favorites live in the bottom bar. Default view: playgrounds.
@@ -7,7 +7,7 @@
    User input is stored on this device only until the server exists (server-ready shape, see STORE). */
 'use strict'; // i18n-skip
 
-const VERSION = '0.29';
+const VERSION = '0.30';
 const CONTACT = window.DJUU_CONTACT || {}; // config.js: reports and feedback stay hidden until an address is set
 // Logo on light backgrounds, as specified in the design PDF.
 const LOGO = `<span class="logo" role="img" aria-label="djuu"><span style="color:#6B4EE6">d</span><span style="color:#0E8F84">j</span><span style="color:#D6336C">u</span><span style="color:#CC6A00">u</span>
@@ -1464,7 +1464,7 @@ function evListHtml() {
   const near = o => { const pl = o.place_id && byId.get(o.place_id); return pl ? dist(o0, [pl.lat, pl.lon]) : o.lat ? dist(o0, [o.lat, o.lon]) : 9e9; };
   list.sort((a, b) => byDayTime(a, b) || near(a[1]) - near(b[1]));
   const shown = list.slice(0, EV.limit), r = rangeOf();
-  return `<p class="evcount">${nf.format(list.length)} ${unitOf(list.length)}${DATA_AT.offers ? ` · <span class="freshinline">${svg('check')}${tl('aktualisiert')} ${esc(freshText())}</span>` : ''}</p>
+  return `<p class="evcount">${nf.format(list.length)} ${unitOf(list.length)}${DATA_AT.offers ? ` · <span class="freshinline">${svg('check')}${esc(tl('{when} aktualisiert', { when: freshText() }))}</span>` : ''}</p>
     ${cardPage() ? '' : ferienCard(14, true)}
     ${!cardPage() && schoolHoliday(r?.[0] || t) ? `<p class="note" style="margin:0 0 10px">${esc(schoolHoliday(r?.[0] || t))}${tl(': Viele Kurse pausieren, bitte beim Anbieter nachsehen.')}</p>` : ''}
     ${list.length ? (cardPage() ? `<ol class="list evcards">${shown.map(([d, o]) => evCardHtml(o, d)).join('')}</ol>` : dayListHtml(shown))
@@ -1846,13 +1846,13 @@ function ferienView() {
     <p class="note">${state === 'Hamburg' ? '' : tl('Die Ferien gelten für euer Bundesland, die Orte liegen in Hamburg. ')}${tl('Sortiert nach Djuu-Tipps und Entfernung')}${kids.length ? tl(', passend zum Alter, soweit bekannt') : ''}.</p>`;
 }
 const DATA_AT = { offers: null };
-// "Termine aktualisiert heute": the day the events were last collected (no time: it runs every night at 4)
+// "Termine heute aktualisiert": the day the events were last collected (no time: it runs every night at 4)
 function freshText() {
   if (!DATA_AT.offers) return '';
   const d = new Date(DATA_AT.offers), days = Math.round((today0() - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 864e5);
   return days === 0 ? tl('heute') : days === 1 ? tl('gestern') : tl('am {date}', { date: d.toLocaleDateString(LOCALE, { day: 'numeric', month: 'long' }) });
 }
-const freshHtml = () => DATA_AT.offers ? `<p class="fresh">${svg('check')}${tl('Termine aktualisiert')} ${esc(freshText())}</p>` : '';
+const freshHtml = () => DATA_AT.offers ? `<p class="fresh">${svg('check')}${esc(tl('Termine {when} aktualisiert', { when: freshText() }))}</p>` : '';
 function savedView() {
   const pr = store.profile, now = new Date();
   const maxYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -1878,7 +1878,7 @@ function savedView() {
     </div>
     <div class="sec"><h4>${tl('Über Djuu')}</h4>
       <div class="melinks">${CONTACT.email ? `<a href="mailto:${esc(CONTACT.email)}?subject=${encodeURIComponent('Feedback zu Djuu')}">${tl('Feedback geben')}</a>` : ''}<a href="legal.html#impressum" target="_blank" rel="noopener">${tl('Impressum')}</a><a href="legal.html#agb" target="_blank" rel="noopener">${tl('Nutzungsbedingungen')}</a><a href="legal.html#datenschutz" target="_blank" rel="noopener">${tl('Datenschutz')}</a><a href="legal.html#daten" target="_blank" rel="noopener">${tl('Daten und Lizenzen')}</a></div>
-      <p class="note">${DATA_AT.offers ? `${tl('Termine zuletzt aktualisiert')} ${esc(freshText())}. ` : ''}${tl('Version')} ${VERSION}</p></div>
+      <p class="note">${DATA_AT.offers ? `${esc(tl('Termine zuletzt {when} aktualisiert', { when: freshText() }))}. ` : ''}${tl('Version')} ${VERSION}</p></div>
 `;
 }
 function saveProfileField(el) {
