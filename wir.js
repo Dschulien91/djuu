@@ -44,7 +44,31 @@ function perm(area) {
 }
 const W = { onb: 1, add: { grp: 'family', role: '', perms: null, until: '', name: '' }, place: null, fitDraft: null, savedTab: 'orte', savedWho: '', remind: null, busy: false };
 
-const kidAgeText = k => { if (!k.ym) return tl('Alter fehlt'); const [y, m] = k.ym.split('-').map(Number), now = new Date(); const months = (now.getFullYear() - y) * 12 + now.getMonth() + 1 - m; return months < 0 ? tl('unterwegs') : kidLabel(months); };
+const kidAgeText = k => ageText(kidAge(k));
+// Birth date in three parts: day, month, year. Only the year is needed; a day needs a month.
+// key: an index of store.profile.kids, or 'new' for the "add child" page (W.add)
+const MONTHS = () => Array.from({ length: 12 }, (_, i) => new Date(2000, i, 1).toLocaleDateString(LOCALE, { month: 'long' }));
+function birthParts(k) { const [y, m] = String(k.ym || '').split('-'); return { y: y || '', m: m ? String(+m) : '', d: m && k.d ? String(+k.d) : '' }; }
+function birthHtml(key, k, withLabel = true) {
+  const b = birthParts(k), now = new Date().getFullYear();
+  const sel = (part, label, opts) => `<select data-birth="${key}|${part}" aria-label="${label}"${part === 'd' && !b.m ? ' disabled' : ''}>${opts}</select>`;
+  return `<div class="field birth">${withLabel ? `<label>${tl('Geburtsdatum')}</label>` : ''}
+    <div class="birthrow">${sel('d', tl('Tag'), `<option value="">${tl('Tag')}</option>` + Array.from({ length: 31 }, (_, i) => `<option${b.d === String(i + 1) ? ' selected' : ''}>${i + 1}</option>`).join(''))}
+      ${sel('m', tl('Monat'), `<option value="">${tl('Monat')}</option>` + MONTHS().map((n, i) => `<option value="${i + 1}"${b.m === String(i + 1) ? ' selected' : ''}>${esc(n)}</option>`).join(''))}
+      ${sel('y', tl('Jahr'), `<option value="">${tl('Jahr')} *</option>` + Array.from({ length: 19 }, (_, i) => now - i).map(y => `<option${b.y === String(y) ? ' selected' : ''}>${y}</option>`).join(''))}</div>
+    ${withLabel ? `<p class="note">${tl('Nur das Jahr ist Pflicht. Je genauer, desto besser passen die Vorschläge.')}</p>` : ''}</div>`;
+}
+// read the three parts back into the child: "YYYY", "YYYY-MM" and a day only together with a month; nothing in the future
+function setBirth(k, part, value) {
+  const b = { ...birthParts(k), [part]: value };
+  if (!b.m) b.d = '';
+  const now = new Date(), y = +b.y, m = +b.m, d = +b.d;
+  if (y && m && (y > now.getFullYear() || (y === now.getFullYear() && (m > now.getMonth() + 1 || (m === now.getMonth() + 1 && d > now.getDate()))))) { toast(tl('Das Datum liegt in der Zukunft.')); return false; }
+  k.ym = b.y ? (b.m ? `${b.y}-${String(m).padStart(2, '0')}` : b.y) : '';
+  k.d = b.m && b.d ? b.d : '';
+  k.approx = false; // what was entered now is what we know
+  return true;
+}
 function avatarHtml(m, size = '') {
   const photo = m.kid && store.kidPhotos[m.id];
   return photo ? `<span class="av ${size}"><img src="${photo}" alt=""></span>` : `<span class="av ${size}" style="--c:${m.color}" aria-hidden="true">${esc((m.name || '?').slice(0, 1).toUpperCase())}</span>`;
@@ -119,8 +143,9 @@ function onboardingView() {
   if (W.onb === 2) {
     const home = store.places.find(p => p.def);
     return `${dots}<h2 class="big">${tl('Euer Wir')}</h2><p class="muted text">${tl('Trag deine Kinder ein, dann zeigen wir passende Termine. Ein Spitzname reicht.')}</p>
-      ${store.profile.kids.map((k, i) => `<div class="kidline"><input data-kid="${i}" data-k="name" value="${esc(k.name || '')}" placeholder="${tl('Name')}" maxlength="20" aria-label="${tl('Name')}">
-        <select data-kidage="${i}" aria-label="${tl('Alter')}">${ageOptions(k)}</select></div>`).join('')}
+      ${store.profile.kids.map((k, i) => `<div class="kidblock"><input data-kid="${i}" data-k="name" value="${esc(k.name || '')}" placeholder="${tl('Vorname oder Spitzname')}" maxlength="20" aria-label="${tl('Name')}">
+        ${birthHtml(i, k, false)}</div>`).join('')}
+      ${store.profile.kids.length ? `<p class="note">${tl('Geburtsdatum: Nur das Jahr ist Pflicht. Je genauer, desto besser passen die Vorschläge.')}</p>` : ''}
       <button type="button" class="linkbtn plus" data-addkid="1">${svg('plus')}${tl('Kind hinzufügen')}</button>
       <div class="field"><label for="onbPlz">${tl('Wo seid ihr zuhause?')} <small class="muted">${tl('freiwillig')}</small></label>
         <input id="onbPlz" inputmode="numeric" maxlength="5" placeholder="20251" value="${esc(home?.plz || '')}"><p class="note">${tl('Nur die Postleitzahl. Eine Adresse brauchen wir nicht.')}</p></div>
@@ -131,10 +156,6 @@ function onboardingView() {
       `<button type="button" class="radiocard${W.add.grp === g && W.onbPick ? ' on' : ''}" data-onbpick="${g}"><span class="navic">${svg(ic)}</span><span class="navtx"><b>${t}</b><small>${s}</small></span><i class="radio"></i></button>`).join('')}</div>
     ${hint(`${tl('Das geht auch später unter')} <b>${tl('Wir')} › ${tl('Personen')}</b>.`)}
     <div class="stick"><button type="button" class="btn big primary" data-onb="invite"${W.onbPick ? '' : ' disabled'}>${tl('Einladen')}</button><button type="button" class="btn ghost" data-onb="done">${tl('Später')}</button></div>`;
-}
-function ageOptions(k) {
-  const now = new Date(), cur = k.ym ? Math.floor(((now.getFullYear() - +k.ym.slice(0, 4)) * 12 + now.getMonth() + 1 - +k.ym.slice(5, 7)) / 12) : '';
-  return `<option value="">${tl('Alter')}</option>` + Array.from({ length: 18 }, (_, y) => `<option value="${y}"${cur === y ? ' selected' : ''}>${y === 0 ? tl('unter 1 Jahr') : y === 1 ? tl('1 Jahr') : `${y} ${tl('Jahre')}`}</option>`).join('');
 }
 function setPlzPlace(plz, name = tl('Zuhause')) {
   const g = GEO.plz.find(x => x[0] === plz);
@@ -153,7 +174,7 @@ function peopleView() {
   const adultRow = a => row(ms.find(m => m.id === a.id), adultSub(a), badgeOf(a));
   return `${head(tl('Personen'), `${tl('Wir')} · ${ms.length} ${ms.length === 1 ? tl('Person') : tl('Personen')}`)}
     ${group(tl('Familie'), tl('Mit eigenem Zugang'), adults.filter(a => a.grp !== 'helper').map(adultRow))}
-    ${group(tl('Kinder'), tl('Nur ein Eintrag, kein Zugang'), kids.map(m => row(m, kidAgeText(kidById(m.id)), null)))}
+    ${group(tl('Kinder'), tl('Nur ein Eintrag, kein Zugang'), kids.map(m => { const k = kidById(m.id); return row(m, kidAgeText(k) + (k.approx && !k.remote ? ` · ${tl('Geburtsdatum ergänzen')}` : ''), null); }))}
     ${group(tl('Helfer:innen'), tl('Du bestimmst, was sie sehen'), adults.filter(a => a.grp === 'helper').map(adultRow))}
     ${moreAboutHtml()}
     ${isAdmin() ? `<div class="stick"><button type="button" class="btn big primary" data-wir="add">${svg('plus')}${tl('Person hinzufügen')}</button></div>` : ''}`;
@@ -174,7 +195,7 @@ function addPersonView() {
   if (A.grp === 'kid') {
     return `${head(tl('Person hinzufügen'))}${seg}<p class="muted text">${tl('Nur ein Eintrag für passende Vorschläge. Kinder haben keinen Zugang.')}</p>
       <div class="field"><label for="addName">${tl('Vorname oder Spitzname')}</label><input id="addName" maxlength="20" value="${esc(A.name)}"></div>
-      <div class="field"><label for="addYm">${tl('Geburtsmonat')}</label><input id="addYm" type="month" value="${esc(A.ym || '')}" max="${ymd(today0()).slice(0, 7)}"><p class="note">${tl('Monat und Jahr reichen.')}</p></div>
+      ${birthHtml('new', A)}
       <div class="stick"><button type="button" class="btn big primary" data-addsave="kid">${tl('Speichern')}</button></div>`;
   }
   const helper = A.grp === 'helper', perms = A.perms || (A.perms = { ...DEFAULT_PERMS[A.grp] });
@@ -217,13 +238,14 @@ function personView(id) {
 }
 function kidView(k) {
   const i = store.profile.kids.indexOf(k), m = members().find(x => x.id === k.id), photo = store.kidPhotos[k.id];
+  if (k.remote) return `${head(esc(k.name || tl('Kind')), esc(kidAgeText(k)))}<div class="card who">${avatarHtml(m, 'lg')}<span class="navtx"><b>${tl('Kind')}</b><small>${tl('Kinderdaten bleiben in der Familie. Du siehst nur Name und Alter.')}</small></span></div>`;
   return `${head(esc(k.name || tl('Kind')), esc(kidAgeText(k)))}
     <div class="card who">${avatarHtml(m, 'lg')}<span class="navtx"><b>${tl('Kind')}</b><small>${tl('Nur ein Eintrag, kein Zugang')}</small></span>
       <label class="btn sm">${svg('camera')}${photo ? tl('Foto ändern') : tl('Foto (optional)')}<input type="file" accept="image/*" data-kidphoto="${k.id}" hidden></label></div>
     ${photo ? `<p class="note">${tl('Das Foto bleibt nur auf diesem Handy und wird nicht geteilt.')} <button type="button" class="linkbtn" data-kidphotodel="${k.id}">${tl('Entfernen')}</button></p>` : `<p class="note">${tl('Ein Foto bleibt nur auf diesem Handy und wird nicht geteilt.')}</p>`}
     <div class="field"><label for="kName">${tl('Vorname oder Spitzname')}</label><input id="kName" data-kid="${i}" data-k="name" maxlength="20" value="${esc(k.name || '')}"></div>
-    <div class="kidline"><div class="field"><label for="kYm">${tl('Geburtsmonat')}</label><input id="kYm" data-kid="${i}" data-k="ym" type="month" value="${esc(k.ym || '')}" max="${ymd(today0()).slice(0, 7)}"></div>
-      <div class="field"><label for="kD">${tl('Tag (optional)')}</label><select id="kD" data-kid="${i}" data-k="d"><option value="">–</option>${Array.from({ length: 31 }, (_, j) => `<option${+k.d === j + 1 ? ' selected' : ''}>${j + 1}</option>`).join('')}</select></div></div>
+    ${k.approx ? hint(tl('Das Alter ist ungefähr. Mit dem Geburtsdatum passen die Vorschläge genauer.')) : ''}
+    ${birthHtml(i, k)}
     <div class="field"><label for="kSchool">${tl('Kita oder Schule')}</label><input id="kSchool" data-kid="${i}" data-k="school" maxlength="60" placeholder="${tl('Kita oder Schule, Klasse')}" value="${esc(k.school || '')}"></div>
     <div class="kidline"><div class="field"><label for="kSize">${tl('Kleidergröße')}</label><input id="kSize" data-kid="${i}" data-k="size" maxlength="12" placeholder="104" value="${esc(k.size || '')}"></div>
       <div class="field"><label for="kShoe">${tl('Schuhgröße')}</label><input id="kShoe" data-kid="${i}" data-k="shoe" maxlength="8" placeholder="28" value="${esc(k.shoe || '')}"></div></div>
@@ -455,6 +477,7 @@ document.addEventListener('click', e => {
         return;
       }
     }
+    if (W.onb === 2 && !d.skip && store.profile.kids.some(k => k.name && !k.ym)) return toast(tl('Bitte bei jedem Kind mindestens das Geburtsjahr angeben.'));
     if (W.onb === 2 && !d.skip) { const plz = $('#onbPlz').value.trim(); if (plz && !setPlzPlace(plz)) return toast(tl('Bitte eine Hamburger Postleitzahl eingeben.')); save(); }
     if (d.onb === 'done') return finishOnboarding();
     if (d.onb === 'invite') { const g = W.add.grp; finishOnboarding(); W.add = { grp: g, role: '', perms: null, until: '', name: '' }; return go({ type: 'wir', page: 'add' }); }
@@ -466,8 +489,10 @@ document.addEventListener('click', e => {
   else if (d.addsave) {
     const A = W.add, name = $('#addName')?.value.trim() || '';
     if (d.addsave === 'kid') {
+      A.name = name;
       if (!name) return toast(tl('Bitte gib einen Namen an.'));
-      store.profile.kids.push({ id: pbId(), name, ym: $('#addYm').value || '' }); save(); back(); return;
+      if (!A.ym) return toast(tl('Bitte mindestens das Geburtsjahr angeben.'));
+      store.profile.kids.push({ id: pbId(), name, ym: A.ym, d: A.d || '' }); save(); back(); return;
     }
     if (d.addsave === 'invite') return sendInvite();
     if (!name) return toast(tl('Bitte gib einen Namen an.'));
@@ -528,11 +553,11 @@ document.addEventListener('change', e => {
   else if (d.padmin) { if (el.checked || confirm(tl('Admin-Rechte wirklich wegnehmen?'))) setAccess(d.padmin, { admin: el.checked }); else el.checked = true; }
   else if (d.plshared) W.place.shared = el.checked;
   else if (d.pldef) W.place.def = el.checked;
-  else if (d.kidage) {
-    const k = store.profile.kids[+d.kidage], y = +el.value, now = new Date();
-    if (el.value === '') return;
-    const dt = new Date(now.getFullYear() - y, now.getMonth() - (y === 0 ? 6 : 0), 1);
-    k.ym = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`; save();
+  else if (d.birth) {
+    const [key, part] = d.birth.split('|'), k = key === 'new' ? W.add : store.profile.kids[+key];
+    if (key === 'new') W.add.name = $('#addName')?.value.trim() || W.add.name;
+    if (k && setBirth(k, part, el.value) && key !== 'new') { save(); renderTop(); }
+    renderPanel();
   }
   else if (d.kidphoto && el.files[0]) readPhoto(el.files[0], d.kidphoto);
   else if (el.id === 'plName' && W.place) W.place.name = el.value.trim();

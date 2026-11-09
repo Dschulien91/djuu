@@ -83,5 +83,16 @@ function endOfDay(ymd) {
   return new DateTime(s + " 22:59:59.000Z");
 }
 
-module.exports = { memberOf, ics, parseJson, PERMS, FULL, cleanPerms, makeAccount, linkUser, canSee, endOfDay };
+// age in months from "YYYY" / "YYYY-MM" and an optional day, as { min, max } (the same rule as the app)
+function ageRange(ym, day) {
+  const now = new Date(), parts = String(ym || "").split("-"), y = +parts[0], m = +parts[1];
+  if (!y) return { min: null, max: null };
+  const base = (now.getFullYear() - y) * 12 + now.getMonth() + 1;
+  if (!m) return { min: Math.max(0, base - 12), max: Math.max(0, base - 1) };
+  let months = base - m;
+  if (day && now.getDate() < day) months--;
+  return { min: months, max: months };
+}
+
+module.exports = { memberOf, ics, parseJson, PERMS, FULL, cleanPerms, makeAccount, linkUser, canSee, endOfDay, ageRange };
 

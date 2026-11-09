@@ -826,3 +826,11 @@ a.btn.wide, button.btn.wide { display: flex; }
 @keyframes lockup { from { transform: translateY(40px); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .locksheet { animation: none; } }
 .pagewrap > .btn.big, .pagewrap > a.btn.big { flex: 0 0 auto; }
+
+/* v0.38: birth date in three parts */
+.birthrow { display: grid; grid-template-columns: 1fr 1.6fr 1.2fr; gap: 8px; }
+.birthrow select { min-height: 48px; border: 1px solid var(--line); border-radius: 14px; padding: 0 8px; background: var(--surface); font-size: 15px; min-width: 0; }
+.birthrow select:disabled { opacity: .5; }
+.kidblock { display: grid; gap: 6px; margin: 12px 0 0; padding: 12px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); }
+.kidblock > input { min-height: 48px; border: 1px solid var(--line); border-radius: 14px; padding: 0 12px; font-size: 15px; }
+.kidblock .field { margin-top: 0; }

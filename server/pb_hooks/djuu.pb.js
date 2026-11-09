@@ -193,3 +193,15 @@ cronAdd("djuu_unverified_cleanup", "23 3 * * *", () => {
   const old = $app.findRecordsByFilter("users", "verified = false && created < {:t}", "", 500, 0, { t: new DateTime().addDate(0, 0, -7).string() });
   for (const usr of old) { try { $app.delete(usr); } catch (err) { /* in use */ } }
 });
+
+// The children of my Wir with name and age in months only (no birth date): for helpers, who cannot read the children's records.
+// With the birth year only, the age is a range (born in January ... December of that year).
+routerAdd("GET", "/api/djuu/kids", (e) => {
+  const u = require(`${__hooks}/djuu_utils.js`);
+  const me = u.memberOf(e.app, e.auth.id);
+  if (!me) throw new BadRequestError("Du bist in keinem Wir.");
+  if (me.getString("access_until") && me.getDateTime("access_until").before(new DateTime())) return e.json(200, { kids: [] });
+  const kids = e.app.findRecordsByFilter("members", "family = {:f} && kind = 'kid'", "created", 50, 0, { f: me.getString("family") });
+  e.response.header().set("Cache-Control", "no-store");
+  return e.json(200, { kids: kids.map((k) => ({ id: k.id, name: k.getString("name"), ...u.ageRange(k.getString("birth_ym"), k.getInt("birth_day")) })) });
+}, $apis.requireAuth());

@@ -34,17 +34,17 @@ const memberRef = id => (isPbId(id) && members().some(m => m.id === id) ? id : '
 const OFFER_SNAP = ['title', 'url', 'venue', 'address', 'provider', 'kind', 'weekday', 'time_from', 'time_to', 'start_date', 'end_date'];
 const SPECS = {
   members: {
-    local: () => store.profile.adults.map(a => ({ ...a, _kind: 'adult' })).concat(store.profile.kids.map(k => ({ ...k, _kind: 'kid' }))),
+    local: () => store.profile.adults.map(a => ({ ...a, _kind: 'adult' })).concat(store.profile.kids.filter(k => !k.remote).map(k => ({ ...k, _kind: 'kid' }))),
     key: x => x.id, newId: x => x.id,
     // group, admin, access and e-mail are not in here: only the admin changes them, through /api/djuu/member
-    payload: x => ({ name: (x.name || '').slice(0, 30) || (x._kind === 'kid' ? tl('Kind') : tl('Erwachsene*r')), kind: x._kind, birth_ym: x.ym || '', birth_day: +x.d || 0, school: x.school || '', size: x.size || '', shoe: x.shoe || '', work: x.work || '', role: x.role || '' }),
+    payload: x => ({ name: (x.name || '').slice(0, 30) || (x._kind === 'kid' ? tl('Kind') : tl('Erwachsene*r')), kind: x._kind, birth_ym: x.ym || '', birth_day: (String(x.ym || '').length === 7 && +x.d) || 0, birth_approx: !!x.approx, school: x.school || '', size: x.size || '', shoe: x.shoe || '', work: x.work || '', role: x.role || '' }),
     keep: s => s.account, // members with an account leave only by deleting their account
     setAll(rs) {
-      const kid = r => ({ id: r.id, name: r.name, ym: r.birth_ym, d: r.birth_day ? String(r.birth_day) : '', school: r.school, size: r.size, shoe: r.shoe });
+      const kid = r => ({ id: r.id, name: r.name, ym: r.birth_ym, d: r.birth_day ? String(r.birth_day) : '', approx: !!r.birth_approx, school: r.school, size: r.size, shoe: r.shoe });
       const lvl = v => v || 'edit';
       store.profile.adults = rs.filter(r => r.kind === 'adult').map(r => ({ id: r.id, name: r.name, work: r.work, role: r.role || '', account: !!r.user, user: r.user || '', grp: r.grp || 'family', admin: !!r.is_admin,
         perms: { shop: lvl(r.perm_shop), errands: lvl(r.perm_errands), cal: lvl(r.perm_cal), saved: lvl(r.perm_saved) }, until: r.access_until ? String(r.access_until).slice(0, 10) : '', email: r.email || '', at: when(r.created) }));
-      store.profile.kids = rs.filter(r => r.kind === 'kid').map(kid);
+      store.profile.kids = rs.filter(r => r.kind === 'kid').map(kid).concat(store.profile.kids.filter(k => k.remote)); // helpers: ages from helperKids()
     },
     shadowExtra: r => ({ account: !!r.user }),
   },
@@ -180,6 +180,7 @@ async function loadAll() {
     }
   }
   store.profile.me = auth.member;
+  await helperKids();
   saveShadow(); saveLocal();
   await loadPings();
 }
@@ -249,6 +250,13 @@ async function startSession() {
 async function findFamily() {
   const ms = await listAll('members', `user='${auth.userId}'`);
   if (ms[0]) { auth.family = ms[0].family; auth.member = ms[0].id; const f = await api('GET', `/api/collections/families/records/${auth.family}`); auth.familyName = f.name; writeJson(AUTH_KEY, auth); }
+}
+// Helpers do not see the children's records (birth dates stay in the family); the server tells them name and age only.
+async function helperKids() {
+  const me = store.profile.adults.find(a => a.id === auth.member);
+  if (me?.grp !== 'helper') { store.profile.kids = store.profile.kids.filter(k => !k.remote); return; }
+  try { store.profile.kids = (await api('GET', '/api/djuu/kids')).kids.map(k => ({ id: k.id, name: k.name, ageMin: k.min, ageMax: k.max, remote: true })); }
+  catch (e) { /* keep what is known */ }
 }
 // ---------- Account: register, confirm the e-mail, sign in, passwords ----------
 const PENDING_KEY = 'djuu.pendingEmail', JOIN_KEY = 'djuu.join';

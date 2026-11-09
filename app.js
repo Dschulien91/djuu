@@ -7,7 +7,7 @@
    User input is stored on this device only until the server exists (server-ready shape, see STORE). */
 'use strict'; // i18n-skip
 
-const VERSION = '0.37';
+const VERSION = '0.38';
 const CONTACT = window.DJUU_CONTACT || {}; // config.js: reports and feedback stay hidden until an address is set
 // Logo on light backgrounds, as specified in the design PDF.
 const LOGO = `<span class="logo" role="img" aria-label="djuu"><span style="color:#6B4EE6">d</span><span style="color:#0E8F84">j</span><span style="color:#D6336C">u</span><span style="color:#CC6A00">u</span>
@@ -408,7 +408,7 @@ function agesOf(p) {
 }
 function ageFilter(p, id) {
   const spans = agesOf(p); if (!spans) return null;
-  if (id === 'age_fit') { const kids = familyAges(); return kids.length ? kids.some(k => spans.some(([a, b]) => k.months >= a && k.months < b)) : null; }
+  if (id === 'age_fit') { const kids = familyAges(); return kids.length ? kids.some(k => spans.some(([a, b]) => ageIn(k, a, b))) : null; }
   const a = AGE_FILTERS.find(x => x.id === id);
   return spans.some(([x, y]) => x < a.to && y > a.from);
 }
@@ -484,26 +484,46 @@ function ageLabel(min, max) {
   if (!min) return `bis ${f(max - 1)}`;
   return min < 24 && max <= 25 ? `${min}–${max - 1} ${tl('Mon.')}` : `${f(min)}–${f(max - 1)}`;
 }
-// Ages of the user's children in months (from birth month); negative = expected baby.
-function familyAges() {
-  const now = new Date(), out = [];
-  for (const k of store.profile.kids) {
-    if (!k.ym) continue;
-    const [y, m] = k.ym.split('-').map(Number);
-    let months = (now.getFullYear() - y) * 12 + (now.getMonth() + 1 - m);
-    if (k.d && now.getDate() < +k.d) months--; // birthday this month not reached yet
-    out.push({ name: k.name || tl('Kind'), months });
-  }
-  return out;
+// A child's age in months, always worked out from the birth date (never stored, so it grows by itself).
+// The birth date is "YYYY", "YYYY-MM" or "YYYY-MM" plus a day. With the year only, the child may have been born
+// in any month of that year: the age is a range from min to max months and counts as approximate.
+// Helpers get no birth date, only the range from the server (ageMin, ageMax).
+function kidAge(k) {
+  if (k.ageMin != null) return { min: k.ageMin, max: k.ageMax, approx: k.ageMin !== k.ageMax };
+  if (!k.ym) return null;
+  const now = new Date(), [y, m] = String(k.ym).split('-').map(Number);
+  if (!y) return null;
+  const base = (now.getFullYear() - y) * 12 + now.getMonth() + 1;
+  if (!m) return { min: Math.max(0, base - 12), max: Math.max(0, base - 1), approx: true };
+  let months = base - m;
+  if (k.d && now.getDate() < +k.d) months--; // birthday this month not reached yet
+  return { min: months, max: months, approx: !!k.approx };
 }
-function kidLabel(m) { return m < 0 ? 'unterwegs' : m < 24 ? `${m} ${tl('Monate')}` : `${Math.floor(m / 12)} ${tl('Jahre')}`; }
-const hasFamily = () => store.profile.kids.some(k => k.ym) || !!store.profile.expecting;
+function familyAges() {
+  return store.profile.kids.map(k => { const a = kidAge(k); return a && { name: k.name || tl('Kind'), ...a, months: Math.round((a.min + a.max) / 2) }; }).filter(Boolean);
+}
+// does a child (exact age or a range) fall into [from, to) months
+const ageIn = (a, from, to) => a.max >= from && a.min < to;
+const unit = (n, one, many) => `${n} ${n === 1 ? tl(one) : tl(many)}`;
+// under 1: months; 1 to under 3: years and months; from 3: years; year only: "ca."
+function ageText(a) {
+  if (!a) return tl('Alter fehlt');
+  if (a.approx) { const m = Math.round((a.min + a.max) / 2); return a.max < 12 ? tl('unter 1 Jahr') : `${tl('ca.')} ${unit(Math.max(1, Math.floor(m / 12)), 'Jahr', 'Jahre')}`; }
+  const m = a.min;
+  if (m < 0) return tl('unterwegs');
+  if (m < 1) return tl('unter 1 Monat');
+  if (m < 12) return unit(m, 'Monat', 'Monate');
+  if (m < 36) return unit(Math.floor(m / 12), 'Jahr', 'Jahre') + (m % 12 ? `, ${unit(m % 12, 'Monat', 'Monate')}` : '');
+  return unit(Math.floor(m / 12), 'Jahr', 'Jahre');
+}
+function kidLabel(m) { return ageText({ min: m, max: m }); }
+const hasFamily = () => store.profile.kids.some(k => kidAge(k)) || !!store.profile.expecting;
 // true = fits one of the children (or the pregnancy), false = fits none, null = no profile / no age info
 function offerFits(o) {
   if (!hasFamily()) return null;
-  if (o.for_parents) return !!store.profile.expecting || familyAges().some(a => a.months < 3);
+  if (o.for_parents) return !!store.profile.expecting || familyAges().some(a => a.min < 3);
   if (o.age_min_m == null && o.age_max_m == null) return null;
-  return familyAges().some(a => a.months >= (o.age_min_m ?? 0) && a.months < (o.age_max_m ?? 999));
+  return familyAges().some(a => ageIn(a, o.age_min_m ?? 0, o.age_max_m ?? 999));
 }
 const fmtDay = d => {
   const t = today0(), diff = Math.round((d - t) / 864e5);
@@ -1406,7 +1426,7 @@ function firstIn(o, a, b) {
 const isRecurring = o => o.kind !== 'termin' && o.weekday != null && !(o.start_date && o.start_date === o.end_date);
 const hourOf = o => o.time_from ? +o.time_from.slice(0, 2) : null;
 const ageIs = (x, y) => o => (o.age_min_m != null || o.age_max_m != null) && (o.age_min_m ?? 0) < y && (o.age_max_m ?? 999) > x;
-const fitNames = () => familyAges().filter(k => k.months >= 0).map(k => `${k.name} (${kidLabel(k.months).replace(' Jahre', ' J.').replace(' Monate', tl(' Mon.'))})`).join(', ');
+const fitNames = () => familyAges().filter(k => k.months >= 0).map(k => `${k.name} (${ageText(k).replace(' Jahre', ' J.').replace(' Monate', tl(' Mon.'))})`).join(', ');
 // Filter sections: inside one section any choice may match, across sections all must. Order as in the sheet (Thema sits between Alter and Preis).
 const EV_SECTIONS = [
   { id: 'time', title: tl('Uhrzeit'), any: true, two: true, items: [['vormittag', tl('Vormittag'), o => hourOf(o) != null && hourOf(o) < 12], ['mittag', tl('Mittag'), o => hourOf(o) >= 12 && hourOf(o) < 15],
@@ -1820,7 +1840,7 @@ function favsView() {
 }
 // ---------- Holiday ideas: what fits the next school break, the season and the children's ages ----------
 const fmtD = d => d.toLocaleDateString(LOCALE, { day: 'numeric', month: 'long' });
-const kidNames = () => familyAges().filter(k => k.months >= 0).map(k => `${k.name} (${kidLabel(k.months)})`);
+const kidNames = () => familyAges().filter(k => k.months >= 0).map(k => `${k.name} (${ageText(k)})`);
 function ferienCard(within, forAll = false) {
   const b = nextBreak();
   if (!b || (!b.running && b.days > within)) return '';
@@ -1836,7 +1856,7 @@ const SEASON_IDEAS = m => m >= 5 && m <= 7 ? [[tl('Baden und Wasser'), ['entdeck
 // Nearby ideas for a list of [group, tag] pairs: fits the children's ages, Djuu-Tipps first.
 function ideaPlaces(pairs, kids) {
   const o = origin(), young = kids.length && kids.every(k => k.months < 72);
-  const fits = p => { if (young && p.tags.has('groessere')) return false; const s = agesOf(p); return !kids.length || !s || kids.some(k => s.some(([a, z]) => k.months >= a && k.months < z)); };
+  const fits = p => { if (young && p.tags.has('groessere')) return false; const s = agesOf(p); return !kids.length || !s || kids.some(k => s.some(([a, z]) => ageIn(k, a, z))); };
   return places.filter(p => pairs.some(([g, t]) => p.tags.has(t) && memberOf(p, GROUP[g])) && p.named && fits(p) && areaOk(p))
     .map(p => [dist(o, [p.lat, p.lon]), p]).sort((a, b) => (!!b[1].f.tipp - !!a[1].f.tipp) || a[0] - b[0]).slice(0, 4);
 }
