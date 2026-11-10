@@ -84,7 +84,7 @@ function avatarHtml(m, size = '') {
 const adultById = id => store.profile.adults.find(a => a.id === id);
 const dogs = () => store.profile.dogList || [];
 const dogName = d => d.name || tl('Hund');
-const dogAv = (d, size = '') => d.photo ? `<span class="av dog ring ${size}" style="--c:var(--sun)"><img src="${d.photo}" alt=""></span>` : `<span class="av dog ${size}" aria-hidden="true">${svg('paw')}</span>`;
+const dogAv = (d, size = '') => { const c = d.color || '#FFD166'; return d.photo ? `<span class="av dog ring ${size}" style="--c:${c}"><img src="${d.photo}" alt=""></span>` : `<span class="av dog ${size}" style="background:${c};color:${onColor(c)}" aria-hidden="true">${svg('paw')}</span>`; };
 // dogs, like children, can be added and changed by the family group (not by helpers)
 const canEditFamily = () => isAdmin() || meAdult()?.grp === 'family';
 const kidById = id => store.profile.kids.find(k => k.id === id);
@@ -166,7 +166,7 @@ function wirHeadHtml() {
   const me = meAdult(), admin = isAdmin();
   const what = admin ? tl('Du bist Admin') : me?.grp === 'helper' ? (me.role ? tl(me.role) : tl('Helfer:in')) : tl('Familie');
   return `<div class="wirtop"><span class="photobox">${wirAvatar()}${admin ? `<button type="button" class="cambtn" data-lookphoto="wir|" aria-label="${tl('Foto des Wir ändern')}">${svg('camera')}</button>` : ''}</span>
-    <span class="wirtx">${admin ? `<button type="button" class="wirname${wirName().length > 18 ? ' long' : ''}" data-wir="wirname" aria-label="${tl('Namen des Wir ändern')}">${esc(wirName())}</button>` : `<b class="wirname${wirName().length > 18 ? ' long' : ''}">${esc(wirName())}</b>`}<small>${esc(what)}</small></span></div>`;
+    <span class="wirtx">${admin ? `<button type="button" class="wirname${wirName().length > 18 ? ' long' : ''}" data-wir="wirname" aria-label="${tl('Namen des Wir ändern')}">${esc(wirName())}</button>` : `<b class="wirname${wirName().length > 18 ? ' long' : ''}">${esc(wirName())}</b>`}</span></div>`;
 }
 function wirNameView() {
   return `${head(tl('Name des Wir'))}<form id="wirNameForm"><div class="field"><label for="wirNameIn">${tl('Eigener Name')} <small class="muted">${tl('freiwillig')}</small></label><input id="wirNameIn" maxlength="60" value="${esc(ownWirName())}" placeholder="${tl('z. B. Familie Rossi')}"></div>
@@ -176,10 +176,11 @@ function wirNameView() {
 // photo, name and colour of one entry: the big avatar with the camera, and how others will see the person
 function looksTop(x, kind, nameField) {
   const m = kind === 'dog' ? null : members().find(y => y.id === x.id) || { ...x, color: x.color || MEMBER_COLORS[0] };
-  const edit = kind === 'dog' ? canEditFamily() : canEditLooks(x), av = kind === 'dog' ? dogAv(x, 'xl') : avatarHtml(m, 'xl');
+  const edit = kind === 'dog' ? isAdmin() : canEditLooks(x), av = kind === 'dog' ? dogAv(x, 'xl') : avatarHtml(m, 'xl');
   return `<div class="looktop"><span class="photobox">${av}${edit ? `<button type="button" class="cambtn" data-lookphoto="${kind}|${x.id}" aria-label="${tl('Foto ändern')}">${svg('camera')}</button>` : ''}</span>
       ${edit ? `<button type="button" class="linkbtn strong" data-lookphoto="${kind}|${x.id}">${x.photo ? tl('Foto ändern') : tl('Foto hinzufügen')} · ${tl('freiwillig')}</button>` : ''}</div>
     ${nameField}
+    ${kind === 'dog' && edit ? `<div class="field"><label>${tl('Farbe')}</label>${colorPicker(x.id, x.color || '#FFD166')}</div>` : ''}
     ${kind !== 'dog' && edit ? `<div class="field"><label>${tl('Farbe')} <small class="muted">${tl('Gilt für Listen, Filter und Kalender')}</small></label>${colorPicker(x.id, m.color)}</div>
       <div class="field"><label>${tl('So sieht man {name}', { name: esc(m.name) })}</label>
         <div class="previewrow" style="--c:${m.color}"><span class="navtx"><b>${tl('Babyschwimmen')}</b><small>${tl('Mi · 10:00')} · ${esc(m.name)}</small></span>${avatarHtml(m, 'xs')}</div></div>` : ''}
@@ -207,6 +208,7 @@ function onboardingView() {
         ${birthHtml(i, k, false)}</div>`).join('')}
       ${store.profile.kids.length ? `<p class="note">${tl('Geburtsdatum: Nur das Jahr ist Pflicht. Je genauer, desto besser passen die Vorschläge.')}</p>` : ''}
       <button type="button" class="linkbtn plus" data-addkid="1">${svg('plus')}${tl('Kind hinzufügen')}</button>
+      ${isAdmin() ? `<div class="field"><label for="onbWirName">${tl('Name eures Wir')} <small class="muted">${tl('freiwillig')}</small></label><input id="onbWirName" maxlength="60" placeholder="${tl('z. B. Familie Müller')}" value="${esc(ownWirName())}"><p class="note">${tl('Ohne Namen steht dort einfach „Wir“.')}</p></div>` : ''}
       <div class="field"><label>${tl('Habt ihr einen Hund?')} <small class="muted">${tl('freiwillig')}</small></label>
         ${dogs().map((d, i) => `<div class="dogline">${dogAv(d)}<input data-dogname="${i}" value="${esc(d.name)}" placeholder="${tl('Name (freiwillig)')}" maxlength="30" aria-label="${tl('Name')}"><button type="button" class="round sm" data-dogdel="${d.id}" aria-label="${tl('Entfernen')}">${svg('close')}</button></div>`).join('')}
         <button type="button" class="linkbtn plus" data-adddog="inline">${svg('plus')}${tl('Hund hinzufügen')}</button></div>
@@ -543,8 +545,8 @@ document.addEventListener('click', e => {
   else if (d.wirperson) go({ type: 'person', id: d.wirperson });
   else if (d.lookphoto) openLooksPhoto(d.lookphoto);
   else if (d.color) {
-    const [key, c] = d.color.split('|'), x = key === 'me' ? ensureMe() : adultById(key) || kidById(key);
-    if (x && (key === 'me' || canEditLooks(x))) { x.color = c; save(); renderPanel(); }
+    const [key, c] = d.color.split('|'), dog = dogs().find(y => y.id === key), x = key === 'me' ? ensureMe() : adultById(key) || kidById(key) || dog;
+    if (x && (key === 'me' || (dog ? isAdmin() : canEditLooks(x)))) { x.color = c; save(); renderPanel(); }
   }
   else if (d.looksave) { back(); toast(tl('Gespeichert.')); }
   else if (d.wirdog) go({ type: 'wir', page: 'dog', id: d.wirdog });
@@ -573,6 +575,7 @@ document.addEventListener('click', e => {
       }
     }
     if (W.onb === 2 && !d.skip && store.profile.kids.some(k => k.name && !k.ym)) return toast(tl('Bitte bei jedem Kind mindestens das Geburtsjahr angeben.'));
+    if (W.onb === 2 && !d.skip && $('#onbWirName') && $('#onbWirName').value.trim() !== ownWirName()) setWirLooks({ name: $('#onbWirName').value.trim().slice(0, 60) || 'Wir' });
     if (W.onb === 2 && !d.skip) { const plz = $('#onbPlz').value.trim(); if (plz && !setPlzPlace(plz)) return toast(tl('Bitte eine Hamburger Postleitzahl eingeben.')); save(); }
     if (d.onb === 'done') return finishOnboarding();
     if (d.onb === 'invite') { const g = W.add.grp; finishOnboarding(); W.add = { grp: g, role: '', perms: null, until: '', name: '' }; return go({ type: 'wir', page: 'add' }); }

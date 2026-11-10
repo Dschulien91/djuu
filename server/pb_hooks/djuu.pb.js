@@ -205,3 +205,51 @@ routerAdd("GET", "/api/djuu/kids", (e) => {
   e.response.header().set("Cache-Control", "no-store");
   return e.json(200, { kids: kids.map((k) => ({ id: k.id, name: k.getString("name"), ...u.ageRange(k.getString("birth_ym"), k.getInt("birth_day")) })) });
 }, $apis.requireAuth());
+
+// "Frag Djuu": turns a free question into the app's own filters with Claude Haiku. Only the typed text is sent
+// (no account, no names, no children, no position). The answer is checked against the known ids; anything else is dropped.
+// Limits: 40 questions per address and day, 3000 per day in total. Without a key or on any error the app uses its own
+// simple recognition instead (503 / 502).
+routerAdd("POST", "/api/djuu/ask", (e) => {
+  const body = e.requestInfo().body || {};
+  const q = String(body.q || "").replace(/\s+/g, " ").trim().slice(0, 200);
+  const vocab = body.vocab || {};
+  if (q.length < 2) throw new BadRequestError("Leere Frage.");
+  let key = "";
+  try { key = e.app.findFirstRecordByFilter("djuu_settings", "key = 'anthropic_api_key'").getString("value"); } catch (err) { /* none */ }
+  if (!key) return e.json(503, { error: "no_key" });
+  const ip = String(e.request.header.get("X-Forwarded-For") || e.realIP() || "").split(",")[0].trim();
+  const day = new Date().toISOString().slice(0, 10), store = e.app.store();
+  const mine = (store.get("ask:" + day + ":" + ip) || 0) + 1, all = (store.get("ask:" + day) || 0) + 1;
+  if (mine > 40 || all > 3000) return e.json(429, { error: "limit" });
+  store.set("ask:" + day + ":" + ip, mine); store.set("ask:" + day, all);
+  // what the app knows: ids sent by the app, checked here to be short plain words
+  const ids = (list) => (Array.isArray(list) ? list : []).map(String).filter((x) => /^[a-z0-9_:]{1,30}$/.test(x)).slice(0, 200);
+  const groups = ids(vocab.groups), tags = ids(vocab.tags), filters = ids(vocab.filters);
+  const system = "You turn a parent's question about places for children in Hamburg into filters of the Djuu app. " +
+    "Answer with JSON only, no other text: {\"group\": string|null, \"tags\": string[], \"filters\": string[], \"io\": \"drinnen\"|\"draussen\"|null, \"age_months\": [from, to]|null}. " +
+    "Use only these ids. group (one category): " + groups.join(", ") + ". tags (inside the category): " + tags.join(", ") + ". filters (properties): " + filters.join(", ") + ". " +
+    "io: drinnen for indoor, roofed or 'bei Regen', draussen for outdoor. age_months: the child's age range in months, e.g. a 2-year-old is [24, 36]. " +
+    "Leave out what the question does not say. Ignore names or personal details. The question may be in any language.";
+  let res;
+  try {
+    res = $http.send({
+      url: "https://api.anthropic.com/v1/messages", method: "POST", timeout: 12,
+      headers: { "content-type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01" },
+      body: JSON.stringify({ model: "claude-haiku-5-5", max_tokens: 300, thinking: { type: "disabled" }, system, messages: [{ role: "user", content: q }] }),
+    });
+  } catch (err) { return e.json(502, { error: "unreachable" }); }
+  if (res.statusCode !== 200) return e.json(502, { error: "upstream", status: res.statusCode });
+  let out = {};
+  try {
+    const text = (res.json.content || []).filter((c) => c.type === "text").map((c) => c.text).join("");
+    out = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1));
+  } catch (err) { return e.json(502, { error: "unreadable" }); }
+  const keep = (list, allowed) => (Array.isArray(list) ? list : []).map(String).filter((x) => allowed.includes(x)).slice(0, 8);
+  const age = Array.isArray(out.age_months) && out.age_months.length === 2 ? out.age_months.map((n) => Math.max(0, Math.min(216, Math.round(+n || 0)))) : null;
+  return e.json(200, {
+    group: groups.includes(String(out.group)) ? String(out.group) : null,
+    tags: keep(out.tags, tags), filters: keep(out.filters, filters),
+    io: out.io === "drinnen" || out.io === "draussen" ? out.io : null, age_months: age,
+  });
+});

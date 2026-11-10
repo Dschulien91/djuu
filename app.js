@@ -7,7 +7,7 @@
    User input is stored on this device only until the server exists (server-ready shape, see STORE). */
 'use strict'; // i18n-skip
 
-const VERSION = '0.45';
+const VERSION = '0.46';
 const CONTACT = window.DJUU_CONTACT || {}; // config.js: reports and feedback stay hidden until an address is set
 // Logo on light backgrounds, as specified in the design PDF.
 const LOGO = `<span class="logo" role="img" aria-label="djuu"><span style="color:#6B4EE6">d</span><span style="color:#0E8F84">j</span><span style="color:#D6336C">u</span><span style="color:#CC6A00">u</span>
@@ -57,6 +57,9 @@ const ICON = {
   scissors: '<circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4L8.1 15.9M14.5 14.5L20 20M8.1 8.1L12 12"/>',
   repeat: '<path d="M17 2l4 4-4 4"/><path d="M3 11V9a3 3 0 0 1 3-3h15"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a3 3 0 0 1-3 3H3"/>',
   next: '<path d="M9 5l7 7-7 7"/>',
+  sparkle: '<path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2 2.2.8-2.2.8L19 21l-.8-2.2-2.2-.8 2.2-.8z"/>',
+  sliders: '<path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2.2"/><circle cx="10" cy="17" r="2.2"/>',
+  up: '<path d="M6 15l6-6 6 6"/>',
   image: '<rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/>',
   trash: '<path d="M4 7h16M9 7V4.5h6V7M6.5 7l1 13h9l1-13"/><path d="M10 11v6M14 11v6"/>',
   eye: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>',
@@ -88,7 +91,7 @@ const GROUPS = [
   { id: 'spielen', mode: 'erleben', label: tl('Spielen & Toben'), short: tl('Spielen & Toben'), icon: 'playground', color: '#0E8F84', cats: ['spielplatz', 'abenteuer', 'indoor', 'spielhaus', 'freizeit', 'spielstrasse', 'bolzplatz', 'tischtennis', 'sportstaette', 'sportverein', 'reiten', 'rodeln'] },
   { id: 'gastro', mode: 'erleben', label: tl('Gastro'), short: tl('Gastro'), icon: 'cup', color: '#9C36B5', cats: ['cafe', 'restaurant', 'imbiss', 'eis'] },
   { id: 'entdecken', mode: 'erleben', label: tl('Entdecken'), short: tl('Entdecken'), icon: 'tree', color: '#2F9E44', cats: ['park', 'picknick', 'grillplatz', 'hundeauslauf', 'baden', 'museum', 'kultur', 'ausflug', 'buecherei', 'garten', 'naturschutz', 'tierhof', 'brunnen', 'buecherschrank', 'faehre', 'bootsverleih', 'camping'] },
-  { id: 'kurse', mode: 'erleben', label: tl('Kurse & Gruppen'), short: tl('Kurse & Gruppen'), icon: 'group', color: '#C2255C', cats: [], offers: ['kurs', 'gruppe'] },
+  { id: 'kurse', mode: 'erleben', label: tl('Termine'), short: tl('Termine'), icon: 'group', color: '#C2255C', cats: [], offers: ['kurs', 'gruppe'] },
   { id: 'events', mode: 'erleben', label: tl('Events'), short: tl('Events'), icon: 'cal', color: '#D9480F', cats: [], offers: ['termin'] },
   { id: 'gesundheit', mode: 'service', label: tl('Notfall & Gesundheit'), short: tl('Notfall & Gesundheit'), icon: 'cross', color: '#E03131', cats: ['kinderarzt', 'klinik', 'apotheke', 'babyklappe', 'hebamme', 'geburtshaus', 'zahnarzt', 'frauenarzt', 'hno', 'augenarzt', 'kinderpsychologie', 'physio', 'therapie'] },
   { id: 'sanitaer', mode: 'service', label: tl('Sanitär'), short: tl('Sanitär'), icon: 'baby', color: '#0C8599', cats: ['wc', 'wickel', 'familienfreundlich', 'trinkwasser'], extra: p => p.tags.has('wickeln') || p.tags.has('stillen') },
@@ -99,7 +102,8 @@ const GROUPS = [
 const GROUP = Object.fromEntries(GROUPS.map(g => [g.id, g]));
 // Tags inside a sub-category. Plain tags are alternatives (Café or Restaurant); p: 1 marks a property that must hold
 // in addition (Café and vegan). Offer tags 'aud:*' (who takes part) form their own dimension.
-const T = (id, label, p) => ({ id, label, p: p ? 1 : 0 });
+// of: a sub-category that stands for several place tags (Entdecken: "Museen & Kultur" = museum, kultur, theater ...)
+const T = (id, label, p, of) => ({ id, label, p: p ? 1 : 0, of });
 const TAGS = {
   spielen: [T('spielplatz', tl('Spielplatz')), T('abenteuer', tl('Abenteuerspielplatz')), T('indoorspielplatz', tl('Indoor-Spielplatz')), T('klettern', tl('Klettern & Bouldern')),
     T('trampolin', tl('Trampolin')), T('spielhaus', tl('Spielhaus')), T('spielstrasse', tl('Spielstraße')), T('bolzplatz', tl('Bolzplatz')), T('tischtennis', tl('Tischtennis')), T('sportstaette', tl('Sportanlagen')), T('sportverein', tl('Sportvereine')), T('reiten', tl('Reiten')), T('rodeln', tl('Rodeln')), T('minigolf', tl('Minigolf')), T('skaten', tl('Skaten')), T('eislaufen', tl('Eislaufen')),
@@ -107,8 +111,9 @@ const TAGS = {
   gastro: [T('cafe', tl('Café')), T('restaurant', tl('Restaurant')), T('imbiss', tl('Imbiss')), T('eis', tl('Eis')), T('kindercafe', tl('Kindercafé'), 1),
     T('fruehstueck', tl('Frühstück'), 1), T('kuchen', tl('Kuchen'), 1), T('vegan', tl('Vegan'), 1), T('vegetarisch', tl('Vegetarisch'), 1), T('terrasse', tl('Draußen sitzen'), 1),
     T('italienisch', tl('Pizza & Pasta'), 1), T('asiatisch', tl('Asiatisch'), 1), T('burger', tl('Burger'), 1)],
-  entdecken: [T('natur', tl('Natur')), T('kultur', tl('Kultur')), T('tiere', tl('Tiere')), T('baden', tl('Baden')), T('museum', tl('Museen')), T('theater', tl('Theater & Kino')),
-    T('buecherei', tl('Bücherhallen')), T('picknick', tl('Picknick & Grillen')), T('hundeauslauf', tl('Hundeauslauf')), T('aussicht', tl('Aussicht')), T('brunnen', tl('Brunnen')), T('buecherschrank', tl('Bücherschränke')), T('faehre', tl('Fähren')), T('bootsverleih', tl('Boot fahren')), T('camping', tl('Camping')), T('ausflugsziel', tl('Ausflugsziele'))],
+  entdecken: [T('e_natur', tl('Natur & Parks'), 0, ['natur', 'picknick', 'aussicht', 'hundeauslauf']), T('tiere', tl('Tiere (Zoo, Bauernhof)')),
+    T('e_kultur', tl('Museen & Kultur'), 0, ['museum', 'kultur', 'theater', 'buecherei', 'buecherschrank']), T('e_ausflug', tl('Ausflüge'), 0, ['ausflugsziel', 'faehre', 'bootsverleih', 'camping']),
+    T('e_wasser', tl('Wasser & Schwimmen'), 0, ['baden', 'brunnen'])],
   gesundheit: [T('kinderarzt', tl('Kinderarzt')), T('apotheke', tl('Apotheke')), T('klinik', tl('Klinik')), T('hebamme', tl('Hebamme')), T('geburtshaus', tl('Geburtshaus')), T('zahnarzt', tl('Zahnarzt')), T('frauenarzt', tl('Frauenarzt')), T('hno', 'HNO'), T('augenarzt', tl('Augenarzt')), T('kinderpsychologie', tl('Kinderpsychologie')), T('physio', tl('Physiotherapie')), T('therapie', tl('Logopädie & Ergotherapie')), T('babyklappe', tl('Babyklappe'))],
   sanitaer: [T('wc', tl('Toilette')), T('wickeln', tl('Wickelplatz')), T('stillen', tl('Stillen')), T('trinkwasser', tl('Trinkwasser'))],
   laeden: [T('drogerie', tl('Drogerie')), T('supermarkt', tl('Supermarkt')), T('spaeti', tl('Späti & Kiosk')), T('tankstelle', tl('Tankstelle')), T('baby', tl('Babyausstattung')),
@@ -123,6 +128,9 @@ const TAGS = {
 };
 const TAG_LABEL = {};
 for (const list of Object.values(TAGS)) for (const t of list) TAG_LABEL[t.id] = TAG_LABEL[t.id] || t.label;
+// the single place tags inside Entdecken keep their names (lists, search, quick questions)
+Object.assign(TAG_LABEL, { natur: tl('Natur'), kultur: tl('Kultur'), baden: tl('Baden'), museum: tl('Museen'), theater: tl('Theater & Kino'), buecherei: tl('Bücherhallen'), picknick: tl('Picknick & Grillen'),
+  hundeauslauf: tl('Hundeauslauf'), aussicht: tl('Aussicht'), brunnen: tl('Brunnen'), buecherschrank: tl('Bücherschränke'), faehre: tl('Fähren'), bootsverleih: tl('Boot fahren'), camping: tl('Camping'), ausflugsziel: tl('Ausflugsziele') });
 TAG_LABEL.drinnen = tl('Drinnen'); TAG_LABEL.draussen = tl('Draußen'); TAG_LABEL.groessere = tl('Eher für Größere');
 const IO_GROUPS = ['tipps', 'spielen', 'gastro', 'entdecken'];
 const CAT_ICON = { museum: 'museum', kultur: 'museum', buecherei: 'museum', baden: 'waves', faehre: 'waves', bootsverleih: 'waves', brunnen: 'waves', hundeauslauf: 'paw', buecherschrank: 'museum', kita: 'blocks', schule: 'blocks', wc: 'toilet', apotheke: 'pill' };
@@ -355,7 +363,7 @@ async function compressPhoto(file) {
 }
 
 // ---------- State ----------
-const state = { mode: 'erleben', groups: new Set(['spielen']), cats: new Set(), tags: new Set(['spielplatz']), io: null, area: { type: 'all' }, picking: false, drawing: null, level: 0, sq: '', filters: new Set(), preset: null, showUnknown: false, q: '', tab: 'map', listLimit: 40, me: null, selected: null };
+const state = { mode: 'erleben', groups: new Set(), cats: new Set(), tags: new Set(), onlyPlace: null, io: null, area: { type: 'all' }, picking: false, drawing: null, level: 0, sq: '', filters: new Set(), preset: null, showUnknown: false, q: '', tab: 'map', listLimit: 40, me: null, selected: null };
 let SOURCES = [];
 const places = [];
 const byId = new Map();
@@ -633,8 +641,8 @@ function setMapStyle(id) {
 }
 const cluster = L.markerClusterGroup({
   // group markers only when the whole city is in view; from district level on every place is its own (smaller) dot
-  chunkedLoading: true, showCoverageOnHover: false, disableClusteringAtZoom: 13, spiderfyOnMaxZoom: false,
-  maxClusterRadius: z => z <= 11 ? 40 : 28,
+  chunkedLoading: true, showCoverageOnHover: false, disableClusteringAtZoom: 16, spiderfyOnMaxZoom: false,
+  maxClusterRadius: z => z <= 13 ? 50 : 34,
   iconCreateFunction: c => {
     const n = c.getChildCount(), size = n < 50 ? '' : n < 300 ? 'm' : 'l';
     return L.divIcon({ html: `<div class="mkhit"><div class="cluster ${size}">${n < 1000 ? n : Math.round(n / 100) / 10 + 'k'}</div></div>`, className: '', iconSize: [44, 44] });
@@ -645,9 +653,13 @@ map.addLayer(cluster);
 const zoomClass = () => { const c = map.getContainer().classList; c.toggle('zs', map.getZoom() < 15); c.toggle('zd', map.getZoom() < 14); };
 map.on('zoomend', zoomClass); zoomClass();
 const iconCache = {};
+// events on the map carry their date (the first one in the chosen time) on the pin
+let offerDate = new Map();
+const pinDate = d => `${d.getDate()}.${d.getMonth() + 1}.`;
 function iconFor(p, unknown, og) {
-  const g = og || groupOf(p), icon = og ? og.icon : iconOf(p), tip = !!p.f.tipp, k = g.id + icon + (unknown ? 'u' : '') + (p.mine ? 'm' : '') + (tip ? 't' : '');
-  return iconCache[k] || (iconCache[k] = L.divIcon({ className: '', iconSize: [44, 44], html: `<div class="mkhit"><div class="mk${unknown ? ' unk' : ''}${p.mine ? ' mine' : ''}${tip ? ' tip' : ''}" style="--c:${tip ? '#0E8F84' : g.color}"><svg viewBox="0 0 24 24">${ICON[icon]}</svg>${tip ? `<span class="star">${svg('star', '')}</span>` : ''}</div></div>` }));
+  const date = og?.id === 'events' && offerDate.get(p.id) ? pinDate(offerDate.get(p.id)) : '';
+  const g = og || groupOf(p), icon = og ? og.icon : iconOf(p), tip = !!p.f.tipp, k = g.id + icon + (unknown ? 'u' : '') + (p.mine ? 'm' : '') + (tip ? 't' : '') + date;
+  return iconCache[k] || (iconCache[k] = L.divIcon({ className: '', iconSize: [44, 44], html: `<div class="mkhit"><div class="mk${unknown ? ' unk' : ''}${p.mine ? ' mine' : ''}${tip ? ' tip' : ''}" style="--c:${tip ? '#0E8F84' : g.color}"><svg viewBox="0 0 24 24">${ICON[icon]}</svg>${tip ? `<span class="star">${svg('star', '')}</span>` : ''}</div>${date ? `<span class="mkdate">${date}</span>` : ''}</div>` }));
 }
 function markerFor(p, unknown, og) {
   if (!p.marker) { p.marker = L.marker([p.lat, p.lon]); p.marker.on('click', () => showPlace(p.id, true)); }
@@ -737,7 +749,9 @@ const offerGroup = () => { const g = soleGroup(); return g && g.offers ? g : nul
 // selected tags of a group, split into alternatives (any) and properties (all), plus the audience of offers
 function tagSel(g) {
   const list = TAGS[g.id] || [], sel = list.filter(t => state.tags.has(t.id));
-  return { any: sel.filter(t => !t.p && !t.id.startsWith('aud:')).map(t => t.id), all: sel.filter(t => t.p).map(t => t.id), aud: sel.filter(t => t.id.startsWith('aud:')).map(t => t.id.slice(4)) };
+  // tags chosen elsewhere (quick questions, search) that are not a sub-category of their own count as alternatives too
+  const loose = [...state.tags].filter(t => !t.startsWith('aud:') && !list.some(x => x.id === t));
+  return { any: sel.filter(t => !t.p && !t.id.startsWith('aud:')).flatMap(t => t.of || [t.id]).concat(loose), all: sel.filter(t => t.p).map(t => t.id), aud: sel.filter(t => t.id.startsWith('aud:')).map(t => t.id.slice(4)) };
 }
 function tagsOk(tags, g) {
   const s = tagSel(g);
@@ -745,9 +759,9 @@ function tagsOk(tags, g) {
 }
 // offers of an offer group (next 8 weeks) that pass the selected tags
 function groupOffers(g) {
-  const s = tagSel(g), t0 = today0();
+  const s = tagSel(g), t0 = today0(), r = g.id === 'events' && state.evRange;
   return OFFERS.filter(o => g.offers.includes(o.kind) && (!s.aud.length || s.aud.includes(o.audience)) && (!s.any.length || s.any.includes(o.topic)))
-    .map(o => [nextDate(o), o]).filter(([d]) => d && d - t0 < 56 * 864e5);
+    .map(o => [r ? firstIn(o, r[0], r[1]) : nextDate(o), o]).filter(([d]) => d && d - t0 < 56 * 864e5); // events without a date never reach the map
 }
 let offerPlaces = new Map(); // group id -> Set of place ids with matching offers (rebuilt in compute)
 function memberOf(p, g) {
@@ -765,7 +779,12 @@ function inSelection(p) {
 }
 function compute() {
   offerPlaces = new Map();
-  for (const id of state.groups) if (GROUP[id].offers) offerPlaces.set(id, new Set(groupOffers(GROUP[id]).map(([, o]) => o.place_id).filter(Boolean)));
+  offerDate = new Map();
+  for (const id of state.groups) if (GROUP[id].offers) {
+    const list = groupOffers(GROUP[id]);
+    offerPlaces.set(id, new Set(list.map(([, o]) => o.place_id).filter(Boolean)));
+    if (id === 'events') for (const [d, o] of list) if (o.place_id && (!offerDate.has(o.place_id) || d < offerDate.get(o.place_id))) offerDate.set(o.place_id, d);
+  }
   const q = state.q.trim().toLowerCase();
   const qHits = q ? new Set(searchPlaces(q).map(r => r.p.id)) : null;
   const fs = [...state.filters];
@@ -786,11 +805,17 @@ function compute() {
 }
 let last = { match: [], unknown: [] };
 const shownList = () => state.showUnknown ? last.match.concat(last.unknown) : last.match;
+let onlyMarker = null;
 function refresh() {
   last = compute();
   cluster.clearLayers();
-  const og = offerGroup();
-  cluster.addLayers(last.match.map(p => markerFor(p, false, og)).concat(state.showUnknown ? last.unknown.map(p => markerFor(p, true, og)) : []));
+  if (onlyMarker) { map.removeLayer(onlyMarker); onlyMarker = null; }
+  const og = offerGroup(), only = state.onlyPlace && byId.get(state.onlyPlace);
+  if (only) {
+    // "Nur dieser Ort": one big pin with its name, the others are hidden
+    onlyMarker = L.marker([only.lat, only.lon], { zIndexOffset: 1000, icon: L.divIcon({ className: '', iconSize: [52, 52], iconAnchor: [26, 26], html: `<div class="mkhit"><div class="mk big" style="--c:${groupOf(only).color}">${svg(iconOf(only), '')}</div><span class="mklabel">${esc(only.name)}</span></div>` }) })
+      .on('click', () => showPlace(only.id, true)).addTo(map);
+  } else cluster.addLayers(last.match.map(p => markerFor(p, false, og)).concat(state.showUnknown ? last.unknown.map(p => markerFor(p, true, og)) : []));
   renderTop();
   if (['list', 'filters'].includes(view().type)) renderPanel();
 }
@@ -803,7 +828,18 @@ function topTitle() {
   if (g) return state.tags.size ? [...state.tags].map(t => TAG_LABEL[t] || t).join(', ') : g.label;
   return state.groups.size ? tl('Mehrere Kategorien') : tl('Alle Orte');
 }
-// One level at a time: 0 = Erleben or Service, 1 = categories of that mode, 2 = tags of the chosen category.
+// Under the search bar: the choice as one chip ("✓ Spielen & Toben ✕"), then its sub-categories. Nothing chosen: nothing here.
+function selectionHtml() {
+  const g = soleGroup(), x = svg('close');
+  const only = state.onlyPlace && byId.get(state.onlyPlace);
+  if (only) return `<div class="row selrow"><button type="button" class="chip selchip" data-clearonly="1">${svg('check')}${tl('Nur dieser Ort')} ${x}</button></div>`;
+  const label = state.q ? `„${state.q}“` : state.preset ? PRESETS.find(p => p.id === state.preset).label : state.groups.size ? (g ? g.label : tl('Mehrere Kategorien')) : '';
+  if (!label && !state.io) return '';
+  const top = `<div class="row selrow">${label ? `<button type="button" class="chip selchip" data-clearsel="1" aria-label="${esc(label)} ${tl('entfernen')}">${svg('check')}${esc(label)} ${x}</button>` : ''}${state.io ? `<button type="button" class="chip selchip" data-io="${state.io}">${svg('check')}${esc(TAG_LABEL[state.io])} ${x}</button>` : ''}</div>`;
+  const tags = g && TAGS[g.id] && !g.offers ? tagCounts(g) : [];
+  return top + (tags.length ? `<div class="row subrow">${tags.map(([t]) => `<button type="button" class="chip tag${state.tags.has(t.id) ? ' on' : ''}" data-tag="${t.id}" aria-pressed="${state.tags.has(t.id)}">${state.tags.has(t.id) ? svg('check') : ''}${esc(t.label)}</button>`).join('')}</div>` : '');
+}
+// One level at a time: 0 = Erleben or Service, 1 = categories of that mode, 2 = tags of the chosen category (old top row, unused on the map now).
 function rowHtml() {
   const g = soleGroup();
   const q = state.q ? `<button type="button" class="chip on" data-clearq="1">„${esc(state.q)}“ ${svg('close')}</button>` : '';
@@ -814,11 +850,19 @@ function rowHtml() {
   return q + MODES.map(m => `<button type="button" class="chip kat${state.mode === m.id ? ' on' : ''}" data-mode="${m.id}">${m.label}</button>`).join('');
 }
 function renderTop() {
-  const g = soleGroup(), nf_ = state.filters.size + (state.io ? 1 : 0);
-  $('#filterBtn').innerHTML = svg('filter') + (nf_ ? `<span class="count">${nf_}</span>` : '');
-  $('#filterBtn').hidden = !!(g && g.offers);
-  $('#filterBtn').classList.toggle('on', nf_ > 0);
-  $('#ctx').innerHTML = rowHtml();
+  const nf_ = state.filters.size + (state.io ? 1 : 0), bar = $('#mapbar');
+  if (!bar.childElementCount) {
+    // the same search as in "Suchen": a tap opens it with the keyboard, the microphone starts speaking
+    bar.innerHTML = `<div class="searchbar"><button type="button" class="sbmain" data-opensearch="1">${svg('sparkle')}<span>${tl('Suchen oder frag Djuu')}</span></button>
+      ${Speech ? `<button type="button" class="sbmic" data-opensearch="voice" aria-label="${tl('Spracheingabe starten')}">${svg('mic')}</button>` : ''}</div>
+      <button type="button" class="roundbtn" id="mapFilter" data-open="filters" aria-label="${tl('Filter')}"></button>
+      <button type="button" class="roundbtn bellbtn" id="bell" data-opennews="1" hidden></button>`;
+  }
+  const f = $('#mapFilter');
+  f.innerHTML = svg('sliders') + (nf_ ? `<span class="pallina sun">${nf_}</span>` : '');
+  f.setAttribute('aria-label', nf_ ? tl('Filter, {n} aktiv', { n: nf_ }) : tl('Filter'));
+  $('#ctx').innerHTML = selectionHtml();
+  if (typeof updateBell === 'function') updateBell();
 }
 // tags of a group that occur at least once, in their defined order
 const tagCountCache = new Map();
@@ -830,7 +874,10 @@ function tagCounts(g) {
   }
   if (!tagCountCache.has(g.id)) {
     const n = {};
-    for (const p of places) if (memberOf(p, g)) for (const t of p.tags) n[t] = (n[t] || 0) + 1;
+    for (const p of places) if (memberOf(p, g)) {
+      for (const t of p.tags) n[t] = (n[t] || 0) + 1;
+      for (const t of TAGS[g.id]) if (t.of && t.of.some(x => p.tags.has(x))) n[t.id] = (n[t.id] || 0) + 1;
+    }
     if (!places.length) return [];
     tagCountCache.set(g.id, TAGS[g.id].map(t => [t, n[t.id] || 0]).filter(([, c]) => c));
   }
@@ -900,6 +947,7 @@ async function renderPanel() {
   else if (v.type === 'evfilters') body.innerHTML = evFiltersView();
   else if (v.type === 'evtopics') body.innerHTML = evTopicsView();
   else if (v.type === 'evdistricts') body.innerHTML = evDistrictsView();
+  else if (v.type === 'evplace') body.innerHTML = evPlaceView();
   else if (v.type === 'rate') { body.innerHTML = rateView(v.id); bindRate(v.id); }
   else if (v.type === 'report') body.innerHTML = reportView(v.id);
   else if (v.type === 'wizard') { renderWizard(); return; }
@@ -909,6 +957,8 @@ async function renderPanel() {
   stayType = v.type;
 }
 
+// the head of the panel on the map: the whole bar can be dragged, a tap folds and unfolds it
+const panelHead = title => `<div class="panelhead" data-drag="1"><h2>${title}</h2><span class="showlist">${svg('up')}${tl('Liste anzeigen')}</span></div>`;
 // list (the home view)
 function listView() {
   if (offerGroup()) return offerListView(offerGroup());
@@ -922,7 +972,8 @@ function listView() {
   const todayFits = hasFamily() ? OFFERS.filter(o => { const d = nextDate(o); return d && +d === +today0() && offerFits(o) === true; }).length : 0;
   const breakCard = ferienCard(21);
   const famCard = breakCard || todayFits && !state.filters.size ? breakCard + (!todayFits || state.filters.size ? '' : `<button type="button" class="askcard" data-tab="events" style="width:100%;border:0;text-align:left;margin:0 0 8px"><div><b>${tl('Heute:')} ${todayFits} passende ${todayFits === 1 ? tl('Gruppe') : tl('Gruppen und Kurse')}</b><span>${tl('für')} ${esc(familyAges().map(k => k.name).join(', ') || 'euch')}</span></div>${svg('cal')}</button>`) : '';
-  return `<div class="ph" data-expand="1"><h2>${nf.format(shown.length)} ${shown.length === 1 ? tl('Ort') : tl('Orte')} · ${esc(topTitle())}<span class="sub">${sub}</span></h2></div>${toolsHtml()}${famCard}
+  const chosen = state.groups.size || state.q || state.preset;
+  return `${panelHead(`${nf.format(shown.length)} ${shown.length === 1 ? tl('Ort') : tl('Orte')}${chosen ? ' · ' + esc(topTitle()) : ''}`)}<p class="sub panelsub">${sub}</p>${toolsHtml()}${famCard}
     ${sorted.length ? `<ol class="list">${sorted.slice(0, state.listLimit).map(([d, p]) => itemHtml(p, d)).join('')}</ol>
     ${sorted.length > state.listLimit ? `<button type="button" class="more" data-more="1">${tl('Mehr anzeigen')}</button>` : ''}`
     : `<div class="empty"><b>${tl('Hier ist nichts dabei.')}</b>${state.area.type !== 'all' ? tl('Probier ein größeres Gebiet oder weniger Filter.') : tl('Probier weniger Filter oder zoom raus.')}</div>`}`;
@@ -933,7 +984,7 @@ function offerListView(g) {
   const near = o => { const pl = o.place_id && byId.get(o.place_id); return pl ? dist(o0, [pl.lat, pl.lon]) : o.lat ? dist(o0, [o.lat, o.lon]) : 9e9; };
   const list = groupOffers(g).filter(([, o]) => offerInArea(o) && (!o.place_id || !byId.get(o.place_id) || inSelection(byId.get(o.place_id))))
     .map(([d, o]) => [near(o), d, o]).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-  return `<div class="ph" data-expand="1"><h2>${nf.format(list.length)} ${tl('Angebote ·')} ${esc(topTitle())}<span class="sub">${tl('in den nächsten 8 Wochen,')} ${state.me ? tl('von dir aus') : tl('ab Kartenmitte')}</span></h2></div>${toolsHtml(false)}
+  return `${panelHead(`${nf.format(list.length)} ${tl('Angebote ·')} ${esc(topTitle())}`)}<p class="sub panelsub">${tl('in den nächsten 8 Wochen,')} ${state.me ? tl('von dir aus') : tl('ab Kartenmitte')}</p>${toolsHtml(false)}
     ${list.length ? `<ol class="list">${list.slice(0, state.listLimit).map(([, d, o]) => offerItem(o, d)).join('')}</ol>
     ${list.length > state.listLimit ? `<button type="button" class="more" data-more="1">${tl('Mehr anzeigen')}</button>` : ''}`
     : `<div class="empty"><b>${tl('Hier ist nichts dabei.')}</b>${tl('Probier andere Tags.')}</div>`}
@@ -1334,6 +1385,7 @@ function searchChips(tokens) {
   return { gs: GROUPS.filter(g => hit(g.label)), ts: Object.entries(TAGS).flatMap(([gid, list]) => list.filter(t => hit(t.label)).map(t => [gid, t])).slice(0, 8), fs: ATTRS.filter(a => a.q && hit(a.label)).slice(0, 4), ds: districtList().filter(d => tokens.some(t => t.length > 2 && norm(d).includes(t))).slice(0, 4) };
 }
 
+// (startVoice: the 'Ich höre zu' sheet, see voice.js)
 // Voice input with the browser's own speech service; the button only appears where the browser offers one.
 const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
 let rec = null;
@@ -1353,18 +1405,6 @@ function toggleMic() {
   try { r.start(); setBtn(true); } catch (e) { rec = null; toast('Die Spracheingabe hat gerade nicht geklappt.'); }
 }
 
-function searchView() {
-  const catBlock = (m) => `<div class="sec"><h4>${m.label}</h4><div class="catgrid">${GROUPS.filter(g => g.mode === m.id).map(g => `<button type="button" class="catcard${state.groups.has(g.id) ? ' on' : ''}" data-group="${g.id}" style="--c:${g.color}"><span class="ic">${svg(g.icon, '')}</span>${esc(g.label)}</button>`).join('')}</div></div>`;
-  return `${head(tl('Was sucht ihr?'), '', false)}
-    <div class="searchfield">${svg('search')}<label for="q" class="sr">${tl('Suche')}</label><input id="q" type="search" placeholder="${tl('Ort, Stadtteil oder Thema, z. B. vegan')}" autocomplete="off" enterkeyhint="search" value="${esc(state.sq)}">${Speech ? `<button type="button" class="micbtn" id="micBtn" data-mic="1" aria-label="${tl('Spracheingabe starten')}" aria-pressed="false">${svg('mic')}</button>` : ''}</div>
-    <div id="searchRes">${searchResults()}</div>
-    <div id="searchHome"${state.sq ? ' hidden' : ''}>
-      <div class="tools" style="margin-top:12px"><button type="button" class="tool${state.area.type !== 'all' ? ' on' : ''}" data-open="area">${svg('pin')}<span>${esc(areaLabel())}</span></button></div>
-      ${MODES.map(catBlock).join('')}
-      <div class="sec"><h4>${tl('Schnelle Fragen')}</h4><ol class="list">${PRESETS.filter(p => hasDog() || !/hund/.test(p.id)).map(p => `<li><button type="button" class="item" data-preset="${p.id}"><span class="badge" style="--c:var(--brand)">${svg(p.icon, '')}</span><span><h3>${esc(p.label)}</h3></span><span></span></button></li>`).join('')}</ol></div>
-      <button type="button" class="btn" data-group-all="1">${tl('Alle Orte zeigen')}</button>
-    </div>`;
-}
 function searchResults() {
   const q = state.sq.trim().toLowerCase();
   if (!q) return '';
@@ -1417,11 +1457,16 @@ const EXAMPLE_EVENTS = [
 ];
 // ---------- Termine: four pages (Alle, Gruppen, Kurse, Einmalig), search, one filter sheet (design: djuu-termine-filter PDF) ----------
 // Kept while the app is open, so a look at one offer does not reset the list.
-const EV = { page: 'alle', q: '', when: '', from: '', to: '', days: new Set(), f: new Set(), topics: new Set(), limit: 60 };
-const EV_PAGES = [['alle', tl('Alle')], ['gruppe', tl('Gruppen')], ['kurs', tl('Kurse')], ['termin', tl('Einmalig')]];
-const EV_UNIT = { alle: [tl('Termin'), tl('Termine')], termin: [tl('Termin'), tl('Termine')], gruppe: [tl('Gruppe'), tl('Gruppen')], kurs: [tl('Kurs'), tl('Kurse')] };
+// Two pages: Einmalig (single events with a date, standard: the next 7 days) and Wiederkehrend (courses, groups and meetups).
+// fmt: Kurs / Gruppe / Treff; reg: only with registration; showMissing: offers where a filtered detail is not known.
+const EV = { page: 'einmalig', q: '', when: '7', from: '', to: '', days: new Set(), f: new Set(), topics: new Set(), fmt: new Set(), reg: false, showMissing: true, limit: 60 };
+const EV_PAGES = [['einmalig', tl('Einmalig')], ['wiederkehrend', tl('Wiederkehrend')]];
+const EV_UNIT = { einmalig: [tl('Event'), tl('Events')], wiederkehrend: [tl('Angebot'), tl('Angebote')] };
+// a meetup (Treff): an open group without registration, or a café-like meeting; every other group is a "Gruppe"
+const isTreff = o => o.kind === 'gruppe' && (o.registration === 'offen' || o.topic === 'eltern_cafe' || /treff|caf[eé]|frühstück/i.test(o.title || ''));
+const FORMATS = [['kurs', tl('Kurs'), o => o.kind === 'kurs'], ['gruppe', tl('Gruppe'), o => o.kind === 'gruppe' && !isTreff(o)], ['treff', tl('Treff'), isTreff]];
 const unitOf = n => { const u = EV_UNIT[EV.page][n === 1 ? 0 : 1]; return LANG === 'de' ? u : u.toLowerCase(); }; // German nouns keep their capital
-const cardPage = () => EV.page === 'gruppe' || EV.page === 'kurs';
+const cardPage = () => EV.page === 'wiederkehrend';
 const WD_LONG = I18N_DAYS_LONG;
 const MON_SHORT = I18N_MONTHS_SHORT;
 const fmtShort = d => `${WD[dayIdx(d)]}, ${d.getDate()}. ${MON_SHORT[d.getMonth()]}`;
@@ -1435,6 +1480,8 @@ function rangeOf(id = EV.when) {
   if (id === 'morgen') return [addDays(t, 1), addDays(t, 1)];
   if (id === 'wochenende') return w === 6 ? [t, t] : [addDays(t, 5 - Math.min(w, 5)), addDays(t, 6 - w)];
   if (id === 'woche') return [t, addDays(t, 6 - w)];
+  if (id === '7') return [t, addDays(t, 6)];
+  if (id === '30') return [t, addDays(t, 29)];
   if (id === 'datum' && EV.from) { const a = new Date(EV.from + 'T00:00'), b = EV.to ? new Date(EV.to + 'T00:00') : a; return [a < t ? t : a, b < a ? a : b]; }
   return null;
 }
@@ -1459,6 +1506,33 @@ const EV_SECTIONS = [
       ['a0', tl('bis 1'), ageIs(0, 12)], ['a1', '1–2', ageIs(12, 36)], ['a3', '3–5', ageIs(36, 72)], ['a6', '6–9', ageIs(72, 120)], ['a10', '10+', ageIs(120, 216)]] },
   { id: 'price', title: tl('Preis & Anmeldung'), items: [['frei', tl('kostenlos'), o => o.free === 1], ['offen', tl('ohne Anmeldung'), o => o.registration === 'offen']] },
 ];
+// when a filter cannot be answered for an offer (detail not given): which heading it is listed under
+const NO_PRICE = tl('Preis nicht angegeben'), NO_REG = tl('Anmeldung nicht angegeben'), NO_AGE = tl('Alter nicht angegeben');
+const EV_UNKNOWN = { frei: [o => o.free == null, NO_PRICE], offen: [o => !o.registration, NO_REG], fit: [o => o.age_min_m == null && o.age_max_m == null, NO_AGE],
+  a0: [o => o.age_min_m == null && o.age_max_m == null, NO_AGE], a1: [o => o.age_min_m == null && o.age_max_m == null, NO_AGE], a3: [o => o.age_min_m == null && o.age_max_m == null, NO_AGE],
+  a6: [o => o.age_min_m == null && o.age_max_m == null, NO_AGE], a10: [o => o.age_min_m == null && o.age_max_m == null, NO_AGE] };
+// 1 = fits, 0 = does not, or the heading of the detail that is missing
+function evFit(o) {
+  if (o.own) return 1;
+  let missing = '';
+  for (const sec of EV_SECTIONS) {
+    if (!sectionOn(sec)) continue;
+    const on = sec.items.filter(it => EV.f.has(it[0]) && itemOn(it));
+    if (!on.length) continue;
+    const known = on.filter(it => !(EV_UNKNOWN[it[0]] && EV_UNKNOWN[it[0]][0](o)));
+    const ok = sec.any ? known.some(it => it[2](o)) : known.every(it => it[2](o));
+    if (ok && (sec.any || known.length === on.length)) continue;
+    const unk = on.find(it => EV_UNKNOWN[it[0]] && EV_UNKNOWN[it[0]][0](o));
+    if (unk && (sec.any ? true : known.every(it => it[2](o)))) { missing = missing || EV_UNKNOWN[unk[0]][1]; continue; }
+    return 0;
+  }
+  if (EV.topics.size && !EV.topics.has(o.topic)) return 0;
+  if (cardPage()) {
+    if (EV.fmt.size && !FORMATS.some(([id, , fn]) => EV.fmt.has(id) && fn(o))) return 0;
+    if (EV.reg) { if (!o.registration) missing = missing || NO_REG; else if (!['nötig', 'Warteliste'].includes(o.registration)) return 0; }
+  }
+  return missing || 1;
+}
 const itemLabel = l => typeof l === 'function' ? l() : l;
 const sectionOn = sec => !sec.show || sec.show();
 const itemOn = it => !it[3] || it[3]();
@@ -1482,8 +1556,8 @@ function evPass(o, skip) {
 // raw = without Wann/Wochentag, Ort and search (for which topics exist on this page at all)
 function evBase(raw = false, skipPlace = false) {
   const t = today0(), r = raw ? null : rangeOf(), p = EV.page;
-  const own = p === 'alle' || p === 'termin' ? store.events.map(e => ({ title: e.title, kind: 'termin', start_date: e.date, time_from: e.time, lat: e.lat, lon: e.lon, venue: tl('von dir eingetragen'), topic: 'sonstiges', own: true, attrs: e.attrs })) : [];
-  let list = OFFERS.filter(o => p === 'alle' || o.kind === p).concat(own)
+  const own = p === 'einmalig' ? store.events.map(e => ({ title: e.title, kind: 'termin', start_date: e.date, time_from: e.time, lat: e.lat, lon: e.lon, venue: tl('von dir eingetragen'), topic: 'sonstiges', own: true, attrs: e.attrs })) : [];
+  let list = OFFERS.filter(o => p === 'einmalig' ? o.kind === 'termin' : o.kind === 'kurs' || o.kind === 'gruppe').concat(own)
     .map(o => [r ? firstIn(o, r[0], r[1]) : nextDate(o), o]).filter(([d]) => d && (r || d - t < (cardPage() ? 120 : 56) * 864e5));
   if (raw) return list;
   if (cardPage() && EV.days.size) list = list.filter(([, o]) => EV.days.has(o.weekday));
@@ -1495,9 +1569,15 @@ function evBase(raw = false, skipPlace = false) {
   const endMin = o => o.time_to ? +o.time_to.slice(0, 2) * 60 + +o.time_to.slice(3, 5) : o.time_from ? timeKey(o) + 60 : 24 * 60;
   return list.filter(([d, o]) => +d !== +t || endMin(o) > nowMin);
 }
-const evResults = () => evBase().filter(([, o]) => o.own || evPass(o));
+const evResults = () => evBase().filter(([, o]) => evFit(o) === 1);
+// offers that fit except for a detail that is not given, by that detail
+function evMissing() {
+  const out = new Map();
+  for (const x of evBase()) { const f = evFit(x[1]); if (typeof f === 'string') (out.get(f) || out.set(f, []).get(f)).push(x); }
+  return out;
+}
 function evActiveCount() {
-  let n = (cardPage() ? EV.days.size : (EV.when ? 1 : 0)) + EV.topics.size + (EV.place.mode !== 'all' ? 1 : 0);
+  let n = (cardPage() ? EV.days.size + EV.fmt.size + (EV.reg ? 1 : 0) : (EV.when && EV.when !== '7' ? 1 : 0)) + EV.topics.size + (EV.place.mode !== 'all' ? 1 : 0);
   for (const sec of EV_SECTIONS) if (sectionOn(sec)) n += sec.items.filter(it => EV.f.has(it[0]) && itemOn(it)).length;
   return n;
 }
@@ -1505,10 +1585,17 @@ function evActiveCount() {
 // ---------- the page ----------
 function eventsView() {
   const nf_ = evActiveCount();
-  return `<div class="ph"><h2>${tl('Termine')}<span class="sub">${tl('Gruppen, Kurse & Events in Hamburg')}</span></h2></div>
-    <div class="evtabs" role="tablist">${EV_PAGES.map(([id, l]) => `<button type="button" role="tab" aria-selected="${EV.page === id}" class="${EV.page === id ? 'on' : ''}" data-evpage="${id}">${l}</button>`).join('')}</div>
+  const quick = cardPage()
+    ? `<div class="row evquick">${FORMATS.map(([id, l]) => `<button type="button" class="chip${EV.fmt.has(id) ? ' on' : ''}" data-evfmt="${id}" aria-pressed="${EV.fmt.has(id)}">${EV.fmt.has(id) ? svg('check') : ''}${l}</button>`).join('')}</div>
+       <label class="tgl compact"><span><b>${tl('Mit Anmeldung')}</b></span><span class="tglr">${EV.reg ? `<small>${tl('Ein')}</small>` : ''}<input type="checkbox" role="switch" data-evreg="1"${EV.reg ? ' checked' : ''}></span></label>`
+    : `<div class="row evquick">${[['heute', tl('Heute')], ['wochenende', tl('Wochenende')], ['7', tl('7 Tage')], ['30', tl('30 Tage')]].map(([id, l]) => `<button type="button" class="chip${EV.when === id ? ' on' : ''}" data-evwhen="${id}" aria-pressed="${EV.when === id}">${EV.when === id ? svg('check') : ''}${l}</button>`).join('')}</div>`;
+  return `<div class="ph"><h2>${tl('Termine')}<span class="sub">${cardPage() ? tl('Kurse, Gruppen und Treffs in Hamburg') : tl('Events mit Datum in Hamburg')}</span></h2>
+      ${cardPage() ? '' : `<button type="button" class="pillbtn" data-evmap="1">${svg('map')}${tl('Karte')}</button>`}</div>
+    <div class="evtabs two" role="tablist">${EV_PAGES.map(([id, l]) => `<button type="button" role="tab" aria-selected="${EV.page === id}" class="${EV.page === id ? 'on' : ''}" data-evpage="${id}">${l}</button>`).join('')}</div>
     <div class="evbar"><label class="evsearch">${svg('search')}<input id="evQ" type="search" placeholder="${tl('Suchen')}" value="${esc(EV.q)}" autocomplete="off" aria-label="${tl('Termine durchsuchen')}"></label>
       <button type="button" class="evfilterbtn${nf_ ? ' on' : ''}" data-open="evfilters">${svg('filter')}${tl('Filter')}${nf_ ? ` <span class="count">${nf_}</span>` : ''}</button></div>
+    ${quick}
+    <button type="button" class="placechip" data-open="evplace">${svg('pin')}<span>${esc(evPlaceLabel())}</span><small>${tl('Ändern')}</small></button>
     <div id="evList">${evListHtml()}</div>
     <button type="button" class="btn" data-addevent="1" style="margin-top:14px">${svg('plus')}${tl('Veranstaltung eintragen')}</button>
     <p class="note">${tl('Quellen: Eltern-Kind-Zentren, Elternschulen, Familienbildung, Bücherhallen, Bäderland u. a. Anmeldung immer beim Anbieter.')}</p>`;
@@ -1523,13 +1610,27 @@ function evListHtml() {
     ${!cardPage() && schoolHoliday(r?.[0] || t) ? `<p class="note" style="margin:0 0 10px">${esc(schoolHoliday(r?.[0] || t))}${tl(': Viele Kurse pausieren, bitte beim Anbieter nachsehen.')}</p>` : ''}
     ${list.length ? (cardPage() ? `<ol class="list evcards">${shown.map(([d, o]) => evCardHtml(o, d)).join('')}</ol>` : dayListHtml(shown))
       + (list.length > EV.limit ? `<button type="button" class="more" data-emore="1">${tl('Mehr anzeigen')}</button>` : '')
-      : `<div class="empty"><b>${OFFERS.length ? tl('Nichts gefunden.') : tl('Noch keine Termine geladen.')}</b>${OFFERS.length ? tl('Probier eine andere Suche oder weniger Filter.') : ''}</div>`}`;
+      : `<div class="empty"><b>${OFFERS.length ? tl('Nichts gefunden.') : tl('Noch keine Termine geladen.')}</b>${OFFERS.length ? tl('Probier eine andere Suche oder weniger Filter.') : ''}</div>`}
+    ${[...evMissing()].map(([label, items]) => `<div class="sec missing"><div class="sechead"><h4>${esc(label)} <small>(${nf.format(items.length)})</small></h4>
+        <label class="tglr"><small>${EV.showMissing ? tl('Ein') : tl('Aus')}</small><span class="tglbox"><input type="checkbox" role="switch" data-evmissing="1" aria-label="${esc(label)} ${tl('anzeigen')}"${EV.showMissing ? ' checked' : ''}></span></label></div>
+      ${EV.showMissing ? (cardPage() ? `<ol class="list evcards">${items.sort(byDayTime).slice(0, 40).map(([d, o]) => evCardHtml(o, d)).join('')}</ol>` : dayListHtml(items.sort(byDayTime).slice(0, 40))) : `<p class="note">${tl('Ausgeblendet. Diese Angebote passen sonst, der Anbieter nennt die Angabe nur nicht.')}</p>`}</div>`).join('')}`;
+}
+// the place setting in words: Ganz Hamburg, the Stadtteile, or the radius
+function evPlaceLabel() {
+  const P = EV.place;
+  if (P.mode === 'districts') { const d = [...P.districts]; return d.length > 2 ? `${d.slice(0, 2).join(', ')} +${d.length - 2}` : d.join(', '); }
+  if (P.mode === 'radius') return `${tl('Umkreis')} ${kmText(P.km)}`;
+  return tl('Ganz Hamburg');
+}
+// Ort as its own small page: Ganz Hamburg, Stadtteil or Umkreis, one tap to change
+function evPlaceView() {
+  return `<div class="ph sheethead"><h2>${tl('Ort')}</h2><button type="button" class="round" data-back="1" aria-label="${tl('Schließen')}">${svg('close')}</button></div>${evPlaceHtml(false)}${evSheetFoot()}`;
 }
 // tags under a title: age, recurring, registration, price
 function evTags(o, withRecurring) {
   const kids = o.audience === 'erwachsene' ? tl('für Erwachsene') : ageLabel(o.age_min_m, o.age_max_m);
-  const fits = offerFits(o) === true, n = o.id ? visitsOf(o.id).length : 0;
-  return [fits && `<span class="fitchip">${tl('passt zu euch')}</span>`, n && `<span class="visitchip">${n === 1 ? tl('wart ihr schon') : n + '× dabei'}</span>`,
+  const fits = offerFits(o) === true;
+  return [fits && `<span class="fitchip">${tl('passt zu euch')}</span>`,
     kids && `<span>${esc(kids)}</span>`,
     withRecurring && isRecurring(o) && `<span class="tag rec">${svg('repeat')}${o.kind === 'kurs' ? tl('Kurs') : tl('Gruppe')} · ${tl('jeden {day}', { day: WD_LONG[o.weekday] })}</span>`,
     o.registration === 'nötig' && `<span class="tag reg">${svg('edit')}${tl('Anmeldung nötig')}</span>`,
@@ -1587,7 +1688,7 @@ function evFiltersView() {
   };
   const when = cardPage()
     ? `<div class="sec"><h4>${tl('Wochentag')}</h4><div class="fgrid days">${WD.map((l, i) => `<button type="button" class="chip round${EV.days.has(i) ? ' on' : ''}" data-evday="${i}" aria-pressed="${EV.days.has(i)}" aria-label="${WD_LONG[i]}">${EV.days.has(i) ? svg('check') : ''}${l}</button>`).join('')}</div></div>`
-    : `<div class="sec"><h4>${tl('Wann')}</h4><div class="fgrid when">${[['heute', tl('Heute')], ['morgen', tl('Morgen')], ['wochenende', tl('Wochenende')], ['woche', tl('Woche')]].map(([id, l]) => `<button type="button" class="chip${EV.when === id ? ' on' : ''}" data-evwhen="${id}" aria-pressed="${EV.when === id}">${chipInner(EV.when === id, l)}</button>`).join('')}
+    : `<div class="sec"><h4>${tl('Wann')}</h4><div class="fgrid when">${[['heute', tl('Heute')], ['wochenende', tl('Wochenende')], ['7', tl('7 Tage')], ['30', tl('30 Tage')]].map(([id, l]) => `<button type="button" class="chip${EV.when === id ? ' on' : ''}" data-evwhen="${id}" aria-pressed="${EV.when === id}">${chipInner(EV.when === id, l)}</button>`).join('')}
         <button type="button" class="chip round${EV.when === 'datum' ? ' on' : ''}" data-evwhen="datum" aria-pressed="${EV.when === 'datum'}" aria-label="${tl('Zeitraum wählen')}">${svg('cal')}</button></div>
         ${EV.when === 'datum' ? `<div class="evrange"><label>von <input id="evFrom" type="date" value="${esc(EV.from)}" min="${ymd(today0())}"></label><label>bis <input id="evTo" type="date" value="${esc(EV.to)}" min="${esc(EV.from || ymd(today0()))}"></label></div>` : ''}</div>`;
   const { page, live } = evTopicCounts(), all = Object.keys(page);
@@ -1671,31 +1772,25 @@ function setHome(value) {
 }
 
 // the Ort section of the filter sheet
-function evPlaceHtml() {
-  const P = EV.place, origin = radiusOrigin();
-  const tab = `<div class="minitoggle" role="tablist" aria-label="${tl('Ort wählen über')}">${[['stadtteil', tl('Stadtteil')], ['umkreis', tl('Umkreis')]].map(([id, l]) =>
-    `<button type="button" role="tab" aria-selected="${EV.placeTab === id}" class="${EV.placeTab === id ? 'on' : ''}" data-evplacetab="${id}">${l}</button>`).join('')}</div>`;
-  const all = `<button type="button" class="chip${P.mode === 'all' ? ' on' : ''}" data-evplace="all" aria-pressed="${P.mode === 'all'}">${P.mode === 'all' ? svg('check') : svg('pin')}${tl('Ganz Hamburg')}</button>`;
-  let body;
-  if (EV.placeTab === 'stadtteil') {
-    body = `<div class="fgrid">${all}${P.mode === 'districts' ? [...P.districts].map(d => `<button type="button" class="chip on" data-evdistrictx="${esc(d)}" aria-label="${esc(d)} entfernen">${svg('check')}${esc(d)} ${svg('close')}</button>`).join('') : ''}
-      <button type="button" class="chip" data-open="evdistricts">${svg('pin')}${tl('Stadtteil wählen')}</button></div>`;
-  } else if (!origin) {
-    body = `<div class="fgrid">${all}</div>
-      ${typeof auth !== 'undefined' && auth?.family ? `<p class="text" style="margin-top:10px"><b>${tl('Umkreis von zu Hause')}</b></p>${homeFieldHtml('evHome')}` : `<p class="note">${tl('Mit Konto misst Djuu auch von deinen Orten aus, zum Beispiel Zuhause oder Kita.')}</p>`}
+function evPlaceHtml(titled = true) {
+  const P = EV.place, origin = radiusOrigin(), mode = EV.placeTab === 'umkreis' ? 'radius' : EV.placeTab === 'stadtteil' ? 'districts' : P.mode;
+  const seg = `<div class="segs" role="tablist" aria-label="${tl('Ort wählen über')}">${[['all', tl('Ganz Hamburg')], ['districts', tl('Stadtteil')], ['radius', tl('Umkreis')]].map(([id, l]) =>
+    `<button type="button" role="tab" aria-selected="${mode === id}" class="${mode === id ? 'on' : ''}" data-evplacemode="${id}">${l}</button>`).join('')}</div>`;
+  let body = '';
+  if (mode === 'districts') {
+    body = `<div class="fgrid">${[...P.districts].map(d => `<button type="button" class="chip on" data-evdistrictx="${esc(d)}" aria-label="${esc(d)} ${tl('entfernen')}">${svg('check')}${esc(d)} ${svg('close')}</button>`).join('')}
+      <button type="button" class="chip" data-open="evdistricts">${svg('pin')}${P.districts.size ? tl('Weitere wählen') : tl('Stadtteil wählen')}</button></div>`;
+  } else if (mode === 'radius' && !origin) {
+    body = `${typeof auth !== 'undefined' && auth?.family ? homeFieldHtml('evHome') : `<p class="note">${tl('Mit Konto misst Djuu auch von deinen Orten aus, zum Beispiel Zuhause oder Kita.')}</p>`}
       <button type="button" class="btn" data-evgps="1">${svg('locate')}${tl('Aktuellen Standort verwenden')}</button>
       <p class="note">${tl('Der aktuelle Standort gilt nur für diese Suche und wird nicht gespeichert.')}</p>`;
-  } else {
-    const on = k => P.mode === 'radius' && P.km === k;
-    body = `<div class="fgrid">${all}${KMS.map(k => `<button type="button" class="chip${on(k) ? ' on' : ''}" data-evkm="${k}" aria-pressed="${on(k)}">${on(k) ? svg('check') : ''}${k} km</button>`).join('')}</div>
-      <div class="kmcustom${P.mode === 'radius' && !KMS.includes(P.km) ? ' on' : ''}"><label for="evKm">${tl('Eigene km')}</label>
-        <input id="evKm" type="number" min="0.5" max="50" step="0.5" inputmode="decimal" value="${P.mode === 'radius' && !KMS.includes(P.km) ? String(P.km) : ''}" placeholder="z. B. 3,5">
-        <input id="evKmRange" type="range" min="0.5" max="50" step="0.5" value="${P.km}" aria-label="Umkreis in Kilometern, ${kmText(P.km)}"></div>
-      ${!P.gps && (store.places || []).filter(p => p.lat).length > 1 ? `<div class="fgrid fromrow"><span class="muted">${tl('Von:')}</span>${store.places.filter(p => p.lat).map(p => `<button type="button" class="chip${searchPlace() === p ? ' on' : ''}" data-evorigin="${p.id}">${searchPlace() === p ? svg('check') : svg('pin')}${esc(tl(p.name))}</button>`).join('')}</div>` : ''}
+  } else if (mode === 'radius') {
+    body = `<div class="kmrow"><input id="evKmRange" type="range" min="1" max="20" step="1" value="${Math.min(20, Math.max(1, Math.round(P.km)))}" aria-label="${tl('Umkreis in Kilometern,')} ${kmText(P.km)}"><b>${kmText(P.km)}</b></div>
+      ${!P.gps && (store.places || []).filter(x => x.lat).length > 1 && typeof auth !== 'undefined' && auth?.family ? `<div class="fgrid fromrow"><span class="muted">${tl('Von:')}</span>${store.places.filter(x => x.lat).map(x => `<button type="button" class="chip${searchPlace() === x ? ' on' : ''}" data-evorigin="${x.id}">${searchPlace() === x ? svg('check') : svg('pin')}${esc(tl(x.name))}</button>`).join('')}</div>` : ''}
       <p class="note">${tl('Luftlinie,')} ${P.gps ? tl('vom aktuellen Standort') : `${tl('von')} ${esc(homeOf().label)}`}.
         ${P.gps ? (homeOf() ? ` <button type="button" class="linkbtn" data-evgpsoff="1">${tl('Zuhause verwenden')}</button>` : '') : ` <button type="button" class="linkbtn" data-evgps="1">${tl('Aktuellen Standort verwenden')}</button>`}</p>`;
   }
-  return `<div class="sec"><div class="sechead"><h4>${tl('Ort')}</h4>${tab}</div>${body}</div>`;
+  return `<div class="sec">${titled ? `<h4>${tl('Ort')}</h4>` : ''}${seg}${body}</div>`;
 }
 function setKm(v) {
   const km = Math.min(50, Math.max(0.5, Math.round(parseFloat(String(v).replace(',', '.')) * 2) / 2));
@@ -1734,7 +1829,7 @@ function evDistrictsView() {
 function refreshDistrictList() { const l = $('#dlist'); if (l) l.innerHTML = districtListHtml(); const b = $('[data-evdapply]'); if (b) b.textContent = districtApplyText(); }
 
 function evShow() { while (stack.length > 1 && !['events'].includes(view().type)) stack.pop(); EV.limit = 60; renderPanel(); setSize('full'); }
-function evReset() { EV.when = ''; EV.from = ''; EV.to = ''; EV.days.clear(); EV.f.clear(); EV.topics.clear(); Object.assign(EV.place, { mode: 'all', gps: null }); EV.place.districts.clear(); renderPanel(); }
+function evReset() { EV.when = '7'; EV.from = ''; EV.to = ''; EV.days.clear(); EV.f.clear(); EV.topics.clear(); EV.fmt.clear(); EV.reg = false; Object.assign(EV.place, { mode: 'all', gps: null }); EV.place.districts.clear(); renderPanel(); }
 
 // Merken and "waren wir schon" for offers; a snapshot keeps a saved offer readable after it leaves the data.
 const isSaved = id => store.savedOffers.some(x => x.id === id);
@@ -1773,17 +1868,15 @@ function offerView(id) {
       <button type="button" class="act${saved ? ' on' : ''}" data-saveoffer="${id}">${svg('heart')}${saved ? tl('Gemerkt') : tl('Merken')}</button>
       <button type="button" class="act${v.cal ? ' on' : ''}" data-calmenu="1">${svg('cal')}${tl('Kalender')}</button>
       <button type="button" class="act" data-shareoffer="${id}">${svg('share')}${tl('Teilen')}</button>
-      <button type="button" class="act${visits.length ? ' on' : ''}" data-visit="${id}">${svg('check')}${visits.length ? tl('Wieder dabei') : tl('Waren dabei')}</button>
     </div>
     ${v.cal ? `<div class="calmenu"><button type="button" class="btn" data-ics="${id}">${svg('cal')}${tl('Kalender-Datei (iPhone, Outlook, Android)')}</button>
       <a class="btn" href="${esc(gcalUrl(o))}" target="_blank" rel="noopener">${svg('cal')}${tl('Google Kalender')}</a>
       <p class="note">${tl('Tipp: Lege in deinem Kalender einen Kalender „Familie“ an und wähle ihn beim Eintragen aus. Djuu speichert dabei nichts.')}</p></div>` : ''}
-    ${visits.length ? `<p class="note">${visits.length === 1 ? tl('Ihr wart schon dabei') : `${tl('Ihr wart')} ${visits.length}× dabei`}${tl(', zuletzt eingetragen am')} ${esc(new Date(visits[visits.length - 1] + 'T00:00').toLocaleDateString(LOCALE, { day: 'numeric', month: 'long' }))}. <button type="button" class="linkbtn" data-unvisit="${id}">${tl('Letzten Eintrag löschen')}</button></p>` : ''}
     <div class="sec"><h4>${tl('Wann')}</h4><p class="text"><b>${esc(time)}</b>${o.kind === 'gruppe' ? (isRecurring(o) ? tl(' · regelmäßige Gruppe') : tl(' · offenes Treffen')) : o.kind === 'kurs' ? ` ${tl('· Kurs')}${o.sessions ? ', ' + o.sessions + tl(' Termine') : ''}` : ''}</p>
       ${dates.length ? `<p class="text">${dates.map(x => esc(fmtLong(x))).join('<br>')}${o.kind !== 'termin' && dates.length === 6 ? `<br>${tl('und weitere')}` : ''}</p>` : `<p class="muted text">${tl('Keine weiteren Termine bekannt.')}</p>`}
       ${o.schedule ? `<p class="note">${tl('Laut Anbieter:')} ${esc(o.schedule)}</p>` : ''}</div>
     <div class="sec"><h4>${tl('Wo')}</h4><p class="text">${esc(o.venue || '')}${o.address ? `<br>${esc(o.address)}` : ''}${d != null ? `<br><span class="muted">${fmtDist(d)} ${tl('von dir')}</span>` : ''}</p>
-      ${place ? `<button type="button" class="btn" data-id="${place.id}">${svg('pin')}${tl('Auf der Karte')}</button>` : ''}</div>
+      ${place ? `<button type="button" class="btn" data-onlyplace="${place.id}">${svg('pin')}${tl('Auf der Karte')}</button>` : ''}</div>
     <div class="sec"><h4>${tl('Für wen')}</h4><p class="text">${esc(who)}${fits === true ? ` · <b class="yes">${tl('passt zu euch')}</b>` : ''}</p>${dogChip(offerDog(o)) ? `<div class="facts">${dogChip(offerDog(o))}</div>` : ''}</div>
     <div class="sec"><h4>${tl('Kosten und Anmeldung')}</h4><p class="text">${o.free ? tl('Kostenlos') : o.price ? esc(o.price) : tl('Preis beim Anbieter')}${o.registration ? ' · ' + esc(REG_TEXT[o.registration] || o.registration) : ''}</p></div>
     <a class="btn big primary" href="${esc(o.url)}" target="_blank" rel="noopener" style="margin-top:16px">${tl('Zum Anbieter')}${o.registration === 'nötig' ? tl(' und anmelden') : ''}</a>
@@ -2112,7 +2205,7 @@ function setTab(id) {
 // ---------- Global interaction ----------
 function toggle(set, v) { set.has(v) ? set.delete(v) : set.add(v); }
 document.addEventListener('click', async e => {
-  const t = e.target.closest('button, [data-expand]'); if (!t) return;
+  const t = e.target.closest('button'); if (!t) return;
   const ds = t.dataset;
   if (ds.mode) { state.mode = ds.mode; state.level = 1; renderTop(); }
   else if (ds.level) { state.level = +ds.level; renderTop(); }
@@ -2131,6 +2224,7 @@ document.addEventListener('click', async e => {
   else if (ds.open === 'area') go({ type: 'area' });
   else if (ds.open === 'evfilters') go({ type: 'evfilters' });
   else if (ds.open === 'evtopics') go({ type: 'evtopics' });
+  else if (ds.open === 'evplace') { EV.placeTab = ''; go({ type: 'evplace' }); }
   else if (ds.open === 'evdistricts') { EV.pending = new Set(EV.place.districts); EV.dq = ''; go({ type: 'evdistricts' }); }
   else if (ds.open === 'ferien') go({ type: 'ferien' });
   else if (ds.area === 'all') { setArea({ type: 'all' }, false); renderPanel(); }
@@ -2143,11 +2237,24 @@ document.addEventListener('click', async e => {
   else if (ds.drawcancel) { state.drawing = null; drawArea(); back(); }
   else if (ds.drawdone) { const pts = state.drawing; state.drawing = null; setArea({ type: 'poly', pts }); stack = [{ type: 'list' }]; renderPanel(); setSize(desktop() ? 'full' : 'half'); }
   else if (ds.evpage) { EV.page = ds.evpage; EV.limit = 60; renderPanel(); $('#panelBody').scrollTop = 0; }
-  else if (ds.evwhen) { EV.when = EV.when === ds.evwhen ? '' : ds.evwhen; if (EV.when === 'datum' && !EV.from) EV.from = ymd(today0()); renderPanel(); }
+  else if (ds.evwhen) { EV.when = EV.when === ds.evwhen ? (ds.evwhen === '7' ? '7' : '7') : ds.evwhen; if (EV.when === 'datum' && !EV.from) EV.from = ymd(today0()); EV.limit = 60; renderPanel(); }
   else if (ds.evday) { toggle(EV.days, +ds.evday); renderPanel(); }
   else if (ds.evf) { toggle(EV.f, ds.evf); EV.limit = 60; renderPanel(); }
   else if (ds.evtopic) { toggle(EV.topics, ds.evtopic); EV.limit = 60; renderPanel(); }
   else if (ds.evplacetab) { EV.placeTab = ds.evplacetab; renderPanel(); }
+  else if (ds.evplacemode) {
+    const m = ds.evplacemode;
+    if (m === 'all') { Object.assign(EV.place, { mode: 'all', gps: null }); EV.place.districts.clear(); EV.placeTab = ''; }
+    else if (m === 'districts') { EV.placeTab = 'stadtteil'; if (EV.place.districts.size) EV.place.mode = 'districts'; }
+    else { EV.placeTab = 'umkreis'; if (radiusOrigin()) setKm(EV.place.km); }
+    renderPanel();
+  }
+  else if (ds.evfmt) { toggle(EV.fmt, ds.evfmt); EV.limit = 60; renderPanel(); }
+  else if (ds.evmap) {
+    // the events of the chosen time on the map, each pin with its date
+    state.groups = new Set(['events']); state.tags.clear(); state.cats.clear(); state.preset = null; state.q = ''; state.evRange = rangeOf(); state.onlyPlace = null;
+    stack = [{ type: 'list' }]; setTab('map'); refresh(); renderPanel(); setSize('half');
+  }
   else if (ds.evplace) { Object.assign(EV.place, { mode: 'all', gps: null }); EV.place.districts.clear(); renderPanel(); }
   else if (ds.evdistrictx) { EV.place.districts.delete(ds.evdistrictx); if (!EV.place.districts.size) EV.place.mode = 'all'; renderPanel(); }
   else if (ds.evkm) { setKm(ds.evkm); renderPanel(); }
@@ -2174,11 +2281,13 @@ document.addEventListener('click', async e => {
   else if (ds.ics) { const list = ds.ics === 'saved' ? store.savedOffers.map(s => OFFER_BY_ID.get(s.id)).filter(o => o && nextDate(o)) : [OFFER_BY_ID.get(ds.ics)]; downloadIcs(list, ds.ics === 'saved' ? 'djuu-gemerkte-termine.ics' : 'djuu-termin.ics'); }
   else if (ds.shareoffer) shareOffer(ds.shareoffer);
   else if (ds.clearq) { state.q = ''; state.sq = ''; refresh(); }
-  else if (ds.mic) toggleMic();
+  else if (ds.clearsel) { state.evRange = null; state.groups.clear(); state.cats.clear(); state.tags.clear(); state.preset = null; state.q = ''; state.sq = ''; state.io = null; state.level = 0; state.listLimit = 40; refresh(); }
+  else if (ds.clearonly) { state.onlyPlace = null; refresh(); }
+  else if (ds.onlyplace) { const p = byId.get(ds.onlyplace); state.onlyPlace = p.id; stack = [{ type: 'list' }]; setTab('map'); refresh(); renderPanel(); setSize('peek'); map.setView([p.lat, p.lon], Math.max(map.getZoom(), 16)); }
+  else if (ds.opensearch) { stack = [{ type: 'list' }]; go({ type: 'search' }, 'full'); setTab('search'); if (ds.opensearch === 'voice') startVoice(); else setTimeout(() => $('#q')?.focus(), 60); }
   else if (ds.unk) { state.showUnknown = !state.showUnknown; refresh(); }
   else if (ds.reset) { state.filters.clear(); state.io = null; state.preset = null; state.showUnknown = false; refresh(); renderPanel(); }
   else if (ds.more) { state.listLimit += 40; renderPanel(); }
-  else if (ds.expand) { if ($('#panel').dataset.size === 'peek') setSize('half'); }
   else if (ds.id) { const p = byId.get(ds.id); map.setView([p.lat, p.lon], Math.max(map.getZoom(), 16)); showPlace(p.id); }
   else if (ds.back) back();
   else if (ds.home) home(ds.home === '1' ? (desktop() ? 'full' : 'peek') : ds.home);
@@ -2210,7 +2319,7 @@ document.addEventListener('click', async e => {
 });
 document.addEventListener('input', e => {
   if (e.target.id === 'dq') { EV.dq = e.target.value; refreshDistrictList(); return; }
-  if (e.target.id === 'evKmRange') { const l = e.target.previousElementSibling; if (l) l.value = String(e.target.value); e.target.setAttribute('aria-label', `${tl('Umkreis in Kilometern,')} ${kmText(+e.target.value)}`); return; }
+  if (e.target.id === 'evKmRange') { const l = e.target.previousElementSibling, b = e.target.nextElementSibling; if (l) l.value = String(e.target.value); if (b) b.textContent = kmText(+e.target.value); e.target.setAttribute('aria-label', `${tl('Umkreis in Kilometern,')} ${kmText(+e.target.value)}`); return; }
   if (e.target.id === 'evQ') { EV.q = e.target.value; EV.limit = 60; clearTimeout(document.evqt); document.evqt = setTimeout(() => { const l = $('#evList'); if (l) l.innerHTML = evListHtml(); }, 150); return; }
   if (e.target.id === 'distQ') $('#distList').innerHTML = districtChips(e.target.value); });
 document.addEventListener('change', e => {
@@ -2227,10 +2336,12 @@ document.addEventListener('change', e => {
     for (const n of names) e.target.checked ? EV.pending.add(n) : EV.pending.delete(n);
     refreshDistrictList();
   }
+  if (e.target.dataset.evreg) { EV.reg = e.target.checked; EV.limit = 60; renderPanel(); }
+  if (e.target.dataset.evmissing) { EV.showMissing = e.target.checked; renderPanel(); }
   if (e.target.id === 'evFrom') { EV.from = e.target.value; if (EV.to && EV.to < EV.from) EV.to = ''; renderPanel(); }
   if (e.target.id === 'evTo') { EV.to = e.target.value; renderPanel(); }
 });
-$('#sos').innerHTML = svg('bolt');
+$('#sos').innerHTML = `${svg('bolt')}<span>${tl('Dringend')}</span>`;
 $('#sos').onclick = () => { stack = [{ type: 'list' }]; go({ type: 'sos' }, 'full'); locate(false); };
 $('#locate').innerHTML = svg('locate');
 $('#addFab').innerHTML = svg('plus');
@@ -2241,21 +2352,24 @@ document.addEventListener('input', e => {
   clearTimeout(document.qt);
   document.qt = setTimeout(() => { $('#searchRes').innerHTML = searchResults(); decorateEmpty($('#searchRes')); $('#searchHome').hidden = !!state.sq.trim(); }, 150);
 });
-document.addEventListener('keydown', e => { if (e.target.id === 'q' && e.key === 'Enter') { state.q = e.target.value.trim(); state.groups.clear(); state.cats.clear(); state.tags.clear(); state.preset = null; state.level = 0; e.target.blur(); state.listLimit = 40; refresh(); home('peek'); } });
+// Enter in the search field: see ask.js (a question becomes filters, else the normal search)
 
 // drag the sheet by its grip (phone)
 (() => {
-  const grip = $('#grip'); let y0 = null;
+  let y0 = null;
   const order = ['peek', 'half', 'full'];
-  grip.addEventListener('pointerdown', e => { y0 = e.clientY; grip.setPointerCapture(e.pointerId); });
-  grip.addEventListener('pointerup', e => {
+  const down = e => { const h = e.target.closest('#grip, [data-drag]'); if (!h || desktop()) return; y0 = e.clientY; h.setPointerCapture?.(e.pointerId); };
+  const up = e => {
     if (y0 === null) return;
-    const dy = e.clientY - y0, i = order.indexOf($('#panel').dataset.size);
+    const dy = e.clientY - y0, size = $('#panel').dataset.size, i = order.indexOf(size);
     y0 = null;
-    if ($('#panel').dataset.size === 'card') { if (view().type !== 'card') return; return dy > 8 ? home('peek') : go({ type: 'detail', id: view().id }, 'full'); }
-    if (Math.abs(dy) < 8) return setSize(order[(i + 1) % 3]);
+    if (size === 'card') { if (view().type !== 'card') return; return dy > 8 ? home('peek') : go({ type: 'detail', id: view().id }, 'full'); }
+    if (Math.abs(dy) < 8) return setSize(size === 'peek' ? 'half' : 'peek'); // a tap: folded <-> open
     setSize(order[Math.max(0, Math.min(2, i + (dy < 0 ? 1 : -1) * (Math.abs(dy) > 220 ? 2 : 1)))]);
-  });
+  };
+  $('#panel').addEventListener('pointerdown', down);
+  $('#panel').addEventListener('pointerup', up);
+  $('#panel').addEventListener('pointercancel', () => { y0 = null; });
 })();
 
 function locate(center) {

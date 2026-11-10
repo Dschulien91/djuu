@@ -29,7 +29,7 @@ function members() {
 const memberById = id => members().find(m => m.id === id);
 // who is using this device: chosen in "Wir", else the first adult
 const meId = () => (memberById(store.profile.me) && store.profile.me) || store.profile.adults[0]?.id || null;
-const byLine = id => { const m = id && memberById(id); return m ? `<span class="by" style="--c:${textOn(m.color)}">${esc(m.name)}</span>` : ''; };
+const byLine = id => { const m = id && memberById(id); return m ? `<span class="by" style="--c:var(--muted)">${esc(m.name)}</span>` : ''; }; // no person colours in the lists
 
 // ---------- Shopping: supermarket ----------
 // Categories in the order most German supermarkets put them; the app learns the order of your shop from how you tick items off.

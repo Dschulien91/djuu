@@ -185,7 +185,7 @@ async function loadAll() {
   try { const f = await api('GET', `/api/collections/families/records/${auth.family}`); auth.familyName = f.name; store.wirPhoto = f.photo || ''; writeJson(AUTH_KEY, auth); } catch (e) { /* keep */ }
   // news: what others created since this phone last looked (the first time only remembers the moment)
   if (store.newsSince) for (const coll of ['shop_items', 'errands', 'saved_offers', 'members']) for (const r of (data[coll] || [])) if (when(r.created) > store.newsSince) newsFromRecord(coll, r);
-  store.newsSince = Date.now(); holidayNews(); assignColors();
+  store.newsSince = Date.now(); holidayNews(); courseBlockNews(); assignColors();
   saveShadow(); saveLocal();
   await loadPings();
 }

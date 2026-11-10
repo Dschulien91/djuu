@@ -12,7 +12,7 @@ sys.stdout.reconfigure(encoding='utf-8')
 QUOTED = r"'((?:[^'\\]|\\.)*)'"
 have = {k.replace("\\'", "'") for k in re.findall(QUOTED + r"\s*:\s*'", (ROOT / 'i18n' / f'{lang}.js').read_text(encoding='utf-8'))}
 missing = []
-for f in ["app.js", "family.js", "sync.js", "wir.js", "looks.js", "legal.html", "index.html"]:
+for f in ["app.js", "ask.js", "family.js", "sync.js", "wir.js", "looks.js", "legal.html", "index.html"]:
     p = ROOT / f
     if not p.exists(): continue
     for m in re.finditer(r"\btl\(" + QUOTED, p.read_text(encoding='utf-8')):

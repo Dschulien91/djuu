@@ -9,7 +9,7 @@
 const COLOR_NAMES = [tl('Viola'), tl('Petrol'), tl('Rosa'), tl('Orange'), tl('Gelb'), tl('Nachtblau')];
 const isPalette = c => MEMBER_COLORS.includes(c);
 // may this phone change the photo and colour of an entry? Own person; for children and people without an account the admin
-const canEditLooks = x => !!x && (x.id === meId() || (isAdmin() && !x.account && !x.remote));
+const canEditLooks = x => !!x && !x.remote && (x.id === meId() || (isAdmin() && (!x.account || x.grp === 'helper')));
 // every person gets a colour, in the same Wir if possible without repeating; stored only where this phone may change it
 function assignColors() {
   const pr = store.profile, order = pr.adults.filter(a => a.grp !== 'helper').concat(pr.kids.filter(k => !k.remote), pr.adults.filter(a => a.grp === 'helper'));
@@ -157,6 +157,24 @@ function newsFromRecord(coll, r) {
 function shopNewsText(who, items) {
   const list = items.length <= 3 ? items.join(items.length === 2 ? tl(' und ') : ', ').replace(/, ([^,]*)$/, tl(' und ') + '$1') : `${items.slice(0, 2).join(', ')} ${tl('und {n} weitere', { n: items.length - 2 })}`;
   return tl('{name} hat {items} zur Einkaufsliste hinzugefügt', { name: who, items: list });
+}
+// Gemerkt: when the provider publishes a new block of a saved course or group, once (the same provider and title, a new offer)
+function courseBlockNews() {
+  if (!auth?.family || !OFFERS.length || perm('saved') === 'none') return;
+  const key = o => norm(`${o.provider || ''}|${(o.title || '').replace(/\d+/g, '')}`);
+  const seen = store.blocksSeen || (store.blocksSeen = {});
+  for (const s of store.savedOffers) {
+    const o = OFFER_BY_ID.get(s.id) || s.snap;
+    if (!o || !['kurs', 'gruppe'].includes(o.kind)) continue;
+    const same = OFFERS.filter(x => x.id !== s.id && ['kurs', 'gruppe'].includes(x.kind) && key(x) === key(o));
+    if (!seen[s.id]) { seen[s.id] = same.map(x => x.id); continue; } // first look: remember what exists already
+    for (const x of same) if (!seen[s.id].includes(x.id)) {
+      seen[s.id].push(x.id);
+      const d = nextDate(x);
+      addNews({ area: 'saved', key: 'block:' + x.id, text: tl('Neuer Termin für „{what}“{when}', { what: titleOf(x), when: d ? ' ' + tl('ab {date}', { date: fmtShort(d) }) : '' }), target: { offer: x.id } });
+    }
+  }
+  save();
 }
 // once per school break, two weeks before: ideas for the free days
 function holidayNews() {
