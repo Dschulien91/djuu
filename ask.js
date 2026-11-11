@@ -8,7 +8,7 @@
 // ---------- the search page ----------
 const ERLEBEN = ['tipps', 'spielen', 'gastro', 'entdecken', 'kurse', 'events'];
 const SERVICE = ['gesundheit', 'sanitaer', 'laeden', 'familie', 'mobil'];
-const ASK = { open: null, u: null, busy: false, text: '', ai: false };
+const ASK = { open: null, u: null, busy: false, text: '', ai: false, wo: false, fi: false };
 // A category with sub-categories opens in place: its tile becomes one card over both columns (violet edge, light violet),
 // head with icon, name and an arrow up, below all sub-categories as chips. Only one card is open; the other tiles follow below it.
 function tileHtml(id, kind) {
@@ -33,12 +33,24 @@ function searchView() {
       ${Speech ? `<button type="button" class="micbtn" data-voice="1" aria-label="${tl('Spracheingabe starten')}">${svg('mic')}</button>` : ''}</form>
     <div id="searchRes">${ASK.u ? askResultsHtml() : searchResults()}</div>
     <div id="searchHome"${state.sq || ASK.u ? ' hidden' : ''}>
-      <button type="button" class="tool areabtn${state.area.type !== 'all' ? ' on' : ''}" data-open="area">${svg('locate')}<span>${esc(areaLabel())}</span></button>
+      ${foldsHtml()}
       ${grid(tl('Erleben'), ERLEBEN, 'erleben')}
       ${grid(tl('Service'), SERVICE, 'service', sos)}
       <div class="sec"><h4>${tl('Schnelle Fragen')}</h4><ol class="list">${PRESETS.filter(p => hasDog() || !/hund/.test(p.id)).map(p => `<li><button type="button" class="item" data-preset="${p.id}"><span class="badge" style="--c:var(--brand)">${svg(p.icon, '')}</span><span><h3>${esc(p.label)}</h3></span><span></span></button></li>`).join('')}</ol></div>
       <button type="button" class="btn" data-group-all="1">${tl('Alle Orte zeigen')}</button>
+      ${ASK.wo || ASK.fi ? `<div class="sticky-bar"><button type="button" class="btn big primary" data-showmap="1">${nf.format(shownTotal())} ${tl('Orte zeigen')}</button></div>` : ''}
     </div>`;
+}
+// Wo and Filter: closed rows that say what is set; opened, they work exactly like the Gebiet and Filter pages
+function foldsHtml() {
+  const fl = [...state.filters].map(f => FILTER_LABEL[f] || f).concat(state.io ? [TAG_LABEL[state.io] || state.io] : []);
+  const row = (key, icon, title, sub, open, set) => `<button type="button" class="sfold${set ? ' set' : ''}" data-sfold="${key}" aria-expanded="${open}">
+      <span class="sfic">${svg(icon)}</span><span class="sftx"><b>${title}</b><small>${esc(sub)}</small></span>${svg('up')}</button>`;
+  return `<div class="sfolds">
+    ${row('wo', 'pin', tl('Wo'), areaLabel(), ASK.wo, state.area.type !== 'all')}
+    ${ASK.wo ? `<div class="sfbody">${areaBody()}</div>` : ''}
+    ${row('fi', 'filter', tl('Filter'), fl.length ? fl.slice(0, 3).join(', ') + (fl.length > 3 ? ` +${fl.length - 3}` : '') : tl('Keine'), ASK.fi, !!fl.length)}
+    ${ASK.fi ? `<div class="sfbody">${filtersBody()}</div>` : ''}</div>`;
 }
 
 // ---------- what Djuu understood ----------
@@ -175,6 +187,7 @@ document.addEventListener('click', e => {
   const t = e.target.closest('button'); if (!t) return;
   const d = t.dataset;
   if (d.subopen) { ASK.open = ASK.open === d.subopen ? null : d.subopen; renderPanel(); }
+  else if (d.sfold) { ASK[d.sfold] = !ASK[d.sfold]; renderPanel(); }
   else if (d.stag) {
     const [gid, tag] = d.stag.split('|');
     if (!(state.groups.size === 1 && state.groups.has(gid))) { state.groups = new Set([gid]); state.tags.clear(); state.cats.clear(); state.preset = null; state.q = ''; state.mode = GROUP[gid].mode; }

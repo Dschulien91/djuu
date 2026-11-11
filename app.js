@@ -7,7 +7,7 @@
    User input is stored on this device only until the server exists (server-ready shape, see STORE). */
 'use strict'; // i18n-skip
 
-const VERSION = '0.53';
+const VERSION = '0.54';
 const CONTACT = window.DJUU_CONTACT || {}; // config.js: reports and feedback stay hidden until an address is set
 // Logo on light backgrounds, as specified in the design PDF.
 const LOGO = `<span class="logo" role="img" aria-label="djuu"><span style="color:#6B4EE6">d</span><span style="color:#0E8F84">j</span><span style="color:#D6336C">u</span><span style="color:#CC6A00">u</span>
@@ -829,7 +829,7 @@ function refresh() {
       .on('click', () => showPlace(only.id, true)).addTo(map);
   } else cluster.addLayers(last.match.map(p => markerFor(p, false, og)).concat(state.showUnknown ? last.unknown.map(p => markerFor(p, true, og)) : []));
   renderTop();
-  if (['list', 'filters'].includes(view().type)) renderPanel();
+  if (['list', 'filters'].includes(view().type) || (view().type === 'search' && (ASK.wo || ASK.fi) && !state.sq && !ASK.u)) renderPanel();
 }
 
 // ---------- Top bar ----------
@@ -961,7 +961,7 @@ async function renderPanel() {
   else if (v.type === 'area') { body.innerHTML = areaView(); bindAreaMini(); }
   else if (v.type === 'ferien') body.innerHTML = ferienView();
   else if (v.type === 'draw') body.innerHTML = drawView();
-  else if (v.type === 'search') body.innerHTML = searchView();
+  else if (v.type === 'search') { body.innerHTML = searchView(); if ($('#radMini')) bindAreaMini(); }
   else if (v.type === 'sos') body.innerHTML = sosView(v.kind);
   else if (v.type === 'events') body.innerHTML = eventsView();
   else if (['favs', 'me', 'wir', 'person'].includes(v.type)) body.innerHTML = wirRender(v);
@@ -1204,11 +1204,16 @@ function sendPlaceReport() {
 const RARE_BELOW = 10;
 const CORE_FILTERS = new Set(['jetzt', 'sonntag', 'wickeltisch', 'stillen', 'hochstuhl', 'spielecke', 'kindermenue', 'kinderwagen', 'toilette', 'kleinkind', 'eingezaeunt', 'wasser', 'hund', 'age_fit', 'age_0', 'age_3', 'age_6']);
 function filtersView() {
-  const first = [...state.groups][0];
+  return `${head(tl('Filter'), state.groups.size ? tl('für ') + [...state.groups].map(g => GROUP[g].label).join(', ') : tl('für alle Orte'))}
+    ${filtersBody()}
+    <div class="sticky-bar"><button type="button" class="btn" data-reset="1">${tl('Zurücksetzen')}</button><button type="button" class="btn big primary" data-home="peek">${nf.format(shownTotal())} ${tl('Orte zeigen')}</button></div>`;
+}
+const shownTotal = () => last.match.length + (state.showUnknown ? last.unknown.length : 0);
+// the filter chips themselves: on the Filter page and folded into Suchen
+function filtersBody() {
   const fits = a => !a.groups || !state.groups.size || [...state.groups].some(g => a.groups.includes(g));
   const sel = places.filter(inSelection), counts = new Map();
   const count = id => { if (!counts.has(id)) { let n = 0; for (const p of sel) if (filterVal(p, id) === true) n++; counts.set(id, n); } return counts.get(id); };
-  // Nothing here: gone. Few here and not a core question for parents: further down, under "Seltene Angaben".
   const rare = [];
   const chipFor = x => `<button type="button" class="chip${state.filters.has(x.id) ? ' on' : ''}" data-filter="${x.id}">${esc(x.label)} <span class="n">${nf.format(count(x.id))}</span></button>`;
   const block = (title, all, sorted = false) => {
@@ -1218,31 +1223,34 @@ function filtersView() {
     if (sorted) main.sort((a, b) => (hasDog() ? (b.id === 'hund') - (a.id === 'hund') : 0) || CORE_FILTERS.has(b.id) - CORE_FILTERS.has(a.id) || count(b.id) - count(a.id));
     return main.length ? `<div class="sec"><h4>${title}</h4><div class="fgrid">${main.map(chipFor).join('')}</div></div>` : '';
   };
-  const total = last.match.length + (state.showUnknown ? last.unknown.length : 0);
   const timeBlock = block(tl('Öffnungszeiten'), TIME_FILTERS);
   if (!hasDog()) state.filters.delete('hund');
   const attrBlock = block(tl('Ausstattung'), ATTRS.filter(a => fits(a) && (a.id !== 'hund' || hasDog())), true);
   const ageBlock = !state.groups.size || ['spielen', 'entdecken', 'familie'].some(g => state.groups.has(g)) ? block(tl('Alter'), AGE_FILTERS.filter(a => !a.family || hasFamily())) : '';
   const gearBlock = !state.groups.size || state.groups.has('spielen') ? block(tl('Spielgeräte'), GEAR, true) : '';
-  return `${head(tl('Filter'), state.groups.size ? tl('für ') + [...state.groups].map(g => GROUP[g].label).join(', ') : tl('für alle Orte'))}
-    <p class="muted text">${tl('Die Zahl zeigt, bei wie vielen Orten wir es sicher wissen. Es können mehr sein.')}</p>
+  return `<p class="muted text">${tl('Die Zahl zeigt, bei wie vielen Orten wir es sicher wissen. Es können mehr sein.')}</p>
     ${ioAllowed() ? `<div class="sec"><h4>${tl('Drinnen oder draußen')}</h4><div class="fgrid">${[['drinnen', 'house', tl('Drinnen')], ['draussen', 'tree', tl('Draußen')]].map(([id, ic, l]) => `<button type="button" class="chip${state.io === id ? ' on' : ''}" data-io="${id}">${svg(ic)}${l}</button>`).join('')}</div></div>` : ''}
     ${timeBlock}${attrBlock}${ageBlock}${gearBlock}
     ${rare.length ? `<details class="fold"><summary>${tl('Seltene Angaben')}</summary><div class="fgrid" style="margin-top:10px">${rare.map(chipFor).join('')}</div></details>` : ''}
-    <label class="switch" for="unkSwitch">${tl('Orte ohne Angabe blass zeigen')} <input type="checkbox" id="unkSwitch" ${state.showUnknown ? 'checked' : ''}></label>
-    <div class="sticky-bar"><button type="button" class="btn" data-reset="1">${tl('Zurücksetzen')}</button><button type="button" class="btn big primary" data-home="peek">${nf.format(total)} ${tl('Orte zeigen')}</button></div>`;
+    <label class="switch" for="unkSwitch">${tl('Orte ohne Angabe blass zeigen')} <input type="checkbox" id="unkSwitch" ${state.showUnknown ? 'checked' : ''}></label>`;
 }
 // area
 function areaView() {
   const a = state.area, n = last.match.length;
   const chip = (attrs, on, label) => `<button type="button" class="chip${on ? ' on' : ''}" ${attrs}>${label}</button>`;
   return `${head(tl('Gebiet'), tl('Wo sollen wir suchen?'))}
-    <div class="fgrid">${chip('data-area="all"', a.type === 'all', tl('Ganz Hamburg'))}</div>
+    ${areaBody()}
+    <div class="sticky-bar"><button type="button" class="btn big primary" data-home="peek">${nf.format(n)} ${tl('Orte zeigen')}</button></div>`;
+}
+// the Gebiet choices themselves: on the Gebiet page and folded into Suchen
+function areaBody() {
+  const a = state.area;
+  const chip = (attrs, on, label) => `<button type="button" class="chip${on ? ' on' : ''}" ${attrs}>${label}</button>`;
+  return `<div class="fgrid">${chip('data-area="all"', a.type === 'all', tl('Ganz Hamburg'))}</div>
     ${radiusHtml()}
     <div class="sec"><h4>${tl('Eigenes Gebiet')}</h4>
       <button type="button" class="btn${a.type === 'poly' ? ' primary' : ''}" data-draw="1">${svg('edit')}${a.type === 'poly' ? tl('Neu einzeichnen') : tl('Auf der Karte einzeichnen')}</button></div>
-    ${districtHtml()}
-    <div class="sticky-bar"><button type="button" class="btn big primary" data-home="peek">${nf.format(n)} ${tl('Orte zeigen')}</button></div>`;
+    ${districtHtml()}`;
 }
 function radiusHtml() {
   const a = state.area, on = a.type === 'radius', c = on ? a.center : defaultCenter(), r = on ? a.r : 2000;
@@ -1285,7 +1293,7 @@ function districtOpts() {
   const ordered = q ? list : sel.filter(d => list.includes(d)).concat(list.filter(d => !sel.includes(d)));
   return ordered.slice(0, q ? 60 : 300).map(d => `<label class="ddopt"><input type="checkbox" data-dsel="${esc(d)}"${sel.includes(d) ? ' checked' : ''}><span>${esc(d)}</span></label>`).join('') || `<p class="muted text">${tl('Kein Stadtteil gefunden.')}</p>`;
 }
-function areaCountBtn() { const b = $('#panelBody .sticky-bar [data-home="peek"]'); if (b) b.textContent = `${nf.format(last.match.length)} ${tl('Orte zeigen')}`; }
+function areaCountBtn() { const b = $('#panelBody .sticky-bar .primary'); if (b) b.textContent = `${nf.format(view().type === 'search' ? shownTotal() : last.match.length)} ${tl('Orte zeigen')}`; }
 function drawView() {
   const n = state.drawing.length;
   return `<p class="text drawhint"><b>${tl('Tippe auf die Ecken des Gebiets.')}</b> ${n ? `${n} ${n === 1 ? tl('Ecke') : tl('Ecken')} gesetzt.` : ''}${n && n < 3 ? tl(' Mindestens 3 nötig.') : ''}</p>

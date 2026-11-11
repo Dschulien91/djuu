@@ -774,4 +774,5 @@ window.DJUU_I18N.en = {
   'Umkreis um {name}': 'Radius around {name}',
   'Stadtteile wählen': 'Choose districts',
   'Suchen, z. B. Ottensen': 'Search, e.g. Ottensen',
+  'Keine': 'None',
 };
