@@ -764,4 +764,6 @@ window.DJUU_I18N.en = {
   'Neuer Termin für „{what}“{when}': 'New dates for “{what}”{when}',
   'ab {date}': 'from {date}',
   '{name} zuklappen': 'Collapse {name}',
+  '{name} in Suchen ändern': 'Change {name} in Search',
+  '{n} weitere Unterkategorien': '{n} more subcategories',
 };

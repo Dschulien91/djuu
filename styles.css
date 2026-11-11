@@ -1043,3 +1043,16 @@ a.btn.wide, button.btn.wide { display: flex; }
 .subcard .btn { margin: 2px 0 0; }
 .stmore { flex: none; color: var(--muted); display: grid; place-items: center; }
 .stmore svg.i { width: 16px; height: 16px; transform: rotate(90deg); }
+
+/* v0.48: one chip row on the map – the category, then only the chosen sub-categories */
+.ctx .selchip.split { padding: 0; gap: 0; }
+.ctx .selchip.split .selname { display: inline-flex; align-items: center; gap: 6px; height: 100%; padding: 0 4px 0 12px; border: 0; background: none; color: inherit; font: inherit; }
+.ctx .selx { position: relative; display: grid; place-items: center; width: 30px; height: 100%; padding: 0; border: 0; background: none; color: inherit; flex: none; }
+.ctx .selx::after { content: ""; position: absolute; left: 50%; top: 50%; width: 44px; height: 44px; transform: translate(-50%, -50%); } /* 44 px to tap */
+.ctx .selx svg.i { width: 14px; height: 14px; }
+.ctx .subsel { height: 36px; padding: 0 0 0 10px; gap: 0; border: 0; background: #6B4EE6; color: #fff; font: 700 13px var(--font-body); box-shadow: var(--shadow-sm); }
+.ctx .subsel > span { display: inline-flex; align-items: center; gap: 4px; }
+.ctx .subsel > span svg.i { width: 13px; height: 13px; }
+.ctx .subsel.more { padding: 0 14px; min-width: 44px; justify-content: center; position: relative; }
+.ctx .subsel.more::after { content: ""; position: absolute; inset: -4px 0; }
+.row.selrow { align-items: center; }

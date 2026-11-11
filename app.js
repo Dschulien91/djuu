@@ -7,7 +7,7 @@
    User input is stored on this device only until the server exists (server-ready shape, see STORE). */
 'use strict'; // i18n-skip
 
-const VERSION = '0.47';
+const VERSION = '0.48';
 const CONTACT = window.DJUU_CONTACT || {}; // config.js: reports and feedback stay hidden until an address is set
 // Logo on light backgrounds, as specified in the design PDF.
 const LOGO = `<span class="logo" role="img" aria-label="djuu"><span style="color:#6B4EE6">d</span><span style="color:#0E8F84">j</span><span style="color:#D6336C">u</span><span style="color:#CC6A00">u</span>
@@ -825,7 +825,8 @@ function topTitle() {
   if (state.q) return `„${state.q}“`;
   if (state.preset) return PRESETS.find(x => x.id === state.preset).label;
   const g = soleGroup();
-  if (g) return state.tags.size ? [...state.tags].map(t => TAG_LABEL[t] || t).join(', ') : g.label;
+  // "Gastro · Café, Eis +2"
+  if (g) { const t = (TAGS[g.id] || []).filter(x => state.tags.has(x.id)).map(x => x.label).concat([...state.tags].filter(x => !(TAGS[g.id] || []).some(y => y.id === x)).map(x => TAG_LABEL[x] || x)); return t.length ? `${g.label} · ${t.slice(0, 2).join(', ')}${t.length > 2 ? ` +${t.length - 2}` : ''}` : g.label; }
   return state.groups.size ? tl('Mehrere Kategorien') : tl('Alle Orte');
 }
 // Under the search bar: the choice as one chip ("✓ Spielen & Toben ✕"), then its sub-categories. Nothing chosen: nothing here.
@@ -835,9 +836,17 @@ function selectionHtml() {
   if (only) return `<div class="row selrow"><button type="button" class="chip selchip" data-clearonly="1">${svg('check')}${tl('Nur dieser Ort')} ${x}</button></div>`;
   const label = state.q ? `„${state.q}“` : state.preset ? PRESETS.find(p => p.id === state.preset).label : state.groups.size ? (g ? g.label : tl('Mehrere Kategorien')) : '';
   if (!label && !state.io) return '';
-  const top = `<div class="row selrow">${label ? `<button type="button" class="chip selchip" data-clearsel="1" aria-label="${esc(label)} ${tl('entfernen')}">${svg('check')}${esc(label)} ${x}</button>` : ''}${state.io ? `<button type="button" class="chip selchip" data-io="${state.io}">${svg('check')}${esc(TAG_LABEL[state.io])} ${x}</button>` : ''}</div>`;
-  const tags = g && TAGS[g.id] && !g.offers ? tagCounts(g) : [];
-  return top + (tags.length ? `<div class="row subrow">${tags.map(([t]) => `<button type="button" class="chip tag${state.tags.has(t.id) ? ' on' : ''}" data-tag="${t.id}" aria-pressed="${state.tags.has(t.id)}">${state.tags.has(t.id) ? svg('check') : ''}${esc(t.label)}</button>`).join('')}</div>` : '');
+  // one row: the category (its name opens it in Suchen, ✕ removes it with everything), then only the chosen sub-categories
+  const canOpen = g && TAGS[g.id] && !g.offers && !state.q && !state.preset;
+  const cat = !label ? '' : canOpen
+    ? `<span class="chip selchip split"><button type="button" class="selname" data-opencat="${g.id}" aria-label="${tl('{name} in Suchen ändern', { name: label })}">${svg('check')}${esc(label)}</button><button type="button" class="selx" data-clearsel="1" aria-label="${esc(label)} ${tl('entfernen')}">${x}</button></span>`
+    : `<button type="button" class="chip selchip" data-clearsel="1" aria-label="${esc(label)} ${tl('entfernen')}">${svg('check')}${esc(label)} ${x}</button>`;
+  const chosen = g && TAGS[g.id] && !g.offers ? TAGS[g.id].filter(t => state.tags.has(t.id)) : [];
+  const shown = chosen.slice(0, 3), rest = chosen.length - shown.length; // more than three: the others as "+N"
+  const subs = shown.map(t => `<span class="chip subsel"><span>${svg('check')}${esc(t.label)}</span><button type="button" class="selx" data-tagx="${t.id}" aria-label="${esc(t.label)} ${tl('entfernen')}">${x}</button></span>`).join('')
+    + (rest ? `<button type="button" class="chip subsel more" data-opencat="${g.id}" aria-label="${tl('{n} weitere Unterkategorien', { n: rest })}">+${rest}</button>` : '');
+  const io = state.io ? `<button type="button" class="chip selchip" data-io="${state.io}">${svg('check')}${esc(TAG_LABEL[state.io])} ${x}</button>` : '';
+  return `<div class="row selrow">${cat}${subs}${io}</div>`;
 }
 // One level at a time: 0 = Erleben or Service, 1 = categories of that mode, 2 = tags of the chosen category (old top row, unused on the map now).
 function rowHtml() {
@@ -2283,6 +2292,8 @@ document.addEventListener('click', async e => {
   else if (ds.clearq) { state.q = ''; state.sq = ''; refresh(); }
   else if (ds.clearsel) { state.evRange = null; state.groups.clear(); state.cats.clear(); state.tags.clear(); state.preset = null; state.q = ''; state.sq = ''; state.io = null; state.level = 0; state.listLimit = 40; refresh(); }
   else if (ds.clearonly) { state.onlyPlace = null; refresh(); }
+  else if (ds.tagx) { state.tags.delete(ds.tagx); state.preset = null; state.listLimit = 40; refresh(); if (view().type === 'list') renderPanel(); }
+  else if (ds.opencat) { ASK.open = ds.opencat; ASK.u = null; state.sq = ''; stack = [{ type: 'list' }]; go({ type: 'search' }, 'full'); setTab('search'); setTimeout(() => document.querySelector('.subcard')?.scrollIntoView({ block: 'center' }), 60); }
   else if (ds.onlyplace) { const p = byId.get(ds.onlyplace); state.onlyPlace = p.id; stack = [{ type: 'list' }]; setTab('map'); refresh(); renderPanel(); setSize('peek'); map.setView([p.lat, p.lon], Math.max(map.getZoom(), 16)); }
   else if (ds.opensearch) { stack = [{ type: 'list' }]; go({ type: 'search' }, 'full'); setTab('search'); if (ds.opensearch === 'voice') startVoice(); else setTimeout(() => $('#q')?.focus(), 60); }
   else if (ds.unk) { state.showUnknown = !state.showUnknown; refresh(); }
