@@ -7,7 +7,7 @@
    User input is stored on this device only until the server exists (server-ready shape, see STORE). */
 'use strict'; // i18n-skip
 
-const VERSION = '0.52';
+const VERSION = '0.53';
 const CONTACT = window.DJUU_CONTACT || {}; // config.js: reports and feedback stay hidden until an address is set
 // Logo on light backgrounds, as specified in the design PDF.
 const LOGO = `<span class="logo" role="img" aria-label="djuu"><span style="color:#6B4EE6">d</span><span style="color:#0E8F84">j</span><span style="color:#D6336C">u</span><span style="color:#CC6A00">u</span>
@@ -1123,9 +1123,10 @@ async function detailView(id) {
     </div>
     ${placeOffersHtml(id)}
     ${extra.length ? `<div class="sec">${extra.map(x => `<p class="text">${x}</p>`).join('')}</div>` : ''}
-    ${addr || web || f.phone ? `<div class="sec"><h4>${tl('Kontakt')}</h4>${addr ? `<p class="text">${esc(addr)}</p>` : ''}
+    <div class="sec"><h4>${tl('Kontakt')}</h4>${addr ? `<p class="text">${esc(addr)}</p>` : ''}
       ${f.phone ? `<p class="text">${tl('Telefon:')} <span style="user-select:all">${esc(f.phone[0])}</span></p>` : ''}
-      ${web ? `<p class="text"><a href="${esc(web.startsWith('http') ? web : 'https://' + web)}" target="_blank" rel="noopener">${tl('Webseite öffnen')}</a></p>` : ''}</div>` : ''}
+      ${web ? `<p class="text"><a href="${esc(web.startsWith('http') ? web : 'https://' + web)}" target="_blank" rel="noopener">${tl('Webseite öffnen')}</a></p>` : ''}
+      <button type="button" class="btn" data-onlyplace="${p.id}">${svg('pin')}${tl('Auf der Karte zeigen')}</button></div>
     ${p.hoursRaw ? `<details class="fold"><summary>${tl('Öffnungszeiten')}</summary>${!p.oh ? `<p>${esc(p.hoursRaw)}</p>` : p.oh.always ? `<p>${tl('Rund um die Uhr')}</p>` :
       '<table class="hours">' + p.oh.week.map((r, i) => `<tr class="${i === today ? 'today' : ''}"><td>${DAY_DE[i]}</td><td>${r.length ? r.map(([a, b]) => fmtMin(a) + '–' + fmtMin(b)).join(', ') : tl('geschlossen')}</td></tr>`).join('') + '</table>' + (p.oh.ph ? `<p class="note">${tl('An Feiertagen:')} ${p.oh.ph.length ? p.oh.ph.map(([a, b]) => fmtMin(a) + '–' + fmtMin(b)).join(', ') : tl('geschlossen')}</p>` : `<p class="note">${tl('An Feiertagen wie sonntags, soweit nichts anderes bekannt ist.')}</p>`)}</details>` : ''}
     <details class="fold"${reviews.length ? ' open' : ''}><summary>${tl('Bewertungen')}${reviews.length ? ` (${reviews.length})` : ''}</summary>
