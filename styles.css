@@ -1106,3 +1106,10 @@ a.btn.wide, button.btn.wide { display: flex; }
 .sfold[aria-expanded="false"] > svg.i:last-child { transform: rotate(180deg); }
 .sfbody { padding: 4px 4px 8px; }
 .sfbody .sec:first-child, .sfbody > .fgrid:first-child { margin-top: 4px; }
+
+/* v0.55: Wo and Filter side by side; the open one unfolds below both */
+.sfolds { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.sfold { gap: 8px; padding: 8px 10px; min-height: 58px; }
+.sfic { width: 30px; height: 30px; }
+.sfbody { grid-column: 1 / -1; }
+.sfold[aria-expanded="true"] { border: 2px solid var(--brand); background: #F4F0FF; }

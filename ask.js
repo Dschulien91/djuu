@@ -48,9 +48,8 @@ function foldsHtml() {
       <span class="sfic">${svg(icon)}</span><span class="sftx"><b>${title}</b><small>${esc(sub)}</small></span>${svg('up')}</button>`;
   return `<div class="sfolds">
     ${row('wo', 'pin', tl('Wo'), areaLabel(), ASK.wo, state.area.type !== 'all')}
-    ${ASK.wo ? `<div class="sfbody">${areaBody()}</div>` : ''}
     ${row('fi', 'filter', tl('Filter'), fl.length ? fl.slice(0, 3).join(', ') + (fl.length > 3 ? ` +${fl.length - 3}` : '') : tl('Keine'), ASK.fi, !!fl.length)}
-    ${ASK.fi ? `<div class="sfbody">${filtersBody()}</div>` : ''}</div>`;
+    ${ASK.wo ? `<div class="sfbody">${areaBody()}</div>` : ASK.fi ? `<div class="sfbody">${filtersBody()}</div>` : ''}</div>`;
 }
 
 // ---------- what Djuu understood ----------
@@ -187,7 +186,7 @@ document.addEventListener('click', e => {
   const t = e.target.closest('button'); if (!t) return;
   const d = t.dataset;
   if (d.subopen) { ASK.open = ASK.open === d.subopen ? null : d.subopen; renderPanel(); }
-  else if (d.sfold) { ASK[d.sfold] = !ASK[d.sfold]; renderPanel(); }
+  else if (d.sfold) { const k = d.sfold, o = k === 'wo' ? 'fi' : 'wo'; ASK[k] = !ASK[k]; ASK[o] = false; renderPanel(); } // side by side: one open at a time
   else if (d.stag) {
     const [gid, tag] = d.stag.split('|');
     if (!(state.groups.size === 1 && state.groups.has(gid))) { state.groups = new Set([gid]); state.tags.clear(); state.cats.clear(); state.preset = null; state.q = ''; state.mode = GROUP[gid].mode; }
