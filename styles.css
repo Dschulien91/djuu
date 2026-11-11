@@ -1027,3 +1027,19 @@ a.btn.wide, button.btn.wide { display: flex; }
 .kmrow b { min-width: 52px; text-align: right; font-family: var(--font-display); }
 .mkdate { position: absolute; top: 34px; left: 50%; transform: translateX(-50%); background: #D9480F; color: #fff; font: 700 11px/16px var(--font-body); padding: 0 6px; border-radius: 999px; white-space: nowrap; box-shadow: 0 1px 3px rgba(0, 0, 0, .3); }
 .mkhit { position: relative; }
+
+/* v0.47: a category opens as one card in place of its tile (full width) */
+.subcard { grid-column: 1 / -1; border: 2px solid #6B4EE6; border-radius: 16px; background: #F4F0FF; padding: 6px 10px 12px; display: grid; gap: 8px; }
+.subhead { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 0; border: 0; background: none; color: var(--ink); font: 700 15px var(--font-body); text-align: left; }
+.subhead .stlabel { flex: 1; }
+.subhead > svg.i:last-child { color: #6B4EE6; width: 20px; height: 20px; }
+.subcard .stic { width: 34px; height: 34px; flex: none; border-radius: 10px; display: grid; place-items: center; }
+.subcard .stic svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.subcard.erleben .stic { background: #EAE5FD; color: #6B4EE6; }
+.subcard.service .stic { background: #D9F0ED; color: #0B7A70; }
+.subchips { display: flex; flex-wrap: wrap; gap: 8px; }
+.subchips .chip { height: 44px; padding: 0 14px; background: #fff; border: 1px solid var(--line); font: 600 14px var(--font-body); }
+.subchips .chip.on { background: var(--ink); border-color: var(--ink); color: #fff; }
+.subcard .btn { margin: 2px 0 0; }
+.stmore { flex: none; color: var(--muted); display: grid; place-items: center; }
+.stmore svg.i { width: 16px; height: 16px; transform: rotate(90deg); }

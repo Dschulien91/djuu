@@ -9,22 +9,24 @@
 const ERLEBEN = ['tipps', 'spielen', 'gastro', 'entdecken', 'kurse', 'events'];
 const SERVICE = ['gesundheit', 'sanitaer', 'laeden', 'familie', 'mobil'];
 const ASK = { open: null, u: null, busy: false, text: '', ai: false };
+// A category with sub-categories opens in place: its tile becomes one card over both columns (violet edge, light violet),
+// head with icon, name and an arrow up, below all sub-categories as chips. Only one card is open; the other tiles follow below it.
 function tileHtml(id, kind) {
   const g = GROUP[id], on = state.groups.has(id), subs = TAGS[id] && !g.offers;
-  const jump = id === 'kurse' ? ' data-evjump="wiederkehrend"' : id === 'events' ? ' data-evjump="einmalig"' : ` data-group="${id}"`;
-  return `<div class="stilewrap"><button type="button" class="stile ${kind}${on ? ' on' : ''}"${jump} aria-pressed="${on}">
-      <span class="stic">${svg(g.icon, '')}</span><span class="stlabel">${esc(g.label)}</span>${on ? `<span class="stcheck">${svg('check')}</span>` : ''}</button>
-    ${subs ? `<button type="button" class="starrow${ASK.open === id ? ' open' : ''}" data-subopen="${id}" aria-expanded="${ASK.open === id}" aria-label="${tl('Unterkategorien von {name}', { name: g.label })}">${svg('next')}</button>` : ''}</div>`;
+  if (subs && ASK.open === id) return subCardHtml(id, kind);
+  const action = id === 'kurse' ? ' data-evjump="wiederkehrend"' : id === 'events' ? ' data-evjump="einmalig"' : subs ? ` data-subopen="${id}" aria-expanded="false"` : ` data-group="${id}"`;
+  return `<div class="stilewrap"><button type="button" class="stile ${kind}${on ? ' on' : ''}"${action} aria-pressed="${on}">
+      <span class="stic">${svg(g.icon, '')}</span><span class="stlabel">${esc(g.label)}</span>${on ? `<span class="stcheck">${svg('check')}</span>` : ''}${subs ? `<span class="stmore">${svg('next')}</span>` : ''}</button></div>`;
 }
-function subsHtml(kindIds) {
-  const id = ASK.open;
-  if (!id || !kindIds.includes(id)) return '';
-  const g = GROUP[id], on = state.groups.size === 1 && state.groups.has(id);
-  return `<div class="subpanel"><div class="fgrid">${tagCounts(g).map(([t]) => { const sel = on && state.tags.has(t.id); return `<button type="button" class="chip${sel ? ' on' : ''}" data-stag="${id}|${t.id}" aria-pressed="${sel}">${sel ? svg('check') : ''}${esc(t.label)}</button>`; }).join('')}</div>
-    ${on ? `<button type="button" class="btn primary wide" data-showmap="1">${svg('pin')}${tl('Auf der Karte zeigen')} (${nf.format(last.match.length)})</button>` : ''}</div>`;
+function subCardHtml(id, kind) {
+  const g = GROUP[id], mine = state.groups.size === 1 && state.groups.has(id), chosen = mine ? [...state.tags].length : 0;
+  return `<div class="subcard ${kind}"><button type="button" class="subhead" data-subopen="${id}" aria-expanded="true" aria-label="${tl('{name} zuklappen', { name: g.label })}">
+      <span class="stic">${svg(g.icon, '')}</span><span class="stlabel">${esc(g.label)}</span>${svg('up')}</button>
+    <div class="subchips">${tagCounts(g).map(([t]) => { const sel = mine && state.tags.has(t.id); return `<button type="button" class="chip${sel ? ' on' : ''}" data-stag="${id}|${t.id}" aria-pressed="${sel}">${sel ? svg('check') : ''}${esc(t.label)}</button>`; }).join('')}</div>
+    ${chosen ? `<button type="button" class="btn primary wide" data-showmap="1">${svg('pin')}${tl('Auf der Karte zeigen')} (${nf.format(last.match.length)})</button>` : ''}</div>`;
 }
 function searchView() {
-  const grid = (title, list, kind, extra = '') => `<div class="sec"><h4>${title}</h4><div class="stiles">${list.map(id => tileHtml(id, kind)).join('')}${extra}</div>${subsHtml(list)}</div>`;
+  const grid = (title, list, kind, extra = '') => `<div class="sec"><h4>${title}</h4><div class="stiles">${list.map(id => tileHtml(id, kind)).join('')}${extra}</div></div>`;
   const sos = `<div class="stilewrap"><button type="button" class="stile sos" data-sosopen="1"><span class="stic">${svg('bolt', '')}</span><span class="stlabel">${tl('Jetzt dringend')}</span></button></div>`;
   return `<div class="ph"><h2>${tl('Was sucht ihr?')}</h2></div>
     <form class="searchfield ask" id="askForm" role="search">${svg('sparkle')}<label for="q" class="sr">${tl('Suche')}</label><input id="q" type="search" placeholder="${tl('Suchen oder frag Djuu …')}" autocomplete="off" enterkeyhint="search" value="${esc(state.sq)}">

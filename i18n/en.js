@@ -763,4 +763,5 @@ window.DJUU_I18N.en = {
   'Ohne Namen steht dort einfach „Wir“.': 'Without a name it simply says “Us”.',
   'Neuer Termin für „{what}“{when}': 'New dates for “{what}”{when}',
   'ab {date}': 'from {date}',
+  '{name} zuklappen': 'Collapse {name}',
 };
