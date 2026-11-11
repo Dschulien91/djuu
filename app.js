@@ -7,7 +7,7 @@
    User input is stored on this device only until the server exists (server-ready shape, see STORE). */
 'use strict'; // i18n-skip
 
-const VERSION = '0.49';
+const VERSION = '0.50';
 const CONTACT = window.DJUU_CONTACT || {}; // config.js: reports and feedback stay hidden until an address is set
 // Logo on light backgrounds, as specified in the design PDF.
 const LOGO = `<span class="logo" role="img" aria-label="djuu"><span style="color:#6B4EE6">d</span><span style="color:#0E8F84">j</span><span style="color:#D6336C">u</span><span style="color:#CC6A00">u</span>
@@ -840,8 +840,8 @@ function selectionHtml() {
   // one row: the category (its name opens it in Suchen, ✕ removes it with everything), then only the chosen sub-categories
   const canOpen = g && TAGS[g.id] && !g.offers && !state.q && !state.preset;
   const cat = !label ? '' : canOpen
-    ? `<span class="chip selchip split"><button type="button" class="selname" data-opencat="${g.id}" aria-label="${tl('{name} in Suchen ändern', { name: label })}">${svg('check')}${esc(label)}</button><button type="button" class="selx" data-clearsel="1" aria-label="${esc(label)} ${tl('entfernen')}">${x}</button></span>`
-    : `<button type="button" class="chip selchip" data-clearsel="1" aria-label="${esc(label)} ${tl('entfernen')}">${svg('check')}${esc(label)} ${x}</button>`;
+    ? `<span class="chip selchip split"><button type="button" class="selname" data-opencat="${g.id}" aria-label="${tl('{name} in Suchen ändern', { name: label })}">${svg(g.icon)}${esc(label)}</button><button type="button" class="selx" data-clearsel="1" aria-label="${esc(label)} ${tl('entfernen')}">${x}</button></span>`
+    : `<button type="button" class="chip selchip" data-clearsel="1" aria-label="${esc(label)} ${tl('entfernen')}">${svg(g && !state.q && !state.preset ? g.icon : 'check')}${esc(label)} ${x}</button>`;
   const chosen = g && TAGS[g.id] && !g.offers ? TAGS[g.id].filter(t => state.tags.has(t.id)) : [];
   const shown = chosen.slice(0, 3), rest = chosen.length - shown.length; // more than three: the others as "+N"
   const subs = shown.map(t => `<span class="chip subsel"><span>${svg('check')}${esc(t.label)}</span><button type="button" class="selx" data-tagx="${t.id}" aria-label="${esc(t.label)} ${tl('entfernen')}">${x}</button></span>`).join('')

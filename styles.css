@@ -1060,3 +1060,8 @@ a.btn.wide, button.btn.wide { display: flex; }
 .ctx .subsel::after, .ctx .selchip.split::after { content: none; }
 .ctx .subsel.plusn::after { content: ''; }
 .ctx .selx { z-index: 1; }
+
+/* v0.50: category vs. sub-category at a glance – category dark with its icon, sub-categories white with a violet edge */
+.ctx .selchip { background: var(--ink); border-color: var(--ink); }
+.ctx .subsel { height: 32px; background: #fff; color: #4B32C3; border: 1.5px solid var(--brand); font-weight: 600; }
+.ctx .subsel.plusn { padding: 0 12px; }
