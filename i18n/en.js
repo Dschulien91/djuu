@@ -766,4 +766,6 @@ window.DJUU_I18N.en = {
   '{name} zuklappen': 'Collapse {name}',
   '{name} in Suchen ändern': 'Change {name} in Search',
   '{n} weitere Unterkategorien': '{n} more subcategories',
+  'um': 'around',
+  'dich': 'you',
 };

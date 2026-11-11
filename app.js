@@ -7,7 +7,7 @@
    User input is stored on this device only until the server exists (server-ready shape, see STORE). */
 'use strict'; // i18n-skip
 
-const VERSION = '0.50';
+const VERSION = '0.51';
 const CONTACT = window.DJUU_CONTACT || {}; // config.js: reports and feedback stay hidden until an address is set
 // Logo on light backgrounds, as specified in the design PDF.
 const LOGO = `<span class="logo" role="img" aria-label="djuu"><span style="color:#6B4EE6">d</span><span style="color:#0E8F84">j</span><span style="color:#D6336C">u</span><span style="color:#CC6A00">u</span>
@@ -696,7 +696,10 @@ map.on('moveend', () => { if (view().type === 'list') renderPanel(); });
 
 // ---------- Filtering ----------
 // ---------- Area (Gebiet): all Hamburg, district, radius around me or a point, drawn polygon ----------
-const areaCenter = a => a.center === 'me' ? (state.me || [map.getCenter().lat, map.getCenter().lng]) : a.center;
+// a radius can sit around me, a point, or one of the family's saved places (Zuhause, Arbeit …): center 'place:<id>'
+const savedPlaces = () => (store.places || []).filter(p => p.lat && p.lon);
+const areaPlace = a => typeof a.center === 'string' && a.center.startsWith('place:') ? savedPlaces().find(p => p.id === a.center.slice(6)) : null;
+const areaCenter = a => { if (a.center === 'me') return state.me || [map.getCenter().lat, map.getCenter().lng]; if (typeof a.center === 'string') { const p = areaPlace(a); return p ? [p.lat, p.lon] : [map.getCenter().lat, map.getCenter().lng]; } return a.center; };
 function inPoly(pt, poly) {
   let inside = false;
   for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
@@ -715,7 +718,7 @@ function areaOk(p) {
 const fmtR = r => r < 1000 ? r + ' m' : r / 1000 + ' km';
 function areaLabel(a = state.area) {
   if (a.type === 'district') return a.name;
-  if (a.type === 'radius') return `${fmtR(a.r)} um ${a.center === 'me' ? 'dich' : tl('Punkt')}`;
+  if (a.type === 'radius') { const pl = areaPlace(a); return `${fmtR(a.r)} ${tl('um')} ${a.center === 'me' ? tl('dich') : pl ? tl(pl.name) : tl('Punkt')}`; }
   if (a.type === 'poly') return tl('Eigenes Gebiet');
   return tl('Ganz Hamburg');
 }
@@ -1227,7 +1230,7 @@ function areaView() {
     <div class="fgrid">${chip('data-area="all"', a.type === 'all', tl('Ganz Hamburg'))}</div>
     <div class="sec"><h4>${tl('Umkreis')}</h4>
       <div class="fgrid">${[500, 1000, 2000, 5000].map(r => chip(`data-radius="${r}"`, a.type === 'radius' && a.r === r, fmtR(r))).join('')}</div>
-      <div class="fgrid" style="margin-top:8px">${chip('data-center="me"', a.type === 'radius' && a.center === 'me', svg('locate') + tl('um mich'))}${chip('data-center="pick"', a.type === 'radius' && a.center !== 'me', svg('pin') + tl('um einen Punkt auf der Karte'))}</div></div>
+      <div class="fgrid" style="margin-top:8px">${chip('data-center="me"', a.type === 'radius' && a.center === 'me', svg('locate') + tl('um mich'))}${savedPlaces().map(p => chip(`data-center="place:${esc(p.id)}"`, a.type === 'radius' && a.center === 'place:' + p.id, svg(typeof placeIcon === 'function' ? placeIcon(p.name) : 'pin') + `${tl('um')} ${esc(tl(p.name))}`)).join('')}${chip('data-center="pick"', a.type === 'radius' && Array.isArray(a.center), svg('pin') + tl('um einen Punkt auf der Karte'))}</div></div>
     <div class="sec"><h4>${tl('Eigenes Gebiet')}</h4>
       <button type="button" class="btn${a.type === 'poly' ? ' primary' : ''}" data-draw="1">${svg('edit')}${a.type === 'poly' ? tl('Neu einzeichnen') : tl('Auf der Karte einzeichnen')}</button></div>
     <div class="sec"><h4>${tl('Stadtteil')}</h4>
@@ -2240,6 +2243,7 @@ document.addEventListener('click', async e => {
   else if (ds.area === 'all') { setArea({ type: 'all' }, false); renderPanel(); }
   else if (ds.radius) { const a = state.area; setArea({ type: 'radius', r: +ds.radius, center: a.type === 'radius' ? a.center : state.me ? 'me' : [map.getCenter().lat, map.getCenter().lng] }); renderPanel(); }
   else if (ds.center === 'me') { locate(false); setArea({ type: 'radius', r: state.area.r || 1000, center: 'me' }); renderPanel(); if (!state.me) toast('Wir suchen deinen Standort …'); }
+  else if (ds.center?.startsWith('place:')) { setArea({ type: 'radius', r: state.area.r || 2000, center: ds.center }); renderPanel(); }
   else if (ds.center === 'pick') { state.picking = true; setSize('peek'); toast('Tippe auf die Karte, um den Mittelpunkt zu setzen.'); }
   else if (ds.district) { setArea({ type: 'district', name: ds.district }); renderPanel(); }
   else if (ds.draw) { state.drawing = []; drawArea(); go({ type: 'draw' }, 'card'); }
