@@ -94,6 +94,7 @@ async function understand(q) {
       const a = await r.json();
       const u = { group: a.group, tags: a.tags || [], filters: a.filters || [], io: a.io, age: a.age_months };
       if (!u.group && u.tags.length) u.group = groupOfTag(u.tags[0]);
+      if (u.tags.includes('wasserspiel')) { u.tags = u.tags.filter(t => t !== 'wasserspiel'); if (!u.filters.includes('wasser')) u.filters.push('wasser'); }
       if (u.group) u.tags = u.tags.filter(t => TAGS[u.group]?.some(x => x.id === t));
       ASK.ai = true;
       return u;
@@ -120,7 +121,7 @@ function localUnderstand(q) {
   const t = norm(q), u = { group: null, tags: [], filters: [], io: null, age: null };
   for (const [re, r] of LOCAL_RULES) if (re.test(t) && (!u.group || u.group === r.group)) { u.group = r.group; for (const x of r.tags) if (!u.tags.includes(x)) u.tags.push(x); }
   for (const [re, f] of LOCAL_FILTERS) if (re.test(t) && (f !== 'hund' || hasDog()) && !u.filters.includes(f)) u.filters.push(f);
-  if (u.filters.includes('wasser') && u.group === 'spielen') { u.filters = u.filters.filter(f => f !== 'wasser'); u.tags.push('wasserspiel'); }
+  // "mit Wasser" stays a property (filter), so it narrows the result; sub-categories only widen it
   if (/regen|drinnen|(ü|ue)berdacht|indoor/.test(t)) u.io = 'drinnen'; else if (/drau(ss|ß)en|im freien/.test(t)) u.io = 'draussen';
   const m = t.match(/(\d{1,2})\s*-?\s*(j(a|ä|ae)hrig|jahre?n?\b|j\.|monate?n?\b|mon\.)/);
   if (m) { const n = +m[1], months = /mon/.test(m[2]) ? n : n * 12; u.age = [months, months + 12]; }

@@ -1053,6 +1053,10 @@ a.btn.wide, button.btn.wide { display: flex; }
 .ctx .subsel { height: 36px; padding: 0 0 0 10px; gap: 0; border: 0; background: #6B4EE6; color: #fff; font: 700 13px var(--font-body); box-shadow: var(--shadow-sm); }
 .ctx .subsel > span { display: inline-flex; align-items: center; gap: 4px; }
 .ctx .subsel > span svg.i { width: 13px; height: 13px; }
-.ctx .subsel.more { padding: 0 14px; min-width: 44px; justify-content: center; position: relative; }
-.ctx .subsel.more::after { content: ""; position: absolute; inset: -4px 0; }
+.ctx .subsel.plusn { padding: 0 14px; min-width: 44px; justify-content: center; }
 .row.selrow { align-items: center; }
+
+/* v0.49: chips with their own ✕ inside: the chip's big tap area must not cover the ✕ */
+.ctx .subsel::after, .ctx .selchip.split::after { content: none; }
+.ctx .subsel.plusn::after { content: ''; }
+.ctx .selx { z-index: 1; }
