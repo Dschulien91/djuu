@@ -1065,3 +1065,29 @@ a.btn.wide, button.btn.wide { display: flex; }
 .ctx .selchip { background: var(--ink); border-color: var(--ink); }
 .ctx .subsel { height: 32px; background: #fff; color: #4B32C3; border: 1.5px solid var(--brand); font-weight: 600; }
 .ctx .subsel.plusn { padding: 0 12px; }
+
+/* v0.52: Gebiet – radius as a mini map plus a stepless slider, districts as a compact multi-select menu */
+.radmini { height: 150px; margin: 12px 0 10px; border-radius: 16px; overflow: hidden; border: 1px solid var(--line); background: #EDE9F7; }
+.radmini.off { opacity: .55; }
+.radpin { width: 28px; height: 28px; border-radius: 50%; background: var(--ink); color: #fff; display: grid; place-items: center; border: 2px solid #fff; }
+.radpin svg.i { width: 15px; height: 15px; }
+.radrow { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font: 600 15px var(--font-body); color: var(--ink); }
+.radrow b { font: 800 17px var(--font-body); color: var(--brand); white-space: nowrap; }
+.radrange { -webkit-appearance: none; appearance: none; width: 100%; height: 44px; margin: 0; background: transparent; cursor: pointer; }
+.radrange::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: linear-gradient(var(--brand), var(--brand)) 0 / var(--p, 30%) 100% no-repeat, var(--line); }
+.radrange::-moz-range-track { height: 6px; border-radius: 3px; background: var(--line); }
+.radrange::-moz-range-progress { height: 6px; border-radius: 3px; background: var(--brand); }
+.radrange::-webkit-slider-thumb { -webkit-appearance: none; width: 28px; height: 28px; margin-top: -11px; border-radius: 50%; background: #fff; border: 2px solid var(--brand); box-shadow: var(--shadow-sm); }
+.radrange::-moz-range-thumb { width: 24px; height: 24px; border-radius: 50%; background: #fff; border: 2px solid var(--brand); box-shadow: var(--shadow-sm); }
+.radrange:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: 8px; }
+.radends { display: flex; justify-content: space-between; margin-top: -6px; font: 600 12px var(--font-body); color: var(--muted); }
+.ddsel { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; min-height: 48px; padding: 0 14px; border: 1px solid var(--line); border-radius: 14px; background: #fff; color: var(--muted); font: 600 15px var(--font-body); text-align: left; }
+.ddsel.has { color: var(--ink); border-color: var(--brand); }
+.ddsel > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ddsel svg.i { width: 18px; height: 18px; color: var(--brand); }
+.ddpanel { margin-top: 6px; padding: 8px; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
+.ddlist { max-height: 260px; overflow-y: auto; margin-top: 6px; }
+.ddopt { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 6px; border-bottom: 1px solid var(--line); font: 600 15px var(--font-body); color: var(--ink); cursor: pointer; }
+.ddopt:last-child { border-bottom: 0; }
+.ddopt input { width: 20px; height: 20px; accent-color: var(--brand); flex: none; margin: 0; }
+.ddsel[aria-expanded="false"] svg.i { transform: rotate(180deg); }

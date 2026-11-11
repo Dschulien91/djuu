@@ -7,7 +7,7 @@
    User input is stored on this device only until the server exists (server-ready shape, see STORE). */
 'use strict'; // i18n-skip
 
-const VERSION = '0.51';
+const VERSION = '0.52';
 const CONTACT = window.DJUU_CONTACT || {}; // config.js: reports and feedback stay hidden until an address is set
 // Logo on light backgrounds, as specified in the design PDF.
 const LOGO = `<span class="logo" role="img" aria-label="djuu"><span style="color:#6B4EE6">d</span><span style="color:#0E8F84">j</span><span style="color:#D6336C">u</span><span style="color:#CC6A00">u</span>
@@ -710,14 +710,22 @@ function inPoly(pt, poly) {
 }
 function areaOk(p) {
   const a = state.area;
-  if (a.type === 'district') return p.district === a.name;
+  if (a.type === 'district') return dNames(a).includes(p.district);
   if (a.type === 'radius') { const c = areaCenter(a); return Math.abs(p.lat - c[0]) < a.r / 1e5 && dist(c, [p.lat, p.lon]) <= a.r; }
   if (a.type === 'poly') return inPoly([p.lat, p.lon], a.pts);
   return true;
 }
-const fmtR = r => r < 1000 ? r + ' m' : r / 1000 + ' km';
+const fmtR = r => r < 1000 ? r + ' m' : nf.format(r / 1000) + ' km';
+const dNames = a => a.names || (a.name ? [a.name] : []);
+// Radius slider: 500 m to 20 km without steps, finer at the short end (the first half covers about 500 m to 5 km)
+const R_MIN = 500, R_MAX = 20000;
+const posToR = pos => { const x = pos / 1000, m = R_MIN + (R_MAX - R_MIN) * x * x; return m < 2000 ? Math.round(m / 100) * 100 : m < 10000 ? Math.round(m / 500) * 500 : Math.round(m / 1000) * 1000; };
+const rToPos = m => Math.round(Math.sqrt(Math.max(0, Math.min(1, (m - R_MIN) / (R_MAX - R_MIN)))) * 1000);
+// without a chosen center the slider starts around the default saved place, else me, else the map's middle
+const defaultCenter = () => { const d = savedPlaces().find(p => p.def) || savedPlaces()[0]; return d ? 'place:' + d.id : state.me ? 'me' : [map.getCenter().lat, map.getCenter().lng]; };
+const AREA_UI = { distOpen: false, dq: '' };
 function areaLabel(a = state.area) {
-  if (a.type === 'district') return a.name;
+  if (a.type === 'district') { const n = dNames(a); return n.slice(0, 2).join(', ') + (n.length > 2 ? ` +${n.length - 2}` : ''); }
   if (a.type === 'radius') { const pl = areaPlace(a); return `${fmtR(a.r)} ${tl('um')} ${a.center === 'me' ? tl('dich') : pl ? tl(pl.name) : tl('Punkt')}`; }
   if (a.type === 'poly') return tl('Eigenes Gebiet');
   return tl('Ganz Hamburg');
@@ -738,7 +746,7 @@ function setArea(a, fit = true) {
   drawArea(); state.listLimit = 40; refresh();
   if (!fit) return;
   if (areaLayer && areaLayer.getBounds) map.fitBounds(areaLayer.getBounds(), { padding: [30, 30] });
-  else if (a.type === 'district') { const pts = places.filter(p => p.district === a.name).map(p => [p.lat, p.lon]); if (pts.length) map.fitBounds(pts, { padding: [30, 30], maxZoom: 15 }); }
+  else if (a.type === 'district') { const ns = dNames(a), pts = places.filter(p => ns.includes(p.district)).map(p => [p.lat, p.lon]); if (pts.length) map.fitBounds(pts, { padding: [30, 30], maxZoom: 15 }); }
 }
 let DISTRICTS = [];
 function districtList() {
@@ -945,11 +953,12 @@ async function renderPanel() {
   const v = view(), body = $('#panelBody');
   if (rec && v.type !== 'search') rec.abort();
   if (v.type !== 'wizard' && wiz.map) { wiz.map.remove(); wiz.map = null; }
+  if (areaMini) { areaMini.map.remove(); areaMini = null; }
   if (v.type === 'list') body.innerHTML = listView();
   else if (v.type === 'detail') { const html = await detailView(v.id); if (view() !== v) return; body.innerHTML = html; bindDetail(v.id); }
   else if (v.type === 'card') body.innerHTML = cardView(v.id);
   else if (v.type === 'filters') body.innerHTML = filtersView();
-  else if (v.type === 'area') body.innerHTML = areaView();
+  else if (v.type === 'area') { body.innerHTML = areaView(); bindAreaMini(); }
   else if (v.type === 'ferien') body.innerHTML = ferienView();
   else if (v.type === 'draw') body.innerHTML = drawView();
   else if (v.type === 'search') body.innerHTML = searchView();
@@ -1228,21 +1237,54 @@ function areaView() {
   const chip = (attrs, on, label) => `<button type="button" class="chip${on ? ' on' : ''}" ${attrs}>${label}</button>`;
   return `${head(tl('Gebiet'), tl('Wo sollen wir suchen?'))}
     <div class="fgrid">${chip('data-area="all"', a.type === 'all', tl('Ganz Hamburg'))}</div>
-    <div class="sec"><h4>${tl('Umkreis')}</h4>
-      <div class="fgrid">${[500, 1000, 2000, 5000].map(r => chip(`data-radius="${r}"`, a.type === 'radius' && a.r === r, fmtR(r))).join('')}</div>
-      <div class="fgrid" style="margin-top:8px">${chip('data-center="me"', a.type === 'radius' && a.center === 'me', svg('locate') + tl('um mich'))}${savedPlaces().map(p => chip(`data-center="place:${esc(p.id)}"`, a.type === 'radius' && a.center === 'place:' + p.id, svg(typeof placeIcon === 'function' ? placeIcon(p.name) : 'pin') + `${tl('um')} ${esc(tl(p.name))}`)).join('')}${chip('data-center="pick"', a.type === 'radius' && Array.isArray(a.center), svg('pin') + tl('um einen Punkt auf der Karte'))}</div></div>
+    ${radiusHtml()}
     <div class="sec"><h4>${tl('Eigenes Gebiet')}</h4>
       <button type="button" class="btn${a.type === 'poly' ? ' primary' : ''}" data-draw="1">${svg('edit')}${a.type === 'poly' ? tl('Neu einzeichnen') : tl('Auf der Karte einzeichnen')}</button></div>
-    <div class="sec"><h4>${tl('Stadtteil')}</h4>
-      <div class="field" style="margin-top:0"><input id="distQ" type="search" placeholder="${tl('Stadtteil suchen, z. B. Ottensen')}" autocomplete="off"></div>
-      <div class="fgrid" id="distList">${districtChips('')}</div></div>
+    ${districtHtml()}
     <div class="sticky-bar"><button type="button" class="btn big primary" data-home="peek">${nf.format(n)} ${tl('Orte zeigen')}</button></div>`;
 }
-function districtChips(q) {
-  q = q.trim().toLowerCase();
-  const list = districtList().filter(d => !q || d.toLowerCase().includes(q));
-  return list.slice(0, q ? 40 : 200).map(d => `<button type="button" class="chip${state.area.type === 'district' && state.area.name === d ? ' on' : ''}" data-district="${esc(d)}">${esc(d)}</button>`).join('') || `<p class="muted text">${tl('Kein Stadtteil gefunden.')}</p>`;
+function radiusHtml() {
+  const a = state.area, on = a.type === 'radius', c = on ? a.center : defaultCenter(), r = on ? a.r : 2000;
+  const pl = typeof c === 'string' && c.startsWith('place:') ? savedPlaces().find(p => 'place:' + p.id === c) : null;
+  const who = c === 'me' ? tl('dich') : pl ? tl(pl.name) : tl('Punkt');
+  const chip = (attrs, sel, label) => `<button type="button" class="chip${sel ? ' on' : ''}" ${attrs}>${label}</button>`;
+  return `<div class="sec"><h4>${tl('Umkreis um')}</h4>
+      <div class="fgrid">${savedPlaces().map(p => chip(`data-center="place:${esc(p.id)}"`, on && a.center === 'place:' + p.id, svg(typeof placeIcon === 'function' ? placeIcon(p.name) : 'pin') + esc(tl(p.name)))).join('')}${chip('data-center="me"', on && a.center === 'me', svg('locate') + tl('mich'))}${chip('data-center="pick"', on && Array.isArray(a.center), svg('pin') + tl('Punkt auf der Karte'))}</div>
+      <div class="radmini${on ? '' : ' off'}" id="radMini" aria-hidden="true"></div>
+      <div class="radrow"><span>${tl('Umkreis um {name}', { name: esc(who) })}</span><b id="radVal">${fmtR(r)}</b></div>
+      <input id="radRange" class="radrange" type="range" min="0" max="1000" step="1" value="${rToPos(r)}" style="--p:${rToPos(r) / 10}%" aria-label="${tl('Umkreis')}, ${fmtR(r)}">
+      <div class="radends"><span>500 m</span><span>20 km</span></div></div>`;
 }
+let areaMini = null;
+function bindAreaMini() {
+  if (areaMini) { areaMini.map.remove(); areaMini = null; }
+  const el = $('#radMini'); if (!el) return;
+  const a = state.area, on = a.type === 'radius', r = on ? a.r : 2000, c = areaCenter(on ? a : { center: defaultCenter() });
+  const m = L.map(el, { zoomControl: false, attributionControl: false, dragging: false, touchZoom: false, scrollWheelZoom: false, doubleClickZoom: false, boxZoom: false, keyboard: false, tap: false, zoomSnap: 0 }).setView(c, 13);
+  tintMap(L.maplibreGL({ style: styleUrl(), attribution: '', interactive: false }).addTo(m).getMaplibreMap());
+  const circle = L.circle(c, { radius: r, color: '#6B4EE6', weight: 2, fillColor: '#6B4EE6', fillOpacity: .12, interactive: false }).addTo(m);
+  const pl = on ? areaPlace(a) : savedPlaces().find(p => 'place:' + p.id === defaultCenter());
+  L.marker(c, { interactive: false, icon: L.divIcon({ className: '', iconSize: [28, 28], html: `<div class="radpin">${svg(pl && typeof placeIcon === 'function' ? placeIcon(pl.name) : a.center === 'me' ? 'locate' : 'pin')}</div>` }) }).addTo(m);
+  areaMini = { map: m, circle };
+  // fit only once the panel has its size (an empty container would give an endless zoom)
+  const fit = () => { if (areaMini?.map !== m || !el.clientWidth) return; m.invalidateSize(); m.fitBounds(circle.getBounds(), { padding: [14, 14], animate: false }); };
+  areaMini.fit = fit; fit(); setTimeout(fit, 250); setTimeout(fit, 600);
+}
+function districtHtml() {
+  const n = state.area.type === 'district' ? dNames(state.area) : [];
+  const label = n.length ? esc(n.slice(0, 2).join(', ')) + (n.length > 2 ? ` +${n.length - 2}` : '') : tl('Stadtteile wählen');
+  return `<div class="sec"><h4>${tl('Stadtteil')}</h4>
+      <button type="button" class="ddsel${n.length ? ' has' : ''}" data-distopen="1" aria-expanded="${AREA_UI.distOpen}"><span id="distLabel">${label}</span>${svg('up')}</button>
+      ${AREA_UI.distOpen ? `<div class="ddpanel"><div class="field" style="margin:0"><input id="distQ" type="search" value="${esc(AREA_UI.dq)}" placeholder="${tl('Suchen, z. B. Ottensen')}" autocomplete="off"></div>
+        <div class="ddlist" id="distList">${districtOpts()}</div></div>` : ''}</div>`;
+}
+function districtOpts() {
+  const q = norm(AREA_UI.dq.trim()), sel = state.area.type === 'district' ? dNames(state.area) : [];
+  const list = districtList().filter(d => !q || norm(d).includes(q));
+  const ordered = q ? list : sel.filter(d => list.includes(d)).concat(list.filter(d => !sel.includes(d)));
+  return ordered.slice(0, q ? 60 : 300).map(d => `<label class="ddopt"><input type="checkbox" data-dsel="${esc(d)}"${sel.includes(d) ? ' checked' : ''}><span>${esc(d)}</span></label>`).join('') || `<p class="muted text">${tl('Kein Stadtteil gefunden.')}</p>`;
+}
+function areaCountBtn() { const b = $('#panelBody .sticky-bar [data-home="peek"]'); if (b) b.textContent = `${nf.format(last.match.length)} ${tl('Orte zeigen')}`; }
 function drawView() {
   const n = state.drawing.length;
   return `<p class="text drawhint"><b>${tl('Tippe auf die Ecken des Gebiets.')}</b> ${n ? `${n} ${n === 1 ? tl('Ecke') : tl('Ecken')} gesetzt.` : ''}${n && n < 3 ? tl(' Mindestens 3 nötig.') : ''}</p>
@@ -2227,7 +2269,7 @@ document.addEventListener('click', async e => {
   else if (ds.tag) { toggle(state.tags, ds.tag); state.preset = null; state.listLimit = 40; refresh(); if (view().type !== 'list') home('peek'); }
   else if (ds.io) { state.io = state.io === ds.io ? null : ds.io; state.preset = null; refresh(); }
   else if (ds.detail) go({ type: 'detail', id: ds.detail }, 'full');
-  else if (ds.sdistrict) { state.sq = ''; setArea({ type: 'district', name: ds.sdistrict }); home('peek'); }
+  else if (ds.sdistrict) { state.sq = ''; setArea({ type: 'district', names: [ds.sdistrict] }); home('peek'); }
   else if (ds.gtag) { const [gid, tg] = ds.gtag.split('|'); state.groups = new Set([gid]); state.tags = new Set([tg]); state.cats.clear(); state.mode = GROUP[gid].mode; state.level = 2; state.q = ''; state.sq = ''; refresh(); home('peek'); }
   else if (ds.groupOnly) { state.groups = new Set([ds.groupOnly]); state.tags.clear(); state.cats.clear(); state.mode = GROUP[ds.groupOnly].mode; state.level = 2; state.q = ''; state.sq = ''; refresh(); home('peek'); }
   else if (ds.filterOnly) { state.filters.add(ds.filterOnly); state.q = ''; state.sq = ''; refresh(); home('peek'); }
@@ -2242,10 +2284,11 @@ document.addEventListener('click', async e => {
   else if (ds.open === 'ferien') go({ type: 'ferien' });
   else if (ds.area === 'all') { setArea({ type: 'all' }, false); renderPanel(); }
   else if (ds.radius) { const a = state.area; setArea({ type: 'radius', r: +ds.radius, center: a.type === 'radius' ? a.center : state.me ? 'me' : [map.getCenter().lat, map.getCenter().lng] }); renderPanel(); }
-  else if (ds.center === 'me') { locate(false); setArea({ type: 'radius', r: state.area.r || 1000, center: 'me' }); renderPanel(); if (!state.me) toast('Wir suchen deinen Standort …'); }
+  else if (ds.center === 'me') { locate(false); setArea({ type: 'radius', r: state.area.r || 2000, center: 'me' }); renderPanel(); if (!state.me) toast('Wir suchen deinen Standort …'); }
   else if (ds.center?.startsWith('place:')) { setArea({ type: 'radius', r: state.area.r || 2000, center: ds.center }); renderPanel(); }
   else if (ds.center === 'pick') { state.picking = true; setSize('peek'); toast('Tippe auf die Karte, um den Mittelpunkt zu setzen.'); }
-  else if (ds.district) { setArea({ type: 'district', name: ds.district }); renderPanel(); }
+  else if (ds.district) { setArea({ type: 'district', names: [ds.district] }); renderPanel(); }
+  else if (ds.distopen) { AREA_UI.distOpen = !AREA_UI.distOpen; renderPanel(); if (AREA_UI.distOpen) setTimeout(() => $('#distQ')?.focus(), 50); }
   else if (ds.draw) { state.drawing = []; drawArea(); go({ type: 'draw' }, 'card'); }
   else if (ds.drawundo) { state.drawing.pop(); drawArea(); renderPanel(); }
   else if (ds.drawcancel) { state.drawing = null; drawArea(); back(); }
@@ -2337,7 +2380,14 @@ document.addEventListener('input', e => {
   if (e.target.id === 'dq') { EV.dq = e.target.value; refreshDistrictList(); return; }
   if (e.target.id === 'evKmRange') { const l = e.target.previousElementSibling, b = e.target.nextElementSibling; if (l) l.value = String(e.target.value); if (b) b.textContent = kmText(+e.target.value); e.target.setAttribute('aria-label', `${tl('Umkreis in Kilometern,')} ${kmText(+e.target.value)}`); return; }
   if (e.target.id === 'evQ') { EV.q = e.target.value; EV.limit = 60; clearTimeout(document.evqt); document.evqt = setTimeout(() => { const l = $('#evList'); if (l) l.innerHTML = evListHtml(); }, 150); return; }
-  if (e.target.id === 'distQ') $('#distList').innerHTML = districtChips(e.target.value); });
+  if (e.target.id === 'distQ') { AREA_UI.dq = e.target.value; $('#distList').innerHTML = districtOpts(); }
+  if (e.target.id === 'radRange') {
+    const r = posToR(+e.target.value);
+    e.target.style.setProperty('--p', e.target.value / 10 + '%'); e.target.setAttribute('aria-label', `${tl('Umkreis')}, ${fmtR(r)}`);
+    $('#radVal').textContent = fmtR(r);
+    if (areaMini) { areaMini.circle.setRadius(r); areaMini.fit(); }
+    if (state.area.type === 'radius' && areaLayer?.setRadius) areaLayer.setRadius(r);
+  } });
 document.addEventListener('change', e => {
   if (e.target.matches('[data-kid], #expecting')) saveProfileField(e.target);
   if (e.target.id === 'fedState') { store.profile.state = e.target.value; save(); loadBreaks().then(renderPanel); }
@@ -2345,6 +2395,21 @@ document.addEventListener('change', e => {
   if (e.target.dataset.home) setHome(e.target.value);
   if (e.target.id === 'evKm' && e.target.value) { setKm(e.target.value); renderPanel(); }
   if (e.target.id === 'evKmRange') { setKm(e.target.value); renderPanel(); }
+  if (e.target.id === 'radRange') {
+    const was = state.area.type === 'radius', r = posToR(+e.target.value);
+    setArea({ type: 'radius', r, center: was ? state.area.center : defaultCenter() });
+    if (was) areaCountBtn(); else renderPanel();
+  }
+  if (e.target.dataset.dsel) {
+    const d = e.target.dataset.dsel, cur = state.area.type === 'district' ? dNames(state.area) : [];
+    const names = e.target.checked ? cur.concat(cur.includes(d) ? [] : [d]) : cur.filter(x => x !== d);
+    if (names.length) setArea({ type: 'district', names }); else setArea({ type: 'all' }, false);
+    const n = names, l = $('#distLabel');
+    if (l) l.textContent = n.length ? n.slice(0, 2).join(', ') + (n.length > 2 ? ` +${n.length - 2}` : '') : tl('Stadtteile wählen');
+    $('.ddsel')?.classList.toggle('has', !!n.length);
+    areaCountBtn();
+    if (cur.length === 0 || names.length === 0) { const sc = $('#panelBody').scrollTop; renderPanel(); $('#panelBody').scrollTop = sc; } // radius chips switch off/on
+  }
   if (e.target.dataset.dname) { e.target.checked ? EV.pending.add(e.target.dataset.dname) : EV.pending.delete(e.target.dataset.dname); refreshDistrictList(); }
   if (e.target.dataset.dall) {
     const { live } = evDistrictCounts(), q = norm(EV.dq.trim());

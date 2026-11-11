@@ -768,4 +768,10 @@ window.DJUU_I18N.en = {
   '{n} weitere Unterkategorien': '{n} more subcategories',
   'um': 'around',
   'dich': 'you',
+  'Umkreis um': 'Radius around',
+  'mich': 'me',
+  'Punkt auf der Karte': 'Point on the map',
+  'Umkreis um {name}': 'Radius around {name}',
+  'Stadtteile wählen': 'Choose districts',
+  'Suchen, z. B. Ottensen': 'Search, e.g. Ottensen',
 };
