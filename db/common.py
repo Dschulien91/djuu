@@ -1,6 +1,6 @@
 """Shared helpers for Djuu importers: database access and polite HTTP.
 
-Every request identifies itself only with the neutral project name (no personal data),
+Every request is anonymous (common browser User-Agent, no project name, no personal data),
 waits between requests per host and honours robots.txt for normal web pages.
 """
 import json
