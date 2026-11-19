@@ -302,7 +302,7 @@ def load_robots(base):
     if CONTENT_SIGNAL_NO.search(text): info['optout'] = info['optout'] or 'ai_content_signal'
     if not info['optout']:
         try:
-            info['delay'] = min(float(rp.crawl_delay(common.USER_AGENT) or 0), 30)
+            info['delay'] = min(float(rp.crawl_delay(common.ROBOTS_AGENT) or 0), 30)
         except (TypeError, ValueError):
             pass
         try:  # TDM reservation protocol (W3C community report)

@@ -16,7 +16,10 @@ import requests
 ROOT = Path(__file__).resolve().parent.parent
 DB_PATH = ROOT / 'data' / 'djuu.db'
 RAW_DIR = ROOT / 'data' / 'raw'
-USER_AGENT = 'Djuu-Bot/0.1 (Familienkarte Hamburg, Open-Data-Import)'
+# Requests stay anonymous: a common browser string, no project name anywhere (decided 19 Nov 2026).
+# Anonymity never widens access: robots.txt is read with the rules that apply to all crawlers (ROBOTS_AGENT).
+USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
+ROBOTS_AGENT = '*'
 MIN_DELAY = 1.5  # seconds between requests to the same host
 
 _session = requests.Session()
@@ -49,7 +52,7 @@ def allowed(url):
         except requests.RequestException:
             rp.parse([])
         _robots[base] = rp
-    return _robots[base].can_fetch(USER_AGENT, url)
+    return _robots[base].can_fetch(ROBOTS_AGENT, url)
 
 
 def fetch(url, *, method='GET', data=None, params=None, check_robots=False, timeout=120, retries=6, backoff=10, **kw):

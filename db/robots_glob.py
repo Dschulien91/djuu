@@ -10,9 +10,9 @@ from urllib.parse import urlparse
 
 import requests
 
-from common import USER_AGENT, fetch
+from common import ROBOTS_AGENT, USER_AGENT, fetch
 
-UA_TOKEN = USER_AGENT.split('/')[0].lower()  # 'djuu-bot'
+UA_TOKEN = ROBOTS_AGENT  # anonymous: we follow the '*' group
 _cache = {}      # base url -> (rules, crawl_delay)
 _last = {}       # host -> time of our last request (for Crawl-delay)
 

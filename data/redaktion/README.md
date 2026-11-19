@@ -15,4 +15,5 @@ Rules (decided 19 Nov 2026):
 
 Add a batch: put the research file(s) into the scratchpad and run
 `python tools/redaktion_build.py <file.json> …` – it validates, drops weekday-morning school performances
-and past dates, adds coordinates (OSM names, then Nominatim) and merges into `termine.json`.
+and past dates, adds coordinates offline (OSM names, then an address index from the local OSM extract) and merges into `termine.json`.
+- Requests stay anonymous: browser User-Agent, never "Djuu" in a request or search query.
