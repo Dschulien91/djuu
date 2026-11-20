@@ -32,15 +32,50 @@ PERMITTED_HOSTS = {
     'monsun.theater', 'firststagehamburg.de', 'lapiazza.show', 'speicherstadtmuseum.de', 'buceriuskunstforum.de',
     'garten-der-schmetterlinge.de', 'arche-warder.de', 'harderhof.de', 'miniandmecafe.de', 'wandsbekerwinterzauber.info',
     'naju-hamburg.de', 'hamburger-sternwarte.de', 'helios-gesundheit.de',
+    'yolawo.de', 'tsg-bergedorf.de', 'scala-hamburg.de', 'sc-alstertal-langenhorn.de', 'scottensen.de', 'scala-sportclub.de',
+    'tivoli.de',
 }
+# Sites whose HTTPS setup is broken (outdated TLS, wrong or incomplete certificate). We only read public pages there and send
+# nothing, so certificate checks are skipped and old ciphers are allowed for exactly these hosts.
+LEGACY_TLS_HOSTS = {'drk-harburg.de', 'eintracht-norderstedt.de', 'naju-hamburg.de', 'notdienst.apothekerkammer-hamburg.de'}
 
 
 def permitted(url):
-    host = urlparse(url).netloc.lower().split(':')[0]
-    return any(host == h or host.endswith('.' + h) for h in PERMITTED_HOSTS)
+    return _host_in(url, PERMITTED_HOSTS)
 
 _session = requests.Session()
 _session.headers['User-Agent'] = USER_AGENT
+_legacy = None
+
+
+def _host_in(url, hosts):
+    host = urlparse(url).netloc.lower().split(':')[0]
+    return any(host == h or host.endswith('.' + h) for h in hosts)
+
+
+def _legacy_session():
+    """A session for LEGACY_TLS_HOSTS: no certificate check, old TLS versions and ciphers allowed."""
+    global _legacy
+    if _legacy is None:
+        import ssl
+        import urllib3
+        from requests.adapters import HTTPAdapter
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+        class Legacy(HTTPAdapter):
+            def init_poolmanager(self, *a, **kw):
+                ctx = ssl.create_default_context()
+                ctx.check_hostname = False
+                ctx.verify_mode = ssl.CERT_NONE
+                ctx.minimum_version = ssl.TLSVersion.TLSv1
+                ctx.set_ciphers('DEFAULT:@SECLEVEL=0')
+                kw['ssl_context'] = ctx
+                return super().init_poolmanager(*a, **kw)
+        _legacy = requests.Session()
+        _legacy.headers['User-Agent'] = USER_AGENT
+        _legacy.verify = False
+        _legacy.mount('https://', Legacy())
+    return _legacy
 _last_hit = {}
 _robots = {}
 
@@ -86,7 +121,7 @@ def fetch(url, *, method='GET', data=None, params=None, check_robots=False, time
             time.sleep(MIN_DELAY - delta)
         _last_hit[host] = time.time()
         try:
-            r = _session.request(method, url, data=data, params=params, timeout=timeout, **kw)
+            r = (_legacy_session() if _host_in(url, LEGACY_TLS_HOSTS) else _session).request(method, url, data=data, params=params, timeout=timeout, **kw)
             if r.status_code == 200:
                 return r
             if r.status_code not in (429, 500, 502, 503, 504):

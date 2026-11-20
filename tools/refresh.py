@@ -16,7 +16,6 @@ DB = ROOT / 'db'
 DATA = ROOT / 'data'
 LOG = DATA / 'refresh.log'
 SKIP = {
-    'import_offers_tsg_bergedorf.py',  # reads yolawo's booking API through the widget; api.yolawo.de disallows robots: needs TSG's OK
     'import_offers_hamburgde.py',      # links hamburg.de pages; hamburg.de is for finding events only (the fire brigades come via feuerwehr)
 }
 # place importers whose records keep their links to places between runs (replace_records keeps them by ref), so they can be

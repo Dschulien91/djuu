@@ -7,12 +7,20 @@ opening hours of the open parent-child café). Fortnightly / monthly dates, coun
 adult sport and breakfasts for the whole neighbourhood are skipped. One source, provider = the centre.
 Elbkinder EKiZ come from import_offers_elbkinder.py and are not read here.
 
+EKiZ Moorwisch (Ev. Stiftung Alsterdorf, in the KuBi Lurup, https://kita-moorwisch.de/eltern-kind-zentrum-kita-moorwisch/)
+publishes its times only in a PDF flyer that is a picture without text ('Wann: Montag, Dienstag und Donnerstag von
+09:00 - 13:00 Uhr', free, no registration). If the flyer ever carries text, its 'Wann:' line is parsed; otherwise the
+facts read from the current flyer are used only while the page still links that same file (a new flyer -> the centre
+is skipped with a note until it is checked again).
+
 Not read (no weekday + time on the page): Maria-Magdalena EKiZ Osdorfer Born (page shows only hotline hours),
-EKiZ Kita Moorwisch (programme only as PDF flyer), Kita Wackelzahn (site unreachable), the eva-kita pages of
+Kita Wackelzahn (site unreachable), the eva-kita pages of
 Bei der Hammer Kirche and Ochsenwerder (Kita pages without family-centre times), Pestalozzi offices and the
 Familienratsbüro (counselling only).
 robots.txt: none of the pages read is disallowed.
 """
+import io
+import json
 import re
 import sys
 
@@ -158,6 +166,51 @@ def parse(lines, url, centre):
     return out
 
 
+MOORWISCH = {
+    'provider': 'Eltern-Kind-Zentrum Moorwisch (Ev. Stiftung Alsterdorf)', 'venue': 'Eltern-Kind-Zentrum im KuBi Lurup',
+    'page': 'https://kita-moorwisch.de/eltern-kind-zentrum-kita-moorwisch/', 'record': 'EKiZ beim Kultur- und Bildungszentrum Lurup',
+    'flyer': 'https://kita-moorwisch.de/wp-content/uploads/2026/03/Aushang-EKiZ-Flyer.pdf',  # picture-only flyer read on 20 Nov
+    'known': 'Montag, Dienstag und Donnerstag von 09:00 - 13:00 Uhr',
+    'title': 'Offener Eltern-Kind-Treff (Frühstück, Singen & Fingerspiele, Kreativangebot, Turnen)',
+}
+
+
+def moorwisch():
+    m = MOORWISCH
+    links = re.findall(r'href="([^"]+EKiZ-Flyer[^"]*\.pdf)"', page(m['page']), re.I)
+    if not links:
+        print('  Moorwisch: no EKiZ flyer linked any more, skipped')
+        return []
+    when = None
+    try:
+        from pypdf import PdfReader
+        from offers_util import get
+        text = ' '.join(p.extract_text() or '' for p in PdfReader(io.BytesIO(get(links[0]).content)).pages)
+        w = re.search(r'Wann:\s*(.+?Uhr)', text)
+        when = w.group(1) if w else None
+    except Exception as e:
+        print(f'  Moorwisch flyer: {type(e).__name__} {str(e)[:60]}')
+    if not when:
+        if links[0] != m['flyer']:
+            print(f'  Moorwisch: new flyer {links[0]} without text, check by hand; skipped')
+            return []
+        when = m['known']
+    tf, tt = times(when)
+    if not tf:
+        return []
+    con = sqlite3.connect(DB_PATH, timeout=60)
+    try:
+        row = con.execute("SELECT lat, lon, raw FROM source_records WHERE source_id='hh_ekiz' AND name=?", (m['record'],)).fetchone()
+    finally:
+        con.close()
+    lat, lon = (row[0], row[1]) if row else (None, None)
+    address = (lambda d: f'{d.get("adresse")}, {d.get("ort")}')(json.loads(row[2])) if row else 'Langbargheide 7, 22547 Hamburg'
+    return [group(f'{m["venue"]}:offener-treff:{wd}:{tf}', m['title'], m['page'], m['provider'], weekday=wd,
+                  schedule=f'{WEEKDAYS[wd]} {tf}{"–" + tt if tt else ""}, wöchentlich', venue=m['venue'], address=address, lat=lat, lon=lon,
+                  time_from=tf, time_to=tt, price='kostenlos', free=1, age=(0, 48), registration='offen', topic='krabbelgruppe')
+            for wd in wd_list(when)]
+
+
 def main():
     offers = []
     for centre in CENTRES:
@@ -169,6 +222,9 @@ def main():
                 print(f'  {url}: {type(e).__name__} {str(e)[:60]}')
         print(f'  {centre[1]:45} {len(got)} groups')
         offers += got
+    got = moorwisch()
+    print(f'  {MOORWISCH["venue"]:45} {len(got)} groups')
+    offers += got
     return finish(SOURCE_ID, 'Diakonie Hamburg: Eltern-Kind-Zentren und Familienzentren (Wochenangebote)', LIST,
                   'jeweiliges Eltern-Kind-Zentrum (siehe provider)', offers)
 

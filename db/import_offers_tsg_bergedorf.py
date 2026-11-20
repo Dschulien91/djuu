@@ -1,18 +1,18 @@
-"""Needs Playwright (jsfetch). Import the children's courses of TSG Bergedorf from the yolawo booking widgets on its pages.
+"""Import the children's courses of TSG Bergedorf from the yolawo booking widgets on its pages.
 
 Source: the TSG pages that embed the widgets (Kissland Kinderturnen and Kindersportschule in Wentorf, Sportzentrum Bult,
-Sportforum, be.fit BilleBad). Each widget https://widgets.yolawo.de/w/<id> is rendered with js_get(); the course list
-the widget itself loads while rendering (title, type, date range, weekday slots with times, place, price) is taken
-from the captured JSON. Course series become one 'kurs' per weekday slot; one-day events become a 'termin'.
-Kept: titles naming an age up to 12 or children / parents (Eltern-Kind-Turnen, Mini Kiss, Kinderturn-Sonntag ...).
-robots.txt: tsg-bergedorf.de allows the pages; widgets.yolawo.de has no robots.txt. api.yolawo.de has 'Disallow: /'
-for all crawlers, so that API is never called directly; only what the widget page loads in the browser is read.
+Sportforum, be.fit BilleBad). For each widget id found there, the course list the widget itself loads
+(https://api.yolawo.de/widgets/<id>/offers?view=default: title, type, date range, weekday slots with times, place,
+price) is read directly as JSON, so no browser is needed. Course series become one 'kurs' per weekday slot; one-day
+events become a 'termin'. Kept: titles naming an age up to 12 or children / parents (Eltern-Kind-Turnen, Mini Kiss,
+Kinderturn-Sonntag ...).
+robots.txt: tsg-bergedorf.de and yolawo.de are in PERMITTED_HOSTS (provider agreed), so robots.txt is not applied there
+(api.yolawo.de itself has 'Disallow: /' for all crawlers).
 """
 import re
 import sys
 from datetime import date, datetime, timedelta, timezone
 
-from jsfetch import js_get
 from offers_util import FAMILY, WEEKDAYS, age_of, clean, finish, get, group, termin
 
 SOURCE_ID = 'tsg_bergedorf'
@@ -55,15 +55,15 @@ def local(ts):
     return t + timedelta(hours=2 if summer else 1)
 
 
-def place(locs):
+def place(locs, provider=PROVIDER):
     for loc in locs or []:
         a = loc.get('address') or {}
         if a.get('streetLine'):
-            venue = re.sub(r',.*$', '', loc.get('name') or '') or PROVIDER
+            venue = re.sub(r',.*$', '', loc.get('name') or '') or provider
             c = loc.get('coordinates') or {}
             return venue, f'{a["streetLine"]}, {a.get("postal", "")} {a.get("city", "")}'.strip(), c.get('lat'), c.get('lng')
     name = re.sub(r',.*$', '', (locs or [{}])[0].get('name') or '') if locs else ''
-    return name or PROVIDER, None, None, None
+    return name or provider, None, None, None
 
 
 def kids(title):
@@ -73,33 +73,34 @@ def kids(title):
     return (a[0] is not None and a[0] < 13 * 12) or bool(FAMILY.search(title) or re.search(r'\bminis?\b|mini[ -]?kiss|\bkiss\b|kita|kleinkind|jg\.|jahrgang', title, re.I))
 
 
-def main():
+def widget_offers(widgets, provider, kids=kids, venues=VENUES, tidy=no_names):
+    """Children's offers of yolawo widgets {widget id: page that embeds it}, read from the widget's own JSON list.
+
+    kids(raw title) decides what is kept, tidy(raw title) gives the stored title; the age is read from the raw title."""
     today = date.today()
-    widgets = {}
-    for path in PAGES:
-        for wid in re.findall(r'widgets\.yolawo\.de/w/([0-9a-f]{24})', get(BASE + path).text):
-            widgets.setdefault(wid, BASE + path)
     offers = []
     for wid, page_url in widgets.items():
         try:
-            _, data = js_get(f'https://widgets.yolawo.de/w/{wid}', capture_json=True)
+            items = get(f'https://api.yolawo.de/widgets/{wid}/offers?view=default').json()
         except Exception as e:
             print(f'  widget {wid}: {type(e).__name__} {str(e)[:60]}')
             continue
-        items = next((d for u, d in data if '/offers' in u and isinstance(d, list)), [])
+        if not isinstance(items, list):
+            items = []
         print(f'  widget {wid}: {len(items)} offers ({page_url.rstrip("/").rsplit("/", 1)[-1]})')
         for o in items:
-            title = no_names(clean(o.get('title')))
+            raw = clean(o.get('title'))
+            title = tidy(raw)
             rng = (o.get('dates') or {}).get('range') or {}
-            if not title or o.get('canceled') or not rng.get('to') or not kids(title):
+            if not title or o.get('canceled') or not rng.get('to') or not kids(raw):
                 continue
             start, end = local(rng['from']), local(rng['to'])
             if end.date() < today:
                 continue
             p = o.get('pricing') or {}
-            lo, hi = p.get('lowestPrice'), p.get('highestPrice')
+            lo, hi = (x['amount'] / 100 if isinstance(x, dict) else x for x in (p.get('lowestPrice'), p.get('highestPrice')))  # cents
             price = (f'{lo:.2f} €'.replace('.', ',') if lo == hi or not hi else f'{lo:.2f}–{hi:.2f} €'.replace('.', ',')) if lo else None
-            age = age_in_title(title, today)
+            age = age_in_title(raw, today)
             slots = (o.get('dates') or {}).get('weekdays') or []
             if o.get('type', '').startswith('COURSE_SERIE') and slots:
                 for s in slots:
@@ -108,24 +109,33 @@ def main():
                         continue
                     tf = f'{s["from"]["hour"]:02d}:{s["from"]["minute"]:02d}'
                     tt = f'{s["to"]["hour"]:02d}:{s["to"]["minute"]:02d}'
-                    venue, address, lat, lon = place(s.get('locations') or (o.get('dates') or {}).get('locations'))
-                    venue = VENUES.get(venue, venue)
+                    venue, address, lat, lon = place(s.get('locations') or (o.get('dates') or {}).get('locations'), provider)
+                    venue = venues.get(venue, venue)
                     if not address:
-                        venue, address, lat, lon = place((o.get('dates') or {}).get('locations')) if (o.get('dates') or {}).get('locations') else (venue, None, None, None)
-                    offers.append(group(f'{o["id"]}:{wd}:{tf}', title, page_url, PROVIDER, kind='kurs', weekday=wd,
+                        venue, address, lat, lon = place((o.get('dates') or {}).get('locations'), provider) if (o.get('dates') or {}).get('locations') else (venue, None, None, None)
+                    offers.append(group(f'{o["id"]}:{wd}:{tf}', title, page_url, provider, kind='kurs', weekday=wd,
                                         schedule=f'{WEEKDAYS[wd]} {tf}–{tt}, ' + (f'{start:%d.%m.}–{end:%d.%m.%Y}' if (end.date() - today).days < 400 else 'laufend'), venue=venue, address=address,
-                                        lat=lat, lon=lon, time_from=tf, time_to=tt, price=price, free=1 if lo == 0 else None, age=age,
+                                        lat=lat, lon=lon, time_from=tf, time_to=tt, price=price, free=None, age=age,
                                         start=start.date(), end=end.date(), registration='nötig', topic='sport'))
             else:
                 if start.date() < today:
                     continue
-                venue, address, lat, lon = place((o.get('dates') or {}).get('locations'))
-                venue = VENUES.get(venue, venue)
+                venue, address, lat, lon = place((o.get('dates') or {}).get('locations'), provider)
+                venue = venues.get(venue, venue)
                 same_day = start.date() == end.date()
-                offers.append(termin(f'{o["id"]}:{start.date()}', title, start.date(), page_url, PROVIDER, venue=venue, address=address,
+                offers.append(termin(f'{o["id"]}:{start.date()}', title, start.date(), page_url, provider, venue=venue, address=address,
                                      lat=lat, lon=lon, time_from=start.strftime('%H:%M'), time_to=end.strftime('%H:%M') if same_day else None,
-                                     end=None if same_day else end.date(), price=price, free=1 if lo == 0 else None, age=age,
+                                     end=None if same_day else end.date(), price=price, free=None, age=age,
                                      registration='nötig', topic='sport'))
+    return offers
+
+
+def main():
+    widgets = {}
+    for path in PAGES:
+        for wid in re.findall(r'widgets\.yolawo\.de/w/([0-9a-f]{24})', get(BASE + path).text):
+            widgets.setdefault(wid, BASE + path)
+    offers = widget_offers(widgets, PROVIDER)
     return finish(SOURCE_ID, 'TSG Bergedorf: Kinderkurse (Kinderturnen, Kindersport)', BASE + PAGES[0], PROVIDER, offers)
 
 
