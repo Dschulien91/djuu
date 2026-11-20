@@ -1,7 +1,8 @@
 """Import the children's and family part of the Planten un Blomen summer programme (Programmheft, May to September).
 
 Source: https://plantenunblomen.hamburg.de/veranstaltungen links the season's programme PDF
-('programmheft-<year>-barrierefrei-data.pdf', the accessible version is preferred; text read with pypdf). Kept:
+('programmheft-<year>-barrierefrei-data.pdf', the accessible version is preferred; text read with pdfplumber in the PDF's
+text order, use_text_flow, which keeps the columns apart like pypdf did). Kept:
 - Kindertheater on the small open-air stage (Große Wallanlagen): per week a date range, show times, company and play;
   each day and time becomes one 'termin' (free, ab 4 Jahre); the circus guest run at the end becomes one multi-day termin.
 - Calendar entries under 'Musik und Feste' for children or families (e.g. Fest der kleinen Wichte, laut und luise,
@@ -13,7 +14,6 @@ The programme is published each spring: outside the season (or before the new PD
 robots.txt: only a sitemap line (no rules). The page is the park's own (Bezirksamt Hamburg-Mitte), not the hamburg.de calendar.
 """
 import io
-import logging
 import re
 import sys
 from datetime import date, timedelta
@@ -53,10 +53,9 @@ def pdf_text():
     if not pdfs:
         return None, None
     href, year, _ = sorted(pdfs, key=lambda x: (x[1], bool(x[2])))[-1]
-    import pypdf
-    logging.getLogger('pypdf').setLevel(logging.ERROR)
-    reader = pypdf.PdfReader(io.BytesIO(get(href if href.startswith('http') else BASE + href, timeout=120).content))
-    return int(year), '\n'.join(p.extract_text() or '' for p in reader.pages)
+    import pdfplumber  # installed in the server image (pypdf is not)
+    with pdfplumber.open(io.BytesIO(get(href if href.startswith('http') else BASE + href, timeout=120).content)) as pdf:
+        return int(year), '\n'.join(p.extract_text(use_text_flow=True) or '' for p in pdf.pages)
 
 
 def section(text, start, end):
@@ -74,7 +73,8 @@ def kindertheater(text, year, offers):
     for k, m in enumerate(heads):
         body = sec[m.end():heads[k + 1].start() if k + 1 < len(heads) else None]
         lines = [l.strip() for l in body.splitlines() if l.strip() and not l.strip().startswith('©') and not re.fullmatch(r'[A-ZÄÖÜ &´`]+', l.strip())]
-        times = [l for l in lines if 'Uhr' in l]
+        # one line per show time (pdfplumber may put 'Mo. – Fr. um 11 Uhr Sa. – So. um 15 Uhr' on one line)
+        times = [t for l in lines if 'Uhr' in l for t in re.split(r'(?<=Uhr)\s+(?=\S)', l)]
         names = [l for l in lines if 'Uhr' not in l]
         if not times or not names:
             continue

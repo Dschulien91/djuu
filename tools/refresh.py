@@ -23,6 +23,7 @@ SKIP = {
 PLACE_IMPORTERS = ['import_baederland.py', 'import_notinsel.py']  # elevators and Notdienst: server/live.sh
 TIMEOUT = 3600
 OUTPUTS = ['places.json', 'offers.json', 'sources.json']
+EMPTY = 'no current offers parsed; keeping existing data'  # the exit message of offers_util.finish()
 
 
 def log(msg):
@@ -44,26 +45,19 @@ def run(cmd, cwd, timeout=TIMEOUT):
 def main():
     places0, offers0 = counts()
     log(f'start: {places0} places, {offers0} offers')
-    failed = []
-    for script in sorted(DB.glob('import_offers_*.py')):
-        if script.name in SKIP: continue
+    failed, empty = [], []
+    for script in [s for s in sorted(DB.glob('import_offers_*.py')) if s.name not in SKIP] + [DB / n for n in PLACE_IMPORTERS]:
         try:
             r = run([sys.executable, script.name], DB)
-            if r.returncode:
+            if r.returncode and EMPTY in r.stderr:  # finish() found nothing current: the old data stays, not an error
+                empty.append(script.name)
+                log(f'empty {script.name}: nothing current parsed, kept the existing data')
+            elif r.returncode:
                 failed.append(script.name)
                 log(f'FAILED {script.name}: {r.stderr.strip()[-300:]}')
         except subprocess.TimeoutExpired:
             failed.append(script.name)
             log(f'TIMEOUT {script.name}')
-    for name in PLACE_IMPORTERS:
-        try:
-            r = run([sys.executable, name], DB)
-            if r.returncode:
-                failed.append(name)
-                log(f'FAILED {name}: {r.stderr.strip()[-300:]}')
-        except subprocess.TimeoutExpired:
-            failed.append(name)
-            log(f'TIMEOUT {name}')
     keep = DATA / 'backups' / 'before-refresh'
     keep.mkdir(parents=True, exist_ok=True)
     for name in OUTPUTS:
@@ -73,7 +67,7 @@ def main():
         log(f'STOP export failed: {r.stderr.strip()[-500:]}')
         return 1
     places1, offers1 = counts()
-    log(f'after: {places1} places, {offers1} offers, {len(failed)} importers failed')
+    log(f'after: {places1} places, {offers1} offers, {len(failed)} importers failed, {len(empty)} empty')
     if places1 < places0 * .95 or offers1 < offers0 * .7:
         for name in OUTPUTS:
             shutil.copy2(keep / name, DATA / name)

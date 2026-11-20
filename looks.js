@@ -111,12 +111,12 @@ function cropResult() {
 store.news = store.news || [];
 const NEWS_AREAS = {
   shop: [tl('Einkauf'), 'cart', '#6B4EE6'], errands: [tl('Besorgungen'), 'list', '#0E8F84'], saved: [tl('Gemerkt'), 'heart', '#D6336C'],
-  termine: [tl('Termine'), 'cal', '#CC6A00'], wir: [tl('Wir'), 'user', '#0E8F84'], tipp: [tl('Vorschlag'), 'star', '#6B4EE6'], karte: [tl('Karte'), 'pin', '#0E8F84'],
+  termine: [tl('Termine'), 'cal', '#CC6A00'], cal: [tl('Kalender'), 'cal', '#CC6A00'], wir: [tl('Wir'), 'user', '#0E8F84'], tipp: [tl('Vorschlag'), 'star', '#6B4EE6'], karte: [tl('Karte'), 'pin', '#0E8F84'],
 };
 // news topics this person may get (helpers only where they have access) and which of them are switched off (store.newsOff,
 // kept with the account, see sync.js); switched-off topics are neither listed nor counted at the bell
-const NEWS_TOPICS = () => ['shop', 'errands', 'saved', 'wir', 'tipp'].filter(k => !['shop', 'errands', 'saved'].includes(k) || perm(k) !== 'none');
-const newsOn = area => !(store.newsOff || []).includes(area) && (NEWS_TOPICS().includes(area) || !['shop', 'errands', 'saved', 'wir', 'tipp'].includes(area));
+const NEWS_TOPICS = () => ['cal', 'shop', 'errands', 'saved', 'wir', 'tipp'].filter(k => !['shop', 'errands', 'saved', 'cal'].includes(k) || perm(k) !== 'none');
+const newsOn = area => !(store.newsOff || []).includes(area) && (NEWS_TOPICS().includes(area) || !['cal', 'shop', 'errands', 'saved', 'wir', 'tipp'].includes(area));
 const visibleNews = () => store.news.filter(n => newsOn(n.area));
 const unread = () => visibleNews().filter(n => !n.read).length;
 // switch topics on or off: at once, on this phone, and in the account for all phones
@@ -131,7 +131,7 @@ function addNews(n) {
   save(); updateBell();
 }
 const nameOfMember = id => memberById(id)?.name || tl('Jemand');
-const AREA_OF = { shop_items: 'shop', errands: 'errands', saved_offers: 'saved' };
+const AREA_OF = { shop_items: 'shop', errands: 'errands', saved_offers: 'saved', cal_entries: 'cal' };
 // a record someone else in the Wir created (called by sync.js for live events and after being away)
 function newsFromRecord(coll, r) {
   if (!auth?.family) return;
@@ -152,6 +152,10 @@ function newsFromRecord(coll, r) {
     return addNews({ area, by, items: [r.name], text: shopNewsText(who, [r.name]), target: { page: 'shop' }, key: 'shop:' + r.id });
   }
   if (coll === 'errands') return addNews({ area, by, text: tl('{name} plant eine Besorgung: {what}', { name: who, what: r.title }), target: { page: 'errands' }, key: 'err:' + r.id });
+  if (coll === 'cal_entries') {
+    const what = r.title || ({ pickup: tl('Abholen'), dropoff: tl('Bringen'), closed: tl('Kita zu') }[r.kind] || tl('Termin'));
+    return addNews({ area, by, text: tl('{name} hat „{what}“ in den Kalender eingetragen', { name: who, what }), target: { page: 'cal' }, key: 'cal:' + r.id });
+  }
   if (coll === 'saved_offers') return addNews({ area, by, text: tl('{name} hat „{what}“ gemerkt', { name: who, what: r.snap?.title || tl('einen Termin') }), target: { offer: r.offer_id }, key: 'sav:' + r.id });
 }
 function shopNewsText(who, items) {

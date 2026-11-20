@@ -10,14 +10,16 @@
   <style>
     :root { color-scheme: light; --ink: #1F1B4D; --muted: #4B5078; --brand: #6B4EE6; --line: #E4DFF5; --bg: #FFFCF5; }
     body { margin: 0; background: var(--bg); color: var(--ink); font: 400 16px/1.55 Nunito, system-ui, sans-serif; }
-    main { max-width: 720px; margin: 0 auto; padding: 24px 16px 64px; }
+    main { max-width: 720px; margin: 0 auto; padding: 12px 16px 64px; }
     h1, h2, h3 { font-family: Fredoka, system-ui, sans-serif; font-weight: 600; line-height: 1.2; }
-    h1 { font-size: 28px; margin: 0 0 12px; }
+    h1 { font-size: 28px; margin: 4px 0 12px; }
     h2 { font-size: 22px; margin: 40px 0 8px; padding-top: 16px; border-top: 1px solid var(--line); }
     h3 { font-size: 17px; margin: 22px 0 4px; }
     p, ul { margin: 6px 0; }
+    li { margin: 4px 0; }
     a { color: var(--brand); }
-    .draft { padding: 12px 14px; border-radius: 12px; background: #F1ECFF; }
+    .back { display: inline-block; min-height: 44px; line-height: 44px; font-weight: 700; text-decoration: none; }
+    .stand { color: var(--muted); font-size: 14px; }
     .missing { font-weight: 700; }
     table { width: 100%; border-collapse: collapse; font-size: 14px; }
     td, th { text-align: left; vertical-align: top; padding: 6px 8px 6px 0; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
@@ -25,27 +27,33 @@
   </style>
 </head>
 <body>
-<!-- German is the binding version. The page shows the language chosen in the app (or the phone's language). -->
+<!-- German is the binding version. The page shows the language chosen in the app (or the phone's language).
+     State of the texts: 20 Nov 2026. Points that a lawyer still has to check are marked with HTML comments "[juristisch prüfen]".
+     Keep this page in line with server/pb_migrations, server/pb_hooks and sync.js when what is stored or sent changes. -->
 <main lang="de" data-lang="de">
+  <a class="back" href="./">‹ Zurück zur App</a>
   <h1>Djuu</h1>
   <nav><a href="#impressum">Impressum</a><a href="#agb">Nutzungsbedingungen</a><a href="#datenschutz">Datenschutz</a><a href="#daten">Daten und Lizenzen</a></nav>
-  <p class="draft" style="margin-top:16px"><b>Entwurf:</b> Diese Texte sind noch nicht rechtlich geprüft.</p>
+  <!-- [juristisch prüfen] The legal review of the whole page is still open (handoff §8). Remove "Entwurf" from the line below only after that review. -->
+  <p class="stand">Stand: 20.11.2026 · Entwurf, die rechtliche Prüfung steht noch aus.</p>
 
   <h2 id="impressum">Impressum</h2>
-  <p>Angaben gemäß § 5 Digitale-Dienste-Gesetz:</p>
+  <p>Angaben gemäß § 5 Digitale-Dienste-Gesetz (DDG):</p>
   <p class="imprint"></p>
-  <p>Verantwortlich für den Inhalt nach § 18 Abs. 2 MStV: <span class="mstv"></span></p>
+  <!-- [Rechtsform] / [Vertretungsberechtigte Person] / [Registergericht, Registernummer] / [USt-IdNr.]: add here only if Djuu is run by a company or association. Run by a private person: nothing to add. [juristisch prüfen] -->
+  <p>Verantwortlich für den Inhalt nach § 18 Abs. 2 Medienstaatsvertrag (MStV): <span class="mstv"></span></p>
   <p>Wir sind nicht bereit und nicht verpflichtet, an Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle teilzunehmen.</p>
 
   <h2 id="agb">Nutzungsbedingungen</h2>
   <h3>1. Worum es geht</h3>
-  <p>Djuu ist eine kostenlose Web-App für Familien in Hamburg. Sie zeigt Orte, Kurse, Gruppen und Termine aus offenen Quellen und von Anbietern und hilft Familien, gemeinsam Listen und Termine zu organisieren. Diese Bedingungen gelten für alle, die Djuu nutzen.</p>
+  <p>Djuu ist eine kostenlose Web-App für Familien in Hamburg. Sie zeigt Orte, Kurse, Gruppen und Termine aus offenen Quellen und von Anbietern und hilft Familien, gemeinsam Listen und Termine zu organisieren. Diese Bedingungen gelten für alle, die Djuu nutzen. Mit dem Anlegen eines Kontos akzeptierst du sie.</p>
   <h3>2. Angaben ohne Gewähr</h3>
-  <p>Wir sammeln Angaben aus vielen Quellen und prüfen sie so gut wir können, können aber nicht garantieren, dass sie richtig, vollständig oder aktuell sind. Öffnungszeiten, Termine, Preise und Anmeldung bitte immer beim Anbieter prüfen. Ein Vertrag über einen Kurs oder eine Veranstaltung kommt nur mit dem jeweiligen Anbieter zustande, nicht mit Djuu.</p>
+  <p>Wir sammeln Angaben aus vielen Quellen und prüfen sie so gut wir können, können aber nicht garantieren, dass sie richtig, vollständig oder aktuell sind. Das gilt auch für die Vorschläge von „Frag Djuu“. Öffnungszeiten, Termine, Preise und Anmeldung bitte immer beim Anbieter prüfen. Ein Vertrag über einen Kurs oder eine Veranstaltung kommt nur mit dem jeweiligen Anbieter zustande, nicht mit Djuu.</p>
   <h3>3. Konto</h3>
-  <p>Ein Konto ist freiwillig und nur nötig, um mit der Familie zu teilen. Du meldest dich mit deiner E-Mail-Adresse an und gibst die Codes nicht an andere weiter. Lade nur Menschen in deine Familie ein, die du kennst. Du kannst dein Konto jederzeit in der App löschen.</p>
+  <p>Ein Konto ist freiwillig und nur nötig, um Listen, Termine und Orte mit deiner Familie zu teilen. Du meldest dich mit deiner E-Mail-Adresse und einem Passwort an. Halte dein Passwort geheim und nutze es nicht auch für andere Dienste. Jede Person bekommt ihr eigenes Konto; lade nur Menschen in dein Wir ein, die du kennst. Wer ein Wir anlegt, ist dort Admin und entscheidet, wer was sieht und bearbeitet. Du kannst dein Konto jederzeit in der App unter Wir › Konto löschen.</p>
+  <!-- [juristisch prüfen] Minimum age for an account (Art. 8 DSGVO) is not stated; today the app does not ask for it. -->
   <h3>4. Was du einträgst</h3>
-  <p>Für Einträge, Bewertungen, Fotos und Links bist du selbst verantwortlich. Bitte nichts Rechtswidriges, Beleidigendes oder Werbliches eintragen und keine Fotos, auf denen Kinder erkennbar sind. Wir dürfen Inhalte, die gegen diese Regeln verstoßen, entfernen und Konten bei schweren oder wiederholten Verstößen sperren.</p>
+  <p>Für Einträge, Bewertungen, Fotos und Links bist du selbst verantwortlich. Bitte nichts Rechtswidriges, Beleidigendes oder Werbliches eintragen. Bei Orten (Bewertungen, Fotos, Ort eintragen) bitte keine Fotos, auf denen Personen, besonders Kinder, erkennbar sind. Fotos im eigenen Wir sieht nur euer Wir. Wir dürfen Inhalte, die gegen diese Regeln verstoßen, entfernen und Konten bei schweren oder wiederholten Verstößen sperren.</p>
   <h3>5. Verfügbarkeit</h3>
   <p>Wir bemühen uns, dass Djuu zuverlässig läuft, können das aber nicht jederzeit zusichern. Wir dürfen Funktionen ändern, wenn das für dich zumutbar ist, und den Dienst mit angemessener Vorankündigung einstellen.</p>
   <h3>6. Haftung</h3>
@@ -54,61 +62,137 @@
   <p>Ändern sich diese Bedingungen, informieren wir in der App. Es gilt deutsches Recht; zwingende Verbraucherschutzvorschriften deines Wohnsitzlandes bleiben unberührt.</p>
 
   <h2 id="datenschutz">Datenschutz</h2>
-  <p>Djuu funktioniert ohne Konto, ohne Werbung und ohne Nutzungsstatistik und setzt keine Cookies. Ein Konto brauchst du nur, wenn du Listen und Termine mit deiner Familie teilen willst.</p>
+  <p>Djuu funktioniert ohne Konto, ohne Werbung, ohne Nutzungsstatistik und ohne Cookies. Ein Konto brauchst du nur, wenn du Listen, Termine und Orte mit deiner Familie teilen willst. Hier steht, welche Daten dabei wohin gehen und wie lange sie bleiben.</p>
   <h3>Verantwortlich</h3>
   <p class="controller"></p>
-  <h3>Ohne Anmeldung: alles bleibt auf deinem Gerät</h3>
-  <p>Familienangaben (Namen, Rollen, Geburtsmonate, Bundesland), Meine Orte (Postleitzahl, freiwillig eine Adresse), Sprache, Favoriten, Bewertungen, eingetragene Orte, Fotos und der gewählte Kartenstil liegen im Speicher deines Browsers. Ohne Anmeldung gehen sie an niemanden. Löschst du die Website-Daten, sind sie weg. Nur auf deinem Gerät bleiben immer deine Angaben unter „Was passt zu euch?“. Diese Angaben (zum Beispiel alleinerziehend, Regenbogenfamilie, Inklusion) können sensibel sein; Djuu speichert sie nur mit deiner ausdrücklichen Einwilligung (Art. 9 Abs. 2 lit. a DSGVO), nutzt sie nur für Vorschläge und du kannst sie jederzeit löschen.</p>
-  <p>Dein Standort wird nur verwendet, wenn du ihn erlaubst, und nur im Browser berechnet. Er wird nicht an Djuu übertragen.</p>
-  <h3>Mit Anmeldung: die gemeinsame Familie</h3>
-  <p>Meldest du dich an, speichern wir auf unserem eigenen Server in Deutschland (Hetzner, Rechenzentrum in Deutschland): deine E-Mail-Adresse, die Familie und ihre Mitglieder mit den freiwilligen Angaben (Name, Geburtsmonat, Kita oder Schule, Größen, Arbeitszeiten), Rolle, Gruppe (Familie, Kind, Helfer:in) und Zugangsrechte, Einkaufsliste, Besorgungen, gemerkte Termine und Orte, „Waren dabei“ und deine Orte unter „Meine Orte“ (Name, Postleitzahl, freiwillig eine Adresse). Deine Orte sieht nur du, bis du einen davon mit der Familie teilst; Helfer:innen sehen keine Orte und keine Angaben zu Kindern. Was Helfer:innen sonst sehen, legt der Admin fest; ein befristeter Zugang endet automatisch. Fotos: Das Foto des Wir und freiwillige Fotos von Personen und Hunden werden in der App rund zugeschnitten, auf höchstens 512 Pixel verkleinert und bei uns gespeichert. Alle im Wir sehen das Foto des Wir und die Fotos der Erwachsenen; Fotos von Kindern und Hunden sieht nur die Gruppe „Familie“, nie Helfer:innen. Jede Person ändert ihr eigenes Foto, für Kinder und Personen ohne eigenen Zugang der Admin. Keine Gesichtserkennung, keine Weitergabe. Fotos werden mit der Person oder dem Konto gelöscht. Neuigkeiten (wer etwas auf die Liste gesetzt oder gemerkt hat) entstehen aus diesen Daten und bleiben auf deinem Gerät. Löscht der Admin sein Konto, wird das ganze Wir mit allen Einträgen gelöscht. Zweck ist allein das Teilen in der Familie (Art. 6 Abs. 1 lit. b DSGVO).</p>
-  <p>Den Login-Code verschicken wir per E-Mail über unser Postfach bei All-Inkl. „Wo seid ihr?“: Ein Standort wird nur gesendet, wenn die gefragte Person zustimmt, ist nur für die beiden sichtbar und wird nach 24 Stunden gelöscht. Der Familienkalender ist über eine geheime Adresse abrufbar; wer sie kennt, sieht die gemerkten Termine. Ihr könnt sie jederzeit erneuern.</p>
-  <p>Unter Familie → Wir kannst du dein Konto jederzeit selbst löschen. Dann entfernen wir deine E-Mail-Adresse und deinen Eintrag in der Familie; die gemeinsamen Listen bleiben für die anderen Mitglieder erhalten.</p>
-  <h3>Was beim Benutzen an andere Dienste geht</h3>
+
+  <h3>1. Beim Öffnen der App (für alle)</h3>
+  <p>Die App selbst kommt von GitHub Pages (GitHub Inc., USA). Beim Start lädt sie außerdem die täglich aktualisierten Termine und Live-Werte (zum Beispiel Aufzüge und Notdienst-Apotheken) von unserem Server api.djuu.de. Dabei erfahren GitHub und unser Server technisch bedingt deine IP-Adresse, die Browser-Kennung, die aufgerufene Adresse und die Uhrzeit.</p>
+  <p>Unser Server schreibt diese Angaben in ein Protokoll, damit wir Fehler und Missbrauch erkennen können, und löscht sie nach höchstens 5 Tagen. Rechtsgrundlage ist unser berechtigtes Interesse an einem sicheren und funktionierenden Dienst (Art. 6 Abs. 1 lit. f DSGVO). Wir werten das Protokoll nicht für Statistiken aus und verknüpfen es nicht mit anderen Daten.</p>
+  <!-- [juristisch prüfen] GitHub Pages: role of GitHub (processor or own controller) and the transfer to the USA (EU-US Data Privacy Framework). -->
+
+  <h3>2. Speicher auf deinem Gerät</h3>
+  <p>Djuu setzt keine Cookies. Damit die App funktioniert, legt sie Daten im Speicher deines Browsers ab (Local Storage und, für Fotos, IndexedDB) und speichert über einen Service Worker die App-Dateien und Termine, damit sie auch ohne Netz starten. Das ist für den Dienst, den du aufrufst, unbedingt erforderlich (§ 25 Abs. 2 Nr. 2 TDDDG); eine Einwilligung ist dafür nicht nötig.</p>
+  <!-- [juristisch prüfen] § 25 Abs. 2 Nr. 2 TDDDG for local storage and the service worker cache (no consent banner). -->
+  <p>Nur auf deinem Gerät bleiben: Sprache, Kartenstil, Gebiet und Filter, deine Bewertungen und eingetragenen Orte mit ihren Fotos (bis du sie uns selbst per E-Mail schickst) und deine Angaben unter „Was passt zu euch?“. Diese Angaben (zum Beispiel alleinerziehend, Regenbogenfamilie, Inklusion) können sensibel sein; Djuu speichert sie nur mit deiner ausdrücklichen Einwilligung (Art. 9 Abs. 2 lit. a DSGVO), nutzt sie nur für Vorschläge, und du kannst sie jederzeit löschen. Damit widerrufst du auch deine Einwilligung.</p>
+  <p>Dein Standort wird nur verwendet, wenn du ihn im Browser erlaubst, und nur im Browser verrechnet. Er geht nur dann an unseren Server, wenn du ihn bei „Wo seid ihr?“ selbst einmal sendest (siehe unten).</p>
+  <p>Löschst du die Website-Daten im Browser, sind die Daten auf dem Gerät weg. Was in deinem Konto gespeichert ist, bleibt dort.</p>
+
+  <h3>3. Mit Konto: dein Konto und euer Wir</h3>
+  <p>Meldest du dich an, speichern wir auf unserem Server bei Hetzner in Deutschland:</p>
+  <!-- [juristisch prüfen] Confirm the data centre location (Hetzner has German and Finnish sites). -->
+  <ul>
+    <li><b>Dein Konto:</b> E-Mail-Adresse, Passwort (nur als sicherer Hash, nie im Klartext), ob die E-Mail bestätigt ist, und deine persönlichen Einstellungen: welche Neuigkeiten du ausgeschaltet hast und deine Einstellungen für Termine. Für die Sicherheit merkt sich der Server außerdem, auf welchen Geräten du dich angemeldet hast (eine Kennung aus IP-Adresse und Browser), und schickt dir eine E-Mail, wenn du dich auf einem neuen Gerät anmeldest.</li>
+    <li><b>Euer Wir:</b> der Name und das Foto des Wir.</li>
+    <li><b>Personen im Wir</b> (alles außer dem Namen freiwillig): Erwachsene mit Name, Rolle, Gruppe (Familie oder Helfer:in), Zugangsrechten, einem Enddatum für befristeten Zugang, Farbe, Foto, Arbeitszeiten und bei Personen mit eigenem Zugang der E-Mail-Adresse; Kinder mit Name, Geburtsjahr, Geburtsmonat oder ganzem Geburtsdatum (so genau, wie du es einträgst), Kita oder Schule, Kleider- und Schuhgröße, Farbe und Foto; Hunde mit Name und Foto.</li>
+    <li><b>Gemeinsame Listen:</b> Einkaufsliste mit dem, was ihr oft kauft, Besorgungen, gemerkte Orte und Termine, „Waren dabei“, jeweils mit der Person, die es eingetragen hat.</li>
+    <li><b>Meine Orte:</b> Name, Postleitzahl, freiwillig eine Adresse und die Koordinaten der Postleitzahl.</li>
+  </ul>
+  <p><b>Wer was sieht:</b> Die Gruppe „Familie“ sieht alles im Wir. Helfer:innen sehen nur die Erwachsenen und die Bereiche, die der Admin für sie freigibt; Kinder, Hunde, ihre Fotos und eure Orte sehen sie nie. Ein befristeter Zugang endet automatisch. Die E-Mail-Adressen der Erwachsenen sehen nur Admins. Deine Orte unter „Meine Orte“ sehen nur du, bis du einen davon mit dem Wir teilst.</p>
+  <p><b>Fotos</b> werden in der App rund zugeschnitten, auf höchstens 512 Pixel verkleinert und bei uns gespeichert. Alle im Wir sehen das Foto des Wir und die Fotos der Erwachsenen; Fotos von Kindern und Hunden sieht nur die Gruppe „Familie“. Jede Person ändert ihr eigenes Foto, für Kinder, Hunde und Personen ohne eigenen Zugang der Admin. Keine Gesichtserkennung, keine Weitergabe.</p>
+  <p><b>Neuigkeiten</b> (wer etwas auf die Liste gesetzt oder gemerkt hat) entstehen in der App aus diesen Daten und bleiben auf deinem Gerät.</p>
+  <p><b>E-Mails:</b> Wir schicken dir nur E-Mails, die zum Konto gehören: den Link zum Bestätigen deiner E-Mail-Adresse, den Link für ein neues Passwort, den Link zum Bestätigen einer neuen E-Mail-Adresse und den Hinweis bei einer Anmeldung auf einem neuen Gerät. Sie gehen über <span class="missing">[Mail-Dienst eintragen]</span>.</p>
+  <!-- [Mail-Dienst eintragen]: the SMTP provider PocketBase uses on the server (the previous text said "Postfach bei All-Inkl"; the handoff says hallo@djuu.de is at All-Inkl). Confirm in the dashboard, then name it here and under 7. -->
+  <p><b>„Wo seid ihr?“:</b> Ein Standort wird nur gesendet, wenn die gefragte Person zustimmt. Ihn sehen nur die beiden, und er wird nach 24 Stunden automatisch gelöscht (spätestens eine Stunde später).</p>
+  <p><b>Familienkalender:</b> Eure gemerkten Termine sind über eine geheime Adresse abrufbar; wer sie kennt, sieht diese Termine und den Namen eures Wir. Abonniert ihr den Kalender, holt eure Kalender-App (zum Beispiel Google Kalender) die Termine regelmäßig von unserem Server. Ihr könnt die Adresse jederzeit erneuern, dann funktioniert die alte nicht mehr.</p>
+  <p><b>Einladungen:</b> Ein Einladungslink gilt 7 Tage und nur einmal. Wer ihn öffnet, sieht vor dem Beitreten den Namen der einladenden Person und die Anfangsbuchstaben der Personen im Wir. Wir speichern den Link selbst nicht, nur eine Prüfsumme (Hash) davon.</p>
+  <p>Zweck ist allein, dass ihr euch in der Familie organisieren könnt (Art. 6 Abs. 1 lit. b DSGVO). Die Angaben zu Kindern trägt ein Elternteil oder eine andere berechtigte Person im Wir ein.</p>
+  <!-- [juristisch prüfen] Legal basis for children's data entered by a parent (Art. 6 (1) b for the account holder vs. data of third persons/children), and whether Art. 6 (1) b covers helpers' data. -->
+
+  <h3>4. Konto löschen</h3>
+  <p>Unter Wir › Konto › Konto löschen kannst du dein Konto jederzeit selbst löschen; zur Sicherheit fragt die App nach deinem Passwort.</p>
+  <ul>
+    <li>Wir löschen dein Konto, deine Person im Wir, deine Orte unter „Meine Orte“ und dein Foto. Was du in die gemeinsamen Listen eingetragen oder gemerkt hast, bleibt für die anderen im Wir erhalten, aber ohne deinen Namen.</li>
+    <li>Bist du die oder der letzte Admin des Wir, wird das ganze Wir mit allen Personen, Listen, Gemerktem, Fotos und geteilten Orten gelöscht, für alle. Die App zeigt vorher, wen das betrifft. Die Konten der anderen bleiben bestehen, ohne Wir. Gibt es noch einen anderen Admin, bleibt das Wir bestehen.</li>
+    <li>Ein Admin kann eine Person aus dem Wir entfernen; ihr Konto bleibt dann bestehen, ohne Wir.</li>
+  </ul>
+  <p>Gelöschte Daten können noch bis zu 7 Tage in unseren Sicherungskopien stehen (siehe Speicherdauer).</p>
+
+  <h3>5. „Frag Djuu“ und Übersetzung</h3>
+  <p>Bei „Frag Djuu“ kannst du eine Frage eintippen oder einsprechen, zum Beispiel „Indoor-Spielplatz für eine Zweijährige“. Sobald die KI-Suche eingeschaltet ist, geht nur der getippte Text deiner Frage an unseren Server und von dort an Claude von Anthropic PBC (USA), das daraus die passenden Filter der App macht. Konto, Namen, Kinder und Standort gehen dabei nicht mit. Bitte schreib keine persönlichen Angaben in die Frage. Damit niemand den Dienst überlastet, zählt unser Server die Fragen pro IP-Adresse und Tag (nur im Arbeitsspeicher, am Ende des Tages weg). Ist die KI-Suche nicht eingeschaltet, versteht die App deine Frage selbst auf deinem Gerät, und nichts geht an Anthropic.</p>
+  <p>Rechtsgrundlage ist unser berechtigtes Interesse, dir eine Suche in eigenen Worten anzubieten (Art. 6 Abs. 1 lit. f DSGVO). Die Übermittlung in die USA stützt sich auf einen Angemessenheitsbeschluss der EU-Kommission (EU-US Data Privacy Framework) oder auf Standardvertragsklauseln der EU-Kommission.</p>
+  <!-- [juristisch prüfen] Frag Djuu: legal basis (Art. 6 (1) f vs. consent), whether Anthropic is certified under the EU-US Data Privacy Framework or SCCs apply, Anthropic's retention of API inputs, and whether a data processing agreement is in place. Only switch on the key after this is settled. -->
+  <p>Für andere Sprachen übersetzen wir die Titel der Termine automatisch mit Claude von Anthropic. Dabei gehen nur die öffentlichen Angaben der Anbieter an Anthropic, keine Daten von Nutzerinnen und Nutzern.</p>
+  <p>Spracheingabe: Nur wenn du auf das Mikrofon tippst, wird dein Browser aktiv. Je nach Browser geht der Ton dabei an dessen Anbieter, zum Beispiel Google oder Apple; Djuu bekommt nur den erkannten Text.</p>
+
+  <h3>6. Andere Dienste beim Benutzen</h3>
   <p>Beim Laden erfährt jeder dieser Dienste technisch bedingt deine IP-Adresse und die Browser-Kennung, aber nicht deine Familienangaben.</p>
   <ul>
-    <li><b>Hosting:</b> GitHub Pages (GitHub Inc., USA) liefert die App aus.</li>
     <li><b>Karte:</b> Beim Standardstil kommen die Kartenteile von OpenFreeMap. Der ungefähre Kartenausschnitt ist dabei erkennbar. Andere Kartenstile nutzen die jeweils gewählten Anbieter (VersaTiles, Bundesamt für Kartographie und Geodäsie, OpenStreetMap-Dienste, OpenTopoMap).</li>
-    <li><b>Wetter:</b> Beim Start wird das Hamburger Wetter bei Bright Sky abgefragt (Daten des Deutschen Wetterdienstes).</li>
+    <li><b>Wetter:</b> Beim Start wird das Hamburger Wetter bei Bright Sky abgefragt (Daten des Deutschen Wetterdienstes), ohne deinen Standort.</li>
     <li><b>Schulferien:</b> Nur wenn du ein anderes Bundesland als Hamburg wählst, fragt die App OpenHolidays ab.</li>
     <li><b>Fotos:</b> Fotos bei einzelnen Orten lädt die App von Wikimedia Commons, sobald du den Ort öffnest.</li>
-    <li><b>Spracheingabe:</b> Nur wenn du auf das Mikrofon tippst, wird dein Browser aktiv. Je nach Browser geht der Ton dabei an dessen Anbieter, zum Beispiel Google oder Apple.</li>
-    <li><b>Links:</b> Route, Webseiten und Anbieter-Links öffnen erst auf deinen Tipp hin die jeweilige fremde Seite, zum Beispiel Google Maps.</li>
+    <li><b>Links:</b> Route, Webseiten, Anbieter-Links und „Google Kalender: abonnieren“ öffnen erst auf deinen Tipp hin die jeweilige fremde Seite, zum Beispiel Google Maps.</li>
   </ul>
-  <h3>Meldungen und Feedback</h3>
-  <p>Meldest du einen Ort oder schreibst uns, öffnet sich dein E-Mail-Programm. Du siehst die Nachricht, bevor du sie abschickst. Wir nutzen sie nur, um zu antworten und Daten zu korrigieren.</p>
-  <h3>Deine Rechte</h3>
-  <p>Du hast das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung, Datenübertragbarkeit und Widerspruch sowie auf Beschwerde bei einer Datenschutz-Aufsichtsbehörde, in Hamburg beim Hamburgischen Beauftragten für Datenschutz und Informationsfreiheit. Steht ein Ort mit deinen persönlichen Daten in Djuu, nehmen wir ihn auf Nachricht heraus.</p>
+
+  <h3>7. Dienstleister</h3>
+  <p>Diese Dienstleister verarbeiten Daten in unserem Auftrag und nur für die genannten Zwecke:</p>
+  <ul>
+    <li><b>Hetzner Online GmbH</b> (Deutschland): Server für Konten, Wir und Protokolle (api.djuu.de).</li>
+    <li><b>GitHub Inc.</b> (USA): Auslieferung der App über GitHub Pages.</li>
+    <li><b><span class="missing">[Mail-Dienst eintragen]</span></b>: Versand der E-Mails zum Konto.</li>
+    <li><b>Anthropic PBC</b> (USA): nur „Frag Djuu“, wenn eingeschaltet, und die Übersetzung von Termintiteln.</li>
+  </ul>
+  <!-- [juristisch prüfen] Data processing agreements (Art. 28 DSGVO) with each of these, and whether GitHub and Anthropic act as processors. -->
+
+  <h3>8. Wie lange wir Daten speichern</h3>
+  <table>
+    <tr><th>Was</th><th>Wie lange</th></tr>
+    <tr><td>Konto, Wir und alles darin</td><td>bis du dein Konto löschst oder es aus dem Wir entfernt wird (siehe 4.)</td></tr>
+    <tr><td>Konten, deren E-Mail nie bestätigt wurde</td><td>7 Tage, dann automatisch gelöscht</td></tr>
+    <tr><td>Links zum Bestätigen, für ein neues Passwort oder eine neue E-Mail</td><td>gelten nur kurz (Stunden bis wenige Tage, steht in der E-Mail)</td></tr>
+    <tr><td>Einladungslinks</td><td>gültig 7 Tage oder bis zur Benutzung</td></tr>
+    <tr><td>„Wo seid ihr?“ mit Standort</td><td>24 Stunden</td></tr>
+    <tr><td>Server-Protokoll (IP-Adresse, Browser, Adresse, Uhrzeit)</td><td>höchstens 5 Tage</td></tr>
+    <tr><td>Zähler für „Frag Djuu“</td><td>bis zum Ende des Tages</td></tr>
+    <tr><td>Tägliche Sicherungskopien des Servers</td><td>7 Tage</td></tr>
+    <tr><td>Daten auf deinem Gerät</td><td>bis du sie in der App oder in den Website-Daten deines Browsers löschst</td></tr>
+  </table>
+
+  <h3>9. Meldungen und Feedback</h3>
+  <p>Meldest du einen Ort oder schreibst uns, öffnet sich dein E-Mail-Programm. Du siehst die Nachricht, bevor du sie abschickst. Wir nutzen sie nur, um zu antworten und Daten zu korrigieren, und löschen sie, wenn das erledigt ist.</p>
+
+  <h3>10. Deine Rechte</h3>
+  <p>Du hast das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung und Datenübertragbarkeit. Eine erteilte Einwilligung kannst du jederzeit widerrufen. Verarbeiten wir Daten aufgrund unseres berechtigten Interesses, kannst du aus Gründen, die sich aus deiner besonderen Situation ergeben, widersprechen (Art. 21 DSGVO). Schreib uns dafür an die oben genannte Adresse. Du kannst dich außerdem bei einer Datenschutz-Aufsichtsbehörde beschweren, in Hamburg beim <a href="https://datenschutz-hamburg.de" rel="noopener">Hamburgischen Beauftragten für Datenschutz und Informationsfreiheit</a>. Steht ein Ort mit deinen persönlichen Daten in Djuu, nehmen wir ihn auf Nachricht heraus.</p>
+  <p>Ändert sich, was Djuu speichert oder sendet, passen wir diese Seite an und ändern das Datum oben.</p>
 
   <h2 id="daten">Daten und Lizenzen</h2>
-  <p>Djuu führt offene Daten zusammen und zeigt bei jedem Ort, woher eine Angabe stammt. Angaben können veraltet sein. Bitte prüft Wichtiges beim Anbieter. Termine verlinken immer auf die Seite des Anbieters.</p>
-  <p>Für andere Sprachen übersetzen wir die Titel der Termine automatisch mit Claude von Anthropic (USA). Dabei gehen nur die öffentlichen Angaben der Anbieter an Anthropic, keine Daten von Nutzerinnen und Nutzern.</p>
-  <p>Kartendaten © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>-Mitwirkende, <a href="https://opendatacommons.org/licenses/odbl/">ODbL</a>. Ortsdaten von <a href="https://overturemaps.org">Overture Maps</a> unter <a href="https://cdla.dev/permissive-2-0/">CDLA Permissive 2.0</a>. Fotos stammen von <a href="https://commons.wikimedia.org">Wikimedia Commons</a>; Urheber und Lizenz stehen jeweils auf der verlinkten Seite des Fotos.</p>
-  <p>Software und Schriften: <a href="https://leafletjs.com">Leaflet</a> (BSD), <a href="https://github.com/Leaflet/Leaflet.markercluster">Leaflet.markercluster</a> (MIT), <a href="https://maplibre.org">MapLibre GL JS</a> (BSD), Fredoka und Nunito (<a href="vendor/fonts/OFL-Nunito.txt">SIL Open Font License</a>).</p>
+  <p>Djuu führt offene Daten zusammen und zeigt bei jedem Ort, woher eine Angabe stammt. Angaben können veraltet sein. Bitte prüft Wichtiges beim Anbieter. Termine verlinken immer auf die Seite des Anbieters. Djuu hat die Daten gefiltert, zusammengeführt und auf eigene Kategorien abgebildet.</p>
+  <ul>
+    <li>Kartendaten und viele Ortsangaben © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap-Mitwirkende</a>, <a href="https://opendatacommons.org/licenses/odbl/1-0/">Open Database License (ODbL) 1.0</a>.</li>
+    <li>Daten der Freien und Hansestadt Hamburg (Transparenzportal und Geodienste) unter <a href="https://www.govdata.de/dl-de/by-2-0">Datenlizenz Deutschland – Namensnennung – Version 2.0 (dl-de/by-2.0)</a> oder <a href="https://www.govdata.de/dl-de/zero-2-0">Datenlizenz Deutschland – Zero – Version 2.0 (dl-zero-de/2.0)</a>; die jeweilige Stelle steht in der Liste unten.</li>
+    <li>Ortsdaten von <a href="https://overturemaps.org">Overture Maps Foundation</a> (<a href="https://docs.overturemaps.org/attribution/">Hinweise</a>) unter <a href="https://cdla.dev/permissive-2-0/">CDLA Permissive 2.0</a>, Teile von AllThePlaces unter <a href="https://creativecommons.org/publicdomain/zero/1.0/">CC0 1.0</a> und von Foursquare OS Places unter <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a> (Lizenztexte und NOTICE: <a href="data/licenses/overture/README.txt">data/licenses/overture</a>).</li>
+    <li>Angaben aus <a href="https://www.wikidata.org">Wikidata</a> unter <a href="https://creativecommons.org/publicdomain/zero/1.0/">CC0 1.0</a>.</li>
+    <li>Bewertungen von <a href="https://mangrove.reviews">Mangrove Reviews</a> unter <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>.</li>
+    <li>Fotos stammen von <a href="https://commons.wikimedia.org">Wikimedia Commons</a>. Sie stehen unter verschiedenen freien Lizenzen; Urheber:in und Lizenz stehen jeweils auf der verlinkten Seite des Fotos.</li>
+  </ul>
+  <p>Software und Schriften: <a href="https://leafletjs.com">Leaflet</a> (BSD), <a href="https://github.com/Leaflet/Leaflet.markercluster">Leaflet.markercluster</a> (MIT), <a href="https://maplibre.org">MapLibre GL JS</a> (BSD), Fredoka (<a href="vendor/fonts/OFL-Fredoka.txt">SIL Open Font License</a>) und Nunito (<a href="vendor/fonts/OFL-Nunito.txt">SIL Open Font License</a>).</p>
+  <!-- [juristisch prüfen] Licences and photo credits (handoff §8): whether the ODbL share-alike applies to the merged places database, and whether photo credits must be shown next to each photo. -->
   <h3>Alle Quellen</h3>
   <div class="sources"><p>Wird geladen …</p></div>
 </main>
 
 <main lang="en" data-lang="en">
+  <a class="back" href="./">‹ Back to the app</a>
   <h1>Djuu</h1>
   <nav><a href="#impressum">Legal notice</a><a href="#agb">Terms of use</a><a href="#datenschutz">Privacy</a><a href="#daten">Data and licences</a></nav>
-  <p class="draft" style="margin-top:16px"><b>Draft:</b> these texts have not been legally reviewed yet. This is a translation for your convenience; only the German version is legally binding.</p>
+  <p class="stand">As of 20 Nov 2026 · Draft, the legal review is still pending. This is a translation for your convenience; only the German version is legally binding.</p>
 
   <h2 id="impressum">Legal notice</h2>
   <p>Information according to § 5 of the German Digital Services Act (DDG):</p>
   <p class="imprint"></p>
-  <p>Responsible for the content according to § 18 (2) MStV: <span class="mstv"></span></p>
+  <p>Responsible for the content according to § 18 (2) of the German Media State Treaty (MStV): <span class="mstv"></span></p>
   <p>We are neither willing nor obliged to take part in dispute resolution proceedings before a consumer arbitration board.</p>
 
   <h2 id="agb">Terms of use</h2>
   <h3>1. What this is about</h3>
-  <p>Djuu is a free web app for families in Hamburg. It shows places, classes, groups and events from open sources and from providers, and helps families organise lists and events together. These terms apply to everyone who uses Djuu.</p>
+  <p>Djuu is a free web app for families in Hamburg. It shows places, classes, groups and events from open sources and from providers, and helps families organise lists and events together. These terms apply to everyone who uses Djuu. By creating an account you accept them.</p>
   <h3>2. Information without guarantee</h3>
-  <p>We collect information from many sources and check it as well as we can, but we cannot guarantee that it is correct, complete or up to date. Please always check opening hours, dates, prices and booking with the provider. A contract for a class or event is made only with the provider, not with Djuu.</p>
+  <p>We collect information from many sources and check it as well as we can, but we cannot guarantee that it is correct, complete or up to date. This also applies to the suggestions of “Ask Djuu”. Please always check opening hours, dates, prices and booking with the provider. A contract for a class or event is made only with the provider, not with Djuu.</p>
   <h3>3. Account</h3>
-  <p>An account is optional and only needed to share with your family. You sign in with your email address and don’t pass the codes on to others. Only invite people you know into your family. You can delete your account in the app at any time.</p>
+  <p>An account is optional and only needed to share lists, events and places with your family. You sign in with your email address and a password. Keep your password secret and don’t use it for other services too. Every person gets their own account; only invite people you know into your Us. Whoever creates an Us is its admin and decides who sees and edits what. You can delete your account in the app at any time under Us › Account.</p>
   <h3>4. What you add</h3>
-  <p>You are responsible for your entries, reviews, photos and links. Please don’t add anything unlawful, offensive or promotional, and no photos in which children can be recognised. We may remove content that breaks these rules and block accounts for serious or repeated violations.</p>
+  <p>You are responsible for your entries, reviews, photos and links. Please don’t add anything unlawful, offensive or promotional. For places (reviews, photos, adding a place), please no photos in which people, especially children, can be recognised. Photos in your own Us are seen only by your Us. We may remove content that breaks these rules and block accounts for serious or repeated violations.</p>
   <h3>5. Availability</h3>
   <p>We do our best to keep Djuu running reliably but cannot guarantee it at all times. We may change features where this is reasonable for you, and discontinue the service with reasonable notice.</p>
   <h3>6. Liability</h3>
@@ -117,37 +201,104 @@
   <p>If these terms change, we will let you know in the app. German law applies; mandatory consumer protection rules of your country of residence remain unaffected.</p>
 
   <h2 id="datenschutz">Privacy</h2>
-  <p>Djuu works without an account, without advertising and without usage statistics, and sets no cookies. You only need an account if you want to share lists and events with your family.</p>
+  <p>Djuu works without an account, without advertising, without usage statistics and without cookies. You only need an account if you want to share lists, events and places with your family. This section explains which data goes where and how long it stays.</p>
   <h3>Controller</h3>
   <p class="controller"></p>
-  <h3>Without signing in: everything stays on your device</h3>
-  <p>Family details (names, roles, birth months, state), My places (postcode, optionally an address), language, favourites, reviews, places you added, photos and your map style are kept in your browser’s storage. Without signing in they go to nobody. If you delete the website data, they are gone. Always kept on your device only: your answers under “What fits you?”. These answers (for example single parent, rainbow family, inclusion) can be sensitive; Djuu only stores them with your explicit consent (Art. 9(2)(a) GDPR), uses them only for suggestions, and you can delete them at any time.</p>
-  <p>Your location is only used if you allow it, and only calculated in the browser. It is not sent to Djuu.</p>
-  <h3>With signing in: the shared family</h3>
-  <p>If you sign in, we store on our own server in Germany (Hetzner, data centre in Germany): your email address, the family and its members with the optional details (name, birth month, nursery or school, sizes, working hours), role, group (family, child, helper) and access rights, shopping list, items to buy, saved events and places, “We went” and your places under “My places” (name, postcode, optionally an address). Only you see your places until you share one with the family; helpers see no places and no details about children. What helpers can see otherwise is set by the admin; time-limited access ends automatically. Photos: the photo of the Us and optional photos of people and dogs are cut round in the app, reduced to at most 512 pixels and stored with us. Everyone in the Us sees the photo of the Us and the adults’ photos; photos of children and dogs are seen by the family group only, never by helpers. Everyone changes their own photo; for children and people without their own login, the admin does. No face recognition, nothing is passed on. Photos are deleted with the person or the account. News (who added or saved something) is made from this data and stays on your device. If the admin deletes their account, the whole Us with all entries is deleted. The only purpose is sharing within the family (Art. 6(1)(b) GDPR).</p>
-  <p>We send the sign-in code by email via our mailbox at All-Inkl. “Where are you?”: a location is only sent if the person asked agrees, is only visible to the two of you and is deleted after 24 hours. The family calendar can be fetched via a secret address; anyone who knows it can see the saved events. You can renew it at any time.</p>
-  <p>Under Family → Us you can delete your account yourself at any time. We then remove your email address and your entry in the family; the shared lists stay for the other members.</p>
-  <h3>What goes to other services while you use the app</h3>
+
+  <h3>1. When you open the app (everyone)</h3>
+  <p>The app itself is delivered by GitHub Pages (GitHub Inc., USA). At start it also loads the daily updated events and live values (for example lifts and emergency pharmacies) from our server api.djuu.de. For technical reasons GitHub and our server learn your IP address, browser identifier, the address requested and the time.</p>
+  <p>Our server writes these details to a log so that we can spot errors and abuse, and deletes them after at most 5 days. The legal basis is our legitimate interest in a secure, working service (Art. 6(1)(f) GDPR). We don’t use the log for statistics and don’t combine it with other data.</p>
+
+  <h3>2. Storage on your device</h3>
+  <p>Djuu sets no cookies. To work, the app keeps data in your browser’s storage (local storage and, for photos, IndexedDB) and uses a service worker to store the app files and events so that it also starts without a connection. This is strictly necessary for the service you use (§ 25(2) no. 2 TDDDG); no consent is required for it.</p>
+  <p>Kept on your device only: language, map style, area and filters, your reviews and the places you added with their photos (until you send them to us by email yourself), and your answers under “What fits you?”. These answers (for example single parent, rainbow family, inclusion) can be sensitive; Djuu only stores them with your explicit consent (Art. 9(2)(a) GDPR), uses them only for suggestions, and you can delete them at any time, which also withdraws your consent.</p>
+  <p>Your location is only used if you allow it in the browser, and only calculated in the browser. It only goes to our server if you send it once yourself with “Where are you?” (see below).</p>
+  <p>If you delete the website data in your browser, the data on the device is gone. What is stored in your account stays there.</p>
+
+  <h3>3. With an account: your account and your Us</h3>
+  <p>If you sign in, we store on our server at Hetzner in Germany:</p>
+  <ul>
+    <li><b>Your account:</b> email address, password (only as a secure hash, never in plain text), whether the email is confirmed, and your personal settings: which news you switched off and your settings for events. For security the server also remembers on which devices you signed in (an identifier made from IP address and browser) and sends you an email when you sign in on a new device.</li>
+    <li><b>Your Us:</b> the name and photo of the Us.</li>
+    <li><b>People in the Us</b> (everything except the name is optional): adults with name, role, group (family or helper), access rights, an end date for time-limited access, colour, photo, working hours and, for people with their own login, the email address; children with name, birth year, birth month or full date of birth (as exact as you enter it), nursery or school, clothes and shoe size, colour and photo; dogs with name and photo.</li>
+    <li><b>Shared lists:</b> shopping list with what you often buy, items to get, saved places and events, “We went”, each with the person who added it.</li>
+    <li><b>My places:</b> name, postcode, optionally an address, and the coordinates of the postcode.</li>
+  </ul>
+  <p><b>Who sees what:</b> the “family” group sees everything in the Us. Helpers see only the adults and the areas the admin opens for them; they never see children, dogs, their photos or your places. Time-limited access ends automatically. The adults’ email addresses are seen by admins only. Your places under “My places” are seen only by you until you share one with the Us.</p>
+  <p><b>Photos</b> are cut round in the app, reduced to at most 512 pixels and stored with us. Everyone in the Us sees the photo of the Us and the adults’ photos; photos of children and dogs are seen by the “family” group only. Everyone changes their own photo; for children, dogs and people without their own login, the admin does. No face recognition, nothing is passed on.</p>
+  <p><b>News</b> (who added or saved something) is made in the app from this data and stays on your device.</p>
+  <p><b>Emails:</b> we only send emails that belong to the account: the link to confirm your email address, the link for a new password, the link to confirm a new email address, and the notice when you sign in on a new device. They are sent via <span class="missing">[mail service to be added]</span>.</p>
+  <p><b>“Where are you?”:</b> a location is only sent if the person asked agrees. Only the two of you see it, and it is deleted automatically after 24 hours (at the latest one hour later).</p>
+  <p><b>Family calendar:</b> your saved events can be fetched via a secret address; anyone who knows it sees these events and the name of your Us. If you subscribe to the calendar, your calendar app (for example Google Calendar) regularly fetches the events from our server. You can renew the address at any time; the old one then stops working.</p>
+  <p><b>Invitations:</b> an invitation link is valid for 7 days and only once. Whoever opens it sees, before joining, the name of the person inviting and the initials of the people in the Us. We don’t store the link itself, only a checksum (hash) of it.</p>
+  <p>The only purpose is that you can organise yourselves as a family (Art. 6(1)(b) GDPR). Details about children are entered by a parent or another authorised person in the Us.</p>
+
+  <h3>4. Deleting your account</h3>
+  <p>Under Us › Account › Delete account you can delete your account yourself at any time; for safety the app asks for your password.</p>
+  <ul>
+    <li>We delete your account, your person in the Us, your places under “My places” and your photo. What you added to the shared lists or saved stays for the others in the Us, but without your name.</li>
+    <li>If you are the last admin of the Us, the whole Us with all people, lists, saved items, photos and shared places is deleted, for everyone. The app shows beforehand who is affected. The other people’s accounts remain, without an Us. If there is another admin, the Us stays.</li>
+    <li>An admin can remove a person from the Us; that person’s account then remains, without an Us.</li>
+  </ul>
+  <p>Deleted data may remain in our backups for up to 7 days (see storage periods).</p>
+
+  <h3>5. “Ask Djuu” and translation</h3>
+  <p>With “Ask Djuu” you can type or speak a question, for example “indoor playground for a two-year-old”. Once the AI search is switched on, only the typed text of your question goes to our server and from there to Claude by Anthropic PBC (USA), which turns it into the app’s filters. Your account, names, children and location are not sent. Please don’t put personal details into the question. To prevent overload, our server counts questions per IP address and day (in memory only, gone at the end of the day). If the AI search is not switched on, the app understands your question itself on your device and nothing goes to Anthropic.</p>
+  <p>The legal basis is our legitimate interest in offering a search in your own words (Art. 6(1)(f) GDPR). The transfer to the USA is based on an adequacy decision of the European Commission (EU-US Data Privacy Framework) or on standard contractual clauses of the European Commission.</p>
+  <p>For other languages we translate event titles automatically with Claude by Anthropic. Only the providers’ public information goes to Anthropic, no data about users.</p>
+  <p>Voice input: only when you tap the microphone does your browser become active. Depending on the browser, the audio goes to its provider, for example Google or Apple; Djuu only receives the recognised text.</p>
+
+  <h3>6. Other services while you use the app</h3>
   <p>When loading, each of these services technically learns your IP address and browser identifier, but not your family details.</p>
   <ul>
-    <li><b>Hosting:</b> GitHub Pages (GitHub Inc., USA) delivers the app.</li>
-    <li><b>Map:</b> With the default style, map tiles come from OpenFreeMap; the approximate map area is visible to them. Other map styles use the provider you choose (VersaTiles, Federal Agency for Cartography and Geodesy, OpenStreetMap services, OpenTopoMap).</li>
-    <li><b>Weather:</b> At start, the Hamburg weather is fetched from Bright Sky (data of the German Weather Service).</li>
-    <li><b>School holidays:</b> Only if you choose a state other than Hamburg does the app ask OpenHolidays.</li>
-    <li><b>Photos:</b> Photos of individual places are loaded from Wikimedia Commons when you open the place.</li>
-    <li><b>Voice input:</b> Only when you tap the microphone does your browser become active. Depending on the browser, the audio goes to its provider, for example Google or Apple.</li>
-    <li><b>Links:</b> Directions, websites and provider links only open the external site when you tap them, for example Google Maps.</li>
+    <li><b>Map:</b> with the default style, map tiles come from OpenFreeMap; the approximate map area is visible to them. Other map styles use the provider you choose (VersaTiles, Federal Agency for Cartography and Geodesy, OpenStreetMap services, OpenTopoMap).</li>
+    <li><b>Weather:</b> at start, the Hamburg weather is fetched from Bright Sky (data of the German Weather Service), without your location.</li>
+    <li><b>School holidays:</b> only if you choose a state other than Hamburg does the app ask OpenHolidays.</li>
+    <li><b>Photos:</b> photos of individual places are loaded from Wikimedia Commons when you open the place.</li>
+    <li><b>Links:</b> directions, websites, provider links and “Google Calendar: subscribe” only open the external site when you tap them, for example Google Maps.</li>
   </ul>
-  <h3>Reports and feedback</h3>
-  <p>If you report a place or write to us, your email app opens. You see the message before you send it. We use it only to reply and to correct data.</p>
-  <h3>Your rights</h3>
-  <p>You have the right of access, rectification, erasure, restriction of processing, data portability and objection, and the right to lodge a complaint with a data protection authority, in Hamburg the Hamburg Commissioner for Data Protection and Freedom of Information. If a place with your personal data is listed in Djuu, we remove it on request.</p>
+
+  <h3>7. Service providers</h3>
+  <p>These providers process data on our behalf and only for the purposes named:</p>
+  <ul>
+    <li><b>Hetzner Online GmbH</b> (Germany): server for accounts, Us and logs (api.djuu.de).</li>
+    <li><b>GitHub Inc.</b> (USA): delivery of the app via GitHub Pages.</li>
+    <li><b><span class="missing">[mail service to be added]</span></b>: sending the account emails.</li>
+    <li><b>Anthropic PBC</b> (USA): only “Ask Djuu”, when switched on, and translating event titles.</li>
+  </ul>
+
+  <h3>8. How long we keep data</h3>
+  <table>
+    <tr><th>What</th><th>How long</th></tr>
+    <tr><td>Account, Us and everything in it</td><td>until you delete your account or it is removed from the Us (see 4.)</td></tr>
+    <tr><td>Accounts whose email was never confirmed</td><td>7 days, then deleted automatically</td></tr>
+    <tr><td>Links to confirm, for a new password or a new email</td><td>valid only briefly (hours to a few days, stated in the email)</td></tr>
+    <tr><td>Invitation links</td><td>valid 7 days or until used</td></tr>
+    <tr><td>“Where are you?” with location</td><td>24 hours</td></tr>
+    <tr><td>Server log (IP address, browser, address, time)</td><td>at most 5 days</td></tr>
+    <tr><td>Counter for “Ask Djuu”</td><td>until the end of the day</td></tr>
+    <tr><td>Daily server backups</td><td>7 days</td></tr>
+    <tr><td>Data on your device</td><td>until you delete it in the app or in your browser’s website data</td></tr>
+  </table>
+
+  <h3>9. Reports and feedback</h3>
+  <p>If you report a place or write to us, your email app opens. You see the message before you send it. We use it only to reply and to correct data, and delete it once that is done.</p>
+
+  <h3>10. Your rights</h3>
+  <p>You have the right of access, rectification, erasure, restriction of processing and data portability. You can withdraw any consent at any time. Where we process data based on our legitimate interest, you can object on grounds relating to your particular situation (Art. 21 GDPR). Just write to the address above. You can also lodge a complaint with a data protection authority, in Hamburg the <a href="https://datenschutz-hamburg.de" rel="noopener">Hamburg Commissioner for Data Protection and Freedom of Information</a>. If a place with your personal data is listed in Djuu, we remove it on request.</p>
+  <p>If what Djuu stores or sends changes, we update this page and the date at the top.</p>
 
   <h2 id="daten">Data and licences</h2>
-  <p>Djuu brings open data together and shows for every place where a detail comes from. Information may be out of date. Please check anything important with the provider. Events always link to the provider’s page.</p>
-  <p>For other languages we translate event titles automatically with Claude by Anthropic (USA). Only the providers’ public information goes to Anthropic, no data about users.</p>
-  <p>Map data © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, <a href="https://opendatacommons.org/licenses/odbl/">ODbL</a>. Place data from <a href="https://overturemaps.org">Overture Maps</a> under <a href="https://cdla.dev/permissive-2-0/">CDLA Permissive 2.0</a>. Photos come from <a href="https://commons.wikimedia.org">Wikimedia Commons</a>; author and licence are on each photo’s linked page.</p>
-  <p>Software and fonts: <a href="https://leafletjs.com">Leaflet</a> (BSD), <a href="https://github.com/Leaflet/Leaflet.markercluster">Leaflet.markercluster</a> (MIT), <a href="https://maplibre.org">MapLibre GL JS</a> (BSD), Fredoka and Nunito (<a href="vendor/fonts/OFL-Nunito.txt">SIL Open Font License</a>).</p>
+  <p>Djuu brings open data together and shows for every place where a detail comes from. Information may be out of date. Please check anything important with the provider. Events always link to the provider’s page. Djuu has filtered and merged the data and mapped it to its own categories.</p>
+  <ul>
+    <li>Map data and many place details © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>, <a href="https://opendatacommons.org/licenses/odbl/1-0/">Open Database License (ODbL) 1.0</a>.</li>
+    <li>Data of the Free and Hanseatic City of Hamburg (Transparency Portal and geo services) under <a href="https://www.govdata.de/dl-de/by-2-0">Data licence Germany – attribution – version 2.0 (dl-de/by-2.0)</a> or <a href="https://www.govdata.de/dl-de/zero-2-0">Data licence Germany – Zero – version 2.0 (dl-zero-de/2.0)</a>; the authority is named in the list below.</li>
+    <li>Place data from the <a href="https://overturemaps.org">Overture Maps Foundation</a> (<a href="https://docs.overturemaps.org/attribution/">attribution</a>) under <a href="https://cdla.dev/permissive-2-0/">CDLA Permissive 2.0</a>, parts from AllThePlaces under <a href="https://creativecommons.org/publicdomain/zero/1.0/">CC0 1.0</a> and from Foursquare OS Places under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a> (licence texts and NOTICE: <a href="data/licenses/overture/README.txt">data/licenses/overture</a>).</li>
+    <li>Details from <a href="https://www.wikidata.org">Wikidata</a> under <a href="https://creativecommons.org/publicdomain/zero/1.0/">CC0 1.0</a>.</li>
+    <li>Reviews from <a href="https://mangrove.reviews">Mangrove Reviews</a> under <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>.</li>
+    <li>Photos come from <a href="https://commons.wikimedia.org">Wikimedia Commons</a>. They are under various free licences; author and licence are on each photo’s linked page.</li>
+  </ul>
+  <p>Software and fonts: <a href="https://leafletjs.com">Leaflet</a> (BSD), <a href="https://github.com/Leaflet/Leaflet.markercluster">Leaflet.markercluster</a> (MIT), <a href="https://maplibre.org">MapLibre GL JS</a> (BSD), Fredoka (<a href="vendor/fonts/OFL-Fredoka.txt">SIL Open Font License</a>) and Nunito (<a href="vendor/fonts/OFL-Nunito.txt">SIL Open Font License</a>).</p>
   <h3>All sources</h3>
   <div class="sources"><p>Loading …</p></div>
 </main>
@@ -172,8 +323,12 @@
   document.querySelector('.mstv').innerHTML = c.name ? `${esc(c.name)}, ${T.above}` : `<span class="missing">${T.later}</span>`;
   // Only http(s) links from our own data file become links.
   const link = (name, url) => /^https?:\/\//.test(url || '') ? `<a href="${esc(url)}" rel="noopener">${esc(name)}</a>` : esc(name);
+  // sources.json rows: [name, licence id, attribution, url]
+  const LIC = { 'odbl 1.0': 'https://opendatacommons.org/licenses/odbl/1-0/', 'dl-de/by-2-0': 'https://www.govdata.de/dl-de/by-2-0', 'dl-de/by-2.0': 'https://www.govdata.de/dl-de/by-2-0',
+    'dl-zero-de/2.0': 'https://www.govdata.de/dl-de/zero-2-0', 'cc by 4.0': 'https://creativecommons.org/licenses/by/4.0/', 'cc0 1.0': 'https://creativecommons.org/publicdomain/zero/1.0/',
+    'cdla permissive 2.0': 'https://cdla.dev/permissive-2-0/', 'apache-2.0': 'https://www.apache.org/licenses/LICENSE-2.0' };
   fetch('data/sources.json').then(r => r.json()).then(d => {
-    const rows = d.sources.map(s => `<tr><td>${link(s[0], s[1])}</td><td>${esc(s[2])}</td></tr>`).join('');
+    const rows = d.sources.map(s => `<tr><td>${link(s[0], s[3])}</td><td>${link(s[1], LIC[String(s[1] || '').toLowerCase()])}${s[2] && s[2] !== s[1] ? `<br><small>${esc(s[2])}</small>` : ''}</td></tr>`).join('');
     document.querySelector('.sources').innerHTML = `<table><tr><th>${T.source}</th><th>${T.licence}</th></tr>${rows}</table>`;
   }).catch(() => { document.querySelector('.sources').textContent = T.failed; });
   if (location.hash) document.querySelector(location.hash)?.scrollIntoView();

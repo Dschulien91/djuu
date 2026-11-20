@@ -26,7 +26,7 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # nightly event refresh, started by /etc/cron.d/djuu-refresh through refresh.sh (not a running service)
+  # nightly event refresh and live values, started by the systemd timers through refresh.sh / live.sh (not a running service)
   refresh:
     build: ./refresh
     profiles: ["jobs"]

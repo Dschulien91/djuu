@@ -7,6 +7,16 @@ Format (compact arrays to keep the file small):
   "places": [[id, name, category, lat, lon, district, {key: [value, sourceIndex, method, confidence, evidence?]}, [sourceIndex], [tag]], ...]
 }
 Tags (db/tags.py) drive the sub-category chips and the indoor/outdoor switch of the app (v0.7).
+
+Computed facts (method 'computed', source index -1, rules in infer_facts()):
+  fee = 'no'            playgrounds, parks, Bolzplätze, Spielstraßen, Bücherschränke, dog runs, public water ... are free by nature
+  open_always = 'yes'   the same outdoor places have no opening hours: freely accessible (the app treats them as open now / on Sundays)
+  krippe / elementar / integration / hort = 'yes'   from the Kita register's care types (K, E, Eing, H)
+  age_groups            '0-3,3-6,...' for Kitas from the same care types, when no age is known (feeds the app's age filters)
+  baby_swimming = 'yes' (the course names move to baby_swimming_courses)
+  dog_offleash          'alle' (§8 zone: every dog) / 'gepruefte' (§9 zone: only dogs with a test) / 'leine', from dog_rule
+  drinking_water = 'refill' on a business whose own Refill station pin was folded into it (fold_refill())
+Lift places carry the hvv station in their name ('Aufzug Hauptbahnhof (Gleis 13/14)'), see lift_names().
 """
 import json
 import math
@@ -75,6 +85,111 @@ def refine(cat, name, srcs):
     return cat
 
 
+# Outdoor places that cost nothing and have no gate or opening hours (a playground in a park, a Bücherschrank ...)
+FREE_CATS = {'spielplatz', 'park', 'bolzplatz', 'spielstrasse', 'buecherschrank', 'picknick', 'grillplatz', 'hundeauslauf',
+             'trinkwasser', 'tischtennis', 'rodeln', 'brunnen', 'naturschutz'}
+OPEN_CATS = FREE_CATS - {'trinkwasser'}  # Refill stations are shops with opening hours; public fountains are added below
+
+
+def infer_facts(cat, f):
+    """Facts that follow from the category or from another fact (see the module doc). Never overwrites a known fact."""
+    computed = lambda v: [v, -1, 'computed']
+    if 'fee' not in f:
+        if (f.get('fee_text') or [''])[0].strip().lower() in ('kostenfrei', 'kostenlos', 'frei', 'eintritt frei'):
+            f['fee'] = ['no'] + f['fee_text'][1:3]
+        elif cat in FREE_CATS and (f.get('indoor') or [''])[0] != 'yes':
+            f['fee'] = computed('no')
+    public_water = cat == 'trinkwasser' and (f.get('drinking_water') or [''])[0] != 'refill'
+    if 'opening_hours' not in f and (cat in OPEN_CATS or public_water) and (f.get('fee') or [''])[0] != 'yes':
+        f['open_always'] = computed('yes')
+    if cat == 'kita' and f.get('care_types'):
+        ct = f['care_types'][0] or ''
+        rest = ct.replace('Eing', '')
+        kinds = {'krippe': 'K' in rest, 'elementar': 'E' in rest, 'hort': 'H' in rest, 'integration': 'Eing' in ct}
+        for k, on in kinds.items():
+            if on: f[k] = computed('yes')
+        if 'age_groups' not in f and 'min_age' not in f:
+            spans = [s for k, s in (('krippe', '0-3'), ('elementar', '3-6'), ('hort', '6-14')) if kinds[k]]
+            if spans: f['age_groups'] = computed(','.join(spans))
+    if f.get('baby_swimming') and f['baby_swimming'][0] not in ('yes', 'no'):
+        f['baby_swimming_courses'] = list(f['baby_swimming'])
+        f['baby_swimming'] = ['yes'] + f['baby_swimming'][1:3]
+    if f.get('dog_rule') and 'dog_offleash' not in f:
+        r = (f['dog_rule'][0] or '').lower()
+        v = 'gepruefte' if re.search(r'§\s*9|geprüft|gepruef', r) else 'alle' if re.search(r'§\s*8|alle hunde', r) else 'leine' if 'leine' in r else None
+        if v: f['dog_offleash'] = [v] + f['dog_rule'][1:3]
+    return f
+
+
+STATION_ALIAS = {'Hamburg Hbf': 'Hauptbahnhof', 'Hamburg Dammtor': 'Dammtor', 'Hamburg-Altona': 'Altona', 'Hamburg-Harburg': 'Harburg'}
+
+
+def lift_detail(raw):
+    """Short part of an hvv elevator description that tells the lifts of one station apart: track, platform line or entrance."""
+    desc = raw.get('description') or ''
+    m = re.search(r'Gleise?\s*(\d+(?:\s*(?:/|und|,)\s*\d+)*)', desc)
+    if m: return 'Gleis ' + re.sub(r'\s*(?:und|,)\s*', '/', m.group(1)).replace(' ', '')
+    m = re.search(r'Bahnsteig\s+([USA]\d+(?:/[USA]\d+)*)', desc)
+    if m: return 'Bahnsteig ' + m.group(1)
+    m = re.match(r'\s*(Zugang [^<|(]+?)\s*(<->|\(|$)', desc)
+    if m and len(m.group(1)) <= 40: return m.group(1)
+    return None
+
+
+def lift_names(con, dup_of):
+    """place id -> 'Aufzug <station> (<detail>)' for the elevators in hvv's status feed (db/import_aufzug_status.py).
+    One lift at a station: 'Aufzug Rothenburgsort'. Several: track, platform or entrance, else hvv's letter ('Aufzug Wartenau B')."""
+    out = {}
+    for pid, raw in con.execute("SELECT place_id, raw FROM source_records WHERE source_id = 'hvv_aufzug' AND place_id IS NOT NULL AND raw IS NOT NULL"):
+        r = json.loads(raw)
+        st = re.sub(r'\s+', ' ', r.get('station') or '').strip()
+        if not st: continue
+        st = STATION_ALIAS.get(st, st)
+        st = re.sub(r'\s*\(.*?\)', '', st).strip()  # 'Dammtor (Messe/CCH)' -> 'Dammtor'
+        out[dup_of.get(pid, pid)] = (f'Aufzug {st}', lift_detail(r), r.get('label'))
+    per_station, per_detail = defaultdict(int), defaultdict(int)
+    for base, d, _ in out.values():
+        per_station[base] += 1; per_detail[(base, d)] += 1
+    names = {}
+    for pid, (base, d, lab) in out.items():
+        if per_station[base] == 1: names[pid] = base
+        elif d and per_detail[(base, d)] == 1: names[pid] = f'{base} ({d})'
+        elif d and lab: names[pid] = f'{base} {lab} ({d})'
+        else: names[pid] = f'{base} {lab}' if lab else base
+    return names
+
+
+def fold_refill(places):
+    """A Refill station (sticker on a shop, café, pharmacy) within 150 m of a place with the same name becomes a fact of
+    that place instead of a pin of its own. Returns the places that stay and {folded id: id of the business}."""
+    from merge import norm
+    grid = defaultdict(list)
+    for p in places:
+        if p[1] and p[2] != 'trinkwasser': grid[(int(p[3] / 0.002), int(p[4] / 0.0034))].append(p)
+    drop, n = {}, 0
+    for p in places:
+        f = p[6]
+        if p[2] != 'trinkwasser' or not p[1] or (f.get('drinking_water') or [''])[0] != 'refill': continue
+        a = norm(p[1])
+        if len(a) < 4: continue
+        gi, gj = int(p[3] / 0.002), int(p[4] / 0.0034)
+        best = None
+        for i in (-1, 0, 1):
+            for j in (-1, 0, 1):
+                for q in grid.get((gi + i, gj + j), ()):
+                    b = norm(q[1])
+                    d = dist(p[3], p[4], q[3], q[4])
+                    if d <= 150 and len(b) >= 4 and (a == b or a in b or b in a) and (not best or d < best[0]): best = (d, q)
+        if best:
+            q = best[1]
+            q[6].setdefault('drinking_water', f['drinking_water'])
+            if 'trinkwasser' not in q[8]: q[8] = sorted(set(q[8]) | {'trinkwasser'})
+            q[7] = sorted(set(q[7]) | set(p[7]))
+            drop[p[0]] = q[0]; n += 1
+    print(f'{n} Refill stations folded into the business of the same name (within 150 m)')
+    return [p for p in places if p[0] not in drop], drop
+
+
 def run():
     con = connect()
     sources = [list(r) for r in con.execute('SELECT id, name, license, attribution, url FROM sources ORDER BY priority DESC, id')]
@@ -141,20 +256,32 @@ def run():
     stops = defaultdict(list)
     for r in rows:
         if r[2] == 'haltestelle' and r[1]: stops[(int(r[3] / 0.004), int(r[4] / 0.007))].append((r[3], r[4], r[1]))
-    # the hvv feed has one record per station; OSM railway stations next to one are duplicates (often per platform)
-    def near_stop(la, lo, m):
+    # the hvv feed has one record per station; OSM railway stations next to one of the same name are duplicates (often per
+    # platform). Only the same name counts: a bus stop 'Rathausmarkt' next to the U-Bahn station Jungfernstieg is no duplicate
+    # (before 21 Nov 2026 any stop within 350 m removed the station, so Jungfernstieg, Schlump, Barmbek ... were missing).
+    def skey(n):
+        n = re.sub(r'\(.*?\)|^(s|u|a|bf\.?)\s+|\b(hamburg|bahnhof|bf\.?)\b', ' ', (n or '').lower()).replace('hbf', 'hauptbahnhof')
+        return re.sub(r'[^a-z0-9äöüß]+', ' ', n).strip()
+    def near_stop(la, lo, m, name):
         gi, gj = int(la / 0.004), int(lo / 0.007)
-        return any(dist(la, lo, a, b) <= m for i in (-1, 0, 1) for j in (-1, 0, 1) for a, b, _ in stops.get((gi + i, gj + j), ()))
-    rows = [r for r in rows if not (r[2] == 'bahnhof' and near_stop(r[3], r[4], 350))]
+        k = skey(name)
+        # same station name only ('Bergedorf' vs. the bus stop 'Rathaus Bergedorf' is no duplicate)
+        return any(dist(la, lo, a, b) <= m and (not k or k == skey(n))
+                   for i in (-1, 0, 1) for j in (-1, 0, 1) for a, b, n in stops.get((gi + i, gj + j), ()))
+    n_bf = sum(1 for r in rows if r[2] == 'bahnhof')
+    rows = [r for r in rows if not (r[2] == 'bahnhof' and near_stop(r[3], r[4], 350, r[1]))]
+    print(f"railway stations: {sum(1 for r in rows if r[2] == 'bahnhof')} of {n_bf} kept (others are the hvv stop of the same name)")
     for r in rows:
         if r[2] in ('bahnhof', 'faehre') and r[1]: stops[(int(r[3] / 0.004), int(r[4] / 0.007))].append((r[3], r[4], r[1]))
     wcs = [(r[3], r[4]) for r in rows if r[2] == 'wc' or facts[r[0]].get('toilets', [None])[0] == 'yes']
 
     derived = {r[0]: r[1:] for r in con.execute('SELECT place_id, near, basis FROM derived_names')} if con.execute("SELECT 1 FROM sqlite_master WHERE name='derived_names'").fetchone() else {}
+    lifts = lift_names(con, dup_of)
     places = []
     for pid, name, cat, lat, lon, district in rows:
         f = facts.get(pid, {})
         if is_bad_name(name): name = None  # stop ids and building numbers are not names
+        if pid in lifts: name = lifts[pid]  # 'Aufzug Hauptbahnhof (Gleis 13/14)': the hvv station says more than an OSM label
         if not name and pid in derived: f['near_name'] = [derived[pid][0], sidx['osm'], 'computed', derived[pid][1]]
         if gear.get(pid): f['gear'] = [','.join(sorted(gear[pid])), sidx['osm_geraete'], 'source']
         if cat == 'spielplatz' and wcs:
@@ -164,14 +291,17 @@ def run():
             gi, gj = int(lat / 0.004), int(lon / 0.007)
             near = min(((dist(lat, lon, a, b), n) for i in (-1, 0, 1) for j in (-1, 0, 1) for a, b, n in stops.get((gi + i, gj + j), ())), default=None)
             if near and near[0] <= STOP_NEAR_M: f['stop_near'] = [f'{round(near[0])}|{near[1]}', sidx['hvv_gtfs'], 'computed']
-        tip = editorial_match(name, district)
+        tip = editorial_match(name, district, cat)
         if tip: f['tipp'] = [tip, -1, 'redaktion']
-        elif (r := auto_reason(cat, f)): f['tipp'] = [r, -1, 'auto']
+        elif (r := auto_reason(cat, f, name)): f['tipp'] = [r, -1, 'auto']
         # after the tip rules: register counts cover a whole green area, not one playground
         if devices.get(pid) and devices[pid] > int(f.get('device_count', [0])[0] or 0) and 'hh_spielgeraete' in sidx:
             f['device_count'] = [str(devices[pid]), sidx['hh_spielgeraete'], 'computed']
+        infer_facts(cat, f)
         tg = place_tags(cat, name, osm_raw[pid], {k: v[0] for k, v in f.items()}, gear.get(pid))
         places.append([pid, name or '', cat, round(lat, 6), round(lon, 6), district, f, sorted(srcs[pid]), tg])
+    places, folded = fold_refill(places)
+    for k, v in folded.items(): dup_of[k] = v  # offers linked to a folded Refill pin follow it to the business
     out = {'version': 2, 'generated': now(), 'sources': sources, 'places': places}
     path = ROOT / 'data' / 'places.json'
     path.write_text(json.dumps(out, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
@@ -181,13 +311,127 @@ def run():
     print(f'{len(places)} places, {path.stat().st_size / 1e6:.1f} MB -> {path}')
     print('categories:', dict(Counter(p[2] for p in places).most_common()))
     print('tipps:', Counter(p[6]['tipp'][2] for p in places if 'tipp' in p[6]))
+    print('computed facts:', dict(Counter(k for p in places for k, v in p[6].items() if v[2] == 'computed' and k in
+                                          ('fee', 'open_always', 'krippe', 'elementar', 'integration', 'hort', 'age_groups'))),
+          'baby_swimming:', sum(1 for p in places if p[6].get('baby_swimming', [''])[0] == 'yes'),
+          'dog_offleash:', dict(Counter(p[6]['dog_offleash'][0] for p in places if 'dog_offleash' in p[6])),
+          'lift names:', sum(1 for p in places if p[0] in lifts))
     print('tags:', dict(Counter(t for p in places for t in p[8]).most_common()))
     export_offers(con, places, sidx, dup_of)
 
 
-OFFER_COLS = ['id', 'title', 'kind', 'topic', 'age_min_m', 'age_max_m', 'for_parents', 'weekday', 'time_from', 'time_to',
-              'start_date', 'end_date', 'sessions', 'schedule', 'price', 'free', 'registration', 'venue', 'address',
-              'lat', 'lon', 'place_id', 'url', 'provider', 'source_id', 'audience', 'district', 'dogs']
+# Columns of data/offers.json. The app reads them by name (loadOffers maps data.cols), new columns are appended at the end.
+#   id, title ... provider   as in the offers table (db/offers.py); title without status words such as 'AUSGEBUCHT'
+#   registration      normalised: 'nötig' | 'offen' | 'Warteliste' | 'Tickets' | None (unknown). Spelling kept as the app knows it.
+#                     Offers marked 'geschlossen' (group closed, no new members) are not exported.
+#   free              1 / 0 / None; filled from the price text where the importer left it open
+#   age_min_m/max_m   from the title where the importer had none; Krabbel- and baby groups get a conservative default
+#   source_id         index into places.json 'sources'
+#   audience          'kinder' | 'erwachsene';  district: official Stadtteil (coordinates, else postcode), 'Umland' or None
+#   dogs              set by hand (offer_dogs table), else None
+#   registration_text the provider's own wording when it says more than the normalised value ('nötig (über den Stadtbereich)')
+#   status            None | 'ausgebucht' (booked out, still shown so people can join the waiting list)
+#   online            1 for online courses / streams (venue or title says online), else None
+#   series            stable key for the same offer across dates and nights: 'se_' + hash(provider, normalised title, venue)
+#   tip               1 for Djuu-Redaktion highlights (source 'redaktion'), else None
+#   first_seen        'YYYY-MM-DD' the offer id was first exported (state: data/raw/offer_first_seen.json); None = known before
+#                     tracking started (21 Nov 2026)
+DB_OFFER_COLS = ['id', 'title', 'kind', 'topic', 'age_min_m', 'age_max_m', 'for_parents', 'weekday', 'time_from', 'time_to',
+                 'start_date', 'end_date', 'sessions', 'schedule', 'price', 'free', 'registration', 'venue', 'address',
+                 'lat', 'lon', 'place_id', 'url', 'provider', 'source_id']
+OFFER_COLS = DB_OFFER_COLS + ['audience', 'district', 'dogs', 'registration_text', 'status', 'online', 'series', 'tip', 'first_seen']
+FIRST_SEEN = ROOT / 'data' / 'raw' / 'offer_first_seen.json'
+
+# Registration as published -> normalised value; None = drop the offer (group closed)
+REG_RULES = [
+    (r'geschlossen|keine weiteren (anfragen|anmeldungen)|ausgebucht.*keine warteliste', None),
+    (r'warteliste|zurzeit voll|ausgebucht', 'Warteliste'),
+    (r'ticket|eintrittskarte|karten', 'Tickets'),
+    (r'nicht nötig|ohne anmeldung|offen|einfach vorbeikommen|empfohlen', 'offen'),
+    (r'nötig|anmeld|reservierung|probetraining|probestunde|schnupper|mitglied|absprache', 'nötig'),
+]
+TITLE_CANCELLED = re.compile(r'f[äa]llt\s+aus|entf[äa]llt|abgesagt|storniert|findet nicht statt', re.I)
+TITLE_BOOKED = re.compile(r'\s*[-–|:!]*\s*\bausgebucht\b\s*[-–|:!]*\s*', re.I)
+# '(geschlossene Gruppe / Warteliste - hat freie Plätze)' and the like: registration info inside the title
+TITLE_REG = re.compile(r'\s*\((?=[^)]*(geschlossen|warteliste|freie plätze|anfrage))[^)]*\)?\s*$', re.I)
+ONLINE = re.compile(r'(?<![-\w])online(?![-\w]*(anmeld|ticket|buch|reserv))|\bzoom\b|livestream|webinar', re.I)
+MONTH_WORDS = r'januar|februar|märz|april|mai|juni|juli|august|september|oktober|november|dezember|jan|feb|mär|apr|jun|jul|aug|sep|sept|okt|nov|dez'
+
+
+def norm_registration(reg, title):
+    """(normalised registration, provider text or None, drop?) from the registration field and registration words in the title."""
+    raw = (reg or '').strip()
+    m = TITLE_REG.search(title or '')
+    probe = (raw + ' ' + (m.group(0) if m else '')).lower().strip()
+    if not probe: return None, None, False
+    if re.search(r'hat freie plätze|freie plätze', probe) and not re.search(r'keine (weiteren|freien)', probe):
+        val = 'Warteliste' if 'warteliste' in probe and not raw else None
+        val = val or next((v for rx, v in REG_RULES[1:] if re.search(rx, raw.lower())), None) or 'nötig'
+        return val, (raw if raw and raw != val else None), False
+    for rx, v in REG_RULES:
+        if re.search(rx, probe):
+            if v is None: return None, raw or None, True
+            return v, (raw if raw and raw != v else None), False
+    return None, raw or None, False
+
+
+def clean_title(title):
+    """Title without status words and trailing registration notes; returns (title, status, cancelled?)."""
+    t = title or ''
+    if TITLE_CANCELLED.search(t): return t, None, True
+    status = None
+    if TITLE_BOOKED.search(t):
+        status = 'ausgebucht'
+        t = TITLE_BOOKED.sub(' ', t)
+    t = TITLE_REG.sub('', t)
+    t = re.sub(r'\s{2,}', ' ', t).strip(' -–|:!')
+    return t or title, status, False
+
+
+def free_from_price(price):
+    """1 / 0 / None from a price text the importer left open ('auf Spendenbasis', '18 € / 12 € ermäßigt', 'Museumseintritt' ...)."""
+    t = (price or '').lower()
+    if not t or re.search(r'\d{1,2}[:.]\d{2}\s*(–|-|uhr)', t): return None  # a time slipped into the price field
+    if re.search(r'\d+(,\d+)?\s*€|€\s*\d|eur\b|\beintritt\b(?! frei)|museumseintritt|fahrkarte|mitglied|beitrag', t): return 0
+    if re.search(r'kostenlos|kostenfrei|eintritt frei|\bfrei\b|spende|keine\.?$|gratis|umsonst', t): return 1
+    return None
+
+
+DEFAULT_AGE = [  # conservative: only titles that clearly name the age group, never a guess from the provider alone
+    (re.compile(r'krabbel', re.I), (0, 36)),
+    (re.compile(r'babymassage|pekip|säugling|neugeboren|\bbabys?\b|baby-?(treff|gruppe|café|cafe|kurs|zeit)', re.I), (0, 12)),
+]
+
+
+def default_age(title):
+    t = title or ''
+    if re.search(r'babysitter|schwanger|werdende|geburtsvorbereit', t, re.I): return None, None
+    for rx, span in DEFAULT_AGE:
+        if rx.search(t): return span
+    return None, None
+
+
+def series_key(provider, title, venue):
+    """Same offer across nights and dates: provider + title without dates, times, semester and group letters + venue."""
+    import hashlib
+    t = (title or '').lower()
+    t = re.sub(r'\d{1,2}\.\d{1,2}\.(\d{2,4})?|\d{4}-\d{2}-\d{2}|\d{1,2}[:.]\d{2}(\s*uhr)?|\bstart:?.*$', ' ', t)
+    t = re.sub(rf'\((?=[^)]*({MONTH_WORDS}|\bws\b|\bss\b|semester|termin))[^)]*\)', ' ', t)
+    t = re.sub(r'\b(ws|ss|gr\.?\s*[a-z0-9]|gruppe\s*[a-z0-9])\b', ' ', t)
+    t = re.sub(r'[^a-z0-9äöüß]+', ' ', t).strip()
+    v = re.sub(r'[^a-z0-9äöüß]+', ' ', (venue or '').lower()).strip()
+    return 'se_' + hashlib.sha1(f'{(provider or "").lower().strip()}|{t}|{v}'.encode()).hexdigest()[:10]
+
+
+def postcode_district(address, stadtteil):
+    """Stadtteil from a Hamburg postcode in the address (centre of the postcode area, data/geo.json)."""
+    m = re.search(r'\b(2[0-2]\d{3})\b', address or '')
+    if not m: return None
+    if not hasattr(postcode_district, 'plz'):
+        try: postcode_district.plz = {p[0]: p for p in json.loads((ROOT / 'data' / 'geo.json').read_text(encoding='utf-8'))['plz']}
+        except Exception: postcode_district.plz = {}
+    p = postcode_district.plz.get(m.group(1))
+    return (stadtteil(p[1], p[2]) or p[3]) if p else None
 
 # Dogs at events, set by hand (the importers replace the offers table every night, this table stays):
 # 'auch' = explicitly also with a dog (walks, dog meadows), 'ja' = dogs allowed, 'leine' = on a lead only, 'nein' = no dogs.
@@ -278,7 +522,7 @@ def export_offers(con, places, sidx, dup_of=None):
     from merge import similar
     ensure(con)
     today = now()[:10]
-    cols = OFFER_COLS[:-3]  # 'audience', 'district' and 'dogs' are added here
+    cols = DB_OFFER_COLS  # the rest of OFFER_COLS is added here
     con.execute(DOGS_SCHEMA)
     dogs = dict(con.execute('SELECT offer_id, dogs FROM offer_dogs').fetchall())
     stadtteil = stadtteil_finder()
@@ -294,10 +538,25 @@ def export_offers(con, places, sidx, dup_of=None):
     by_name = defaultdict(list)
     for p in places:
         if p[1]: by_name[key(p[1])].append(p[0])
+    try: seen = json.loads(FIRST_SEEN.read_text(encoding='utf-8'))
+    except Exception: seen = None
+    first_run = seen is None
+    seen = seen or {}
+    dropped = defaultdict(int)
+    stats = defaultdict(int)
     for r in rows:
         o = dict(zip(cols, r))
         if o['id'] in hide: continue
         if (o['age_min_m'] or 0) >= 13 * 12 and not o['for_parents']: continue  # teen groups: outside our target group (0 to about 12)
+        o['title'], o['status'], cancelled = clean_title(o['title'])
+        if cancelled: dropped['abgesagt'] += 1; continue  # 'Fällt aus', 'Entfällt', 'abgesagt': the date does not take place
+        reg, o['registration_text'], closed = norm_registration(o['registration'], r[cols.index('title')])
+        if closed: dropped['geschlossen'] += 1; continue  # group closed, no new members
+        if reg == 'Warteliste' and o['status'] == 'ausgebucht': o['status'] = None  # the waiting list says it already
+        if o['registration'] != reg: stats['registration normalised'] += 1
+        o['registration'] = reg
+        if o['free'] is None and o['price'] and (fr := free_from_price(o['price'])) is not None:
+            o['free'] = fr; stats['free from price'] += 1
         o['place_id'] = (dup_of or {}).get(o['place_id'], o['place_id'])
         if o['lat'] and not o['place_id']:
             best, bd = None, 150
@@ -313,14 +572,31 @@ def export_offers(con, places, sidx, dup_of=None):
             o['place_id'] = by_name[key(o['venue'])][0]
         if o['age_min_m'] is None and o['age_max_m'] is None and not o['for_parents']:
             o['age_min_m'], o['age_max_m'] = age_of(o['title'])
+            if o['age_min_m'] is None and o['age_max_m'] is None:
+                o['age_min_m'], o['age_max_m'] = default_age(o['title'])
+                if o['age_min_m'] is not None: stats['default age'] += 1
         if o['topic'] in (None, 'sonstiges'): o['topic'] = topic_of(o['title'])
         o['audience'] = audience(o)
-        # Stadtteil by coordinates (point in polygon): the linked place's position, else the offer's own
+        o['online'] = 1 if ONLINE.search(o['title'] or '') or ONLINE.search(o['venue'] or '') else None
+        # Stadtteil by coordinates (point in polygon): the linked place's position, else the offer's own, else the postcode
         la, lo = pos.get(o['place_id'], (o['lat'], o['lon']))
         o['district'] = (stadtteil(la, lo) or (UMLAND if dist(la, lo, *RATHAUS) <= 100000 else None)) if la and lo else None
+        if not o['district'] and not (la and lo) and not o['online']:
+            o['district'] = postcode_district(o['address'], stadtteil)
+            if o['district']: stats['district from postcode'] += 1
+        o['series'] = series_key(o['provider'], o['title'], o['venue'])
+        o['tip'] = 1 if o['source_id'] == 'redaktion' else None
+        if o['id'] not in seen: seen[o['id']] = '' if first_run else today  # '' = known before tracking started
+        o['first_seen'] = seen[o['id']] or None
         o['source_id'] = sidx.get(o['source_id'], -1)
         o['dogs'] = dogs.get(o['id'])
         out.append([o[c] for c in OFFER_COLS])
+    # first-seen state: keep ids for two years, so a course that comes back next term is not 'new'
+    cutoff = f'{int(today[:4]) - 2}{today[4:]}'
+    seen = {k: v for k, v in seen.items() if not v or v >= cutoff}
+    FIRST_SEEN.parent.mkdir(parents=True, exist_ok=True)
+    FIRST_SEEN.write_text(json.dumps(seen, separators=(',', ':')), encoding='utf-8')
+    print('offers dropped:', dict(dropped), '| changed:', dict(stats))
     out = drop_cross_source_duplicates(con, out, sidx, pos)
     path = ROOT / 'data' / 'offers.json'
     path.write_text(json.dumps({'version': 1, 'generated': now(), 'cols': OFFER_COLS, 'offers': out}, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
@@ -329,6 +605,12 @@ def export_offers(con, places, sidx, dup_of=None):
     from collections import Counter
     print('district:', sum(1 for o in out if o[OFFER_COLS.index('district')]), 'of', len(out), 'offers have a Stadtteil')
     print('audience:', Counter(o[OFFER_COLS.index('audience')] for o in out), 'topics:', dict(Counter(o[OFFER_COLS.index('topic')] for o in out).most_common()))
+    ix = lambda k: OFFER_COLS.index(k)
+    print(f"sonstiges: {sum(1 for o in out if o[ix('topic')] == 'sonstiges') / max(1, len(out)):.1%}",
+          '| registration:', dict(Counter(o[ix('registration')] for o in out)), '| status:', dict(Counter(o[ix('status')] for o in out if o[ix('status')])),
+          '| online:', sum(1 for o in out if o[ix('online')]), '| tip:', sum(1 for o in out if o[ix('tip')]),
+          '| series:', len({o[ix('series')] for o in out}), '| new today:', sum(1 for o in out if o[ix('first_seen')] == today),
+          '| free known:', sum(1 for o in out if o[ix('free')] is not None), '| age known:', sum(1 for o in out if o[ix('age_min_m')] is not None or o[ix('age_max_m')] is not None))
 
 
 def stadtteil_finder():

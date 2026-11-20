@@ -78,13 +78,14 @@ function setBirth(k, part, value) {
 }
 // a person: the photo with a ring in their colour, else the first letter on their colour (dark text on yellow)
 function avatarHtml(m, size = '') {
-  return m.photo ? `<span class="av ring ${size}" style="--c:${m.color}"><img src="${m.photo}" alt=""></span>`
-    : `<span class="av ${size}" style="--c:${m.color};color:${onColor(m.color)}" aria-hidden="true">${esc((m.name || '?').slice(0, 1).toUpperCase())}</span>`;
+  const c = safeColor(m.color), ph = safePhoto(m.photo);
+  return ph ? `<span class="av ring ${esc(size)}" style="--c:${c}"><img src="${esc(ph)}" alt=""></span>`
+    : `<span class="av ${esc(size)}" style="--c:${c};color:${onColor(c)}" aria-hidden="true">${esc((m.name || '?').slice(0, 1).toUpperCase())}</span>`;
 }
 const adultById = id => store.profile.adults.find(a => a.id === id);
 const dogs = () => store.profile.dogList || [];
 const dogName = d => d.name || tl('Hund');
-const dogAv = (d, size = '') => { const c = d.color || '#FFD166'; return d.photo ? `<span class="av dog ring ${size}" style="--c:${c}"><img src="${d.photo}" alt=""></span>` : `<span class="av dog ${size}" style="background:${c};color:${onColor(c)}" aria-hidden="true">${svg('paw')}</span>`; };
+const dogAv = (d, size = '') => { const c = safeColor(d.color, '#FFD166'), ph = safePhoto(d.photo); return ph ? `<span class="av dog ring ${esc(size)}" style="--c:${c}"><img src="${esc(ph)}" alt=""></span>` : `<span class="av dog ${esc(size)}" style="background:${c};color:${onColor(c)}" aria-hidden="true">${svg('paw')}</span>`; };
 // dogs, like children, can be added and changed by the family group (not by helpers)
 const canEditFamily = () => isAdmin() || meAdult()?.grp === 'family';
 const kidById = id => store.profile.kids.find(k => k.id === id);
@@ -102,7 +103,7 @@ function adultSub(a) {
   if (a.role) parts.push(tl(a.role));
   if (a.grp === 'helper' && a.until) parts.push(`${tl('bis')} ${fmtUntil(a.until)}`);
   else if (!a.admin && a.perms && Object.values(a.perms).some(x => x !== 'edit') && seen.length) parts.push(tl('Sieht ') + seen.join(tl(' und ')));
-  if (!parts.length && a.email) parts.push(a.email);
+  if (!parts.length && a.email && (isAdmin() || a.id === meId())) parts.push(a.email); // e-mails only for the admin
   return parts.join(' · ');
 }
 
@@ -114,9 +115,24 @@ const toggleRow = (attr, on, title, sub, extra = '') => `<label class="tgl"><spa
 const hint = text => `<p class="hintbox">${text}</p>`;
 
 // ---------- Hub ----------
+// one calm line when the session ended: everything stays, and goes out after signing in again
+const reloginHint = () => auth?.ended ? `<p class="hintbox">${tl('Bitte melde dich neu an.')} <button type="button" class="linkbtn strong" data-wir="login">${tl('Anmelden')}</button></p>` : '';
+// the Wir is gone for this account (deleted, removed) or the access ended: say so once, then a new Wir or an invite
+function goneView() {
+  const g = auth.gone || {};
+  const d = g.date ? new Date(g.date + 'T12:00').toLocaleDateString(LOCALE, { day: 'numeric', month: 'long', year: 'numeric' }) : '';
+  const title = g.kind === 'expired' ? (d ? tl('Dein Zugang ist am {date} abgelaufen.', { date: d }) : tl('Dein Zugang ist abgelaufen.')) : tl('Euer Wir gibt es nicht mehr.');
+  const text = g.kind === 'expired' ? tl('Der Admin kann ihn verlängern. Du kannst auch ein eigenes Wir anlegen oder einer neuen Einladung folgen.')
+    : tl('Vielleicht wurde es gelöscht oder du wurdest entfernt. Du kannst ein neues Wir anlegen oder einer Einladung folgen.');
+  return `<div class="wirhead guest"><span class="av lg ghost">${svg('user')}</span><h2>${tl('Wir')}</h2></div>
+    <div class="empty"><b>${esc(title)}</b>${esc(text)}</div>
+    <p class="note center">${tl('Für eine Einladung öffne einfach den Link, den du bekommen hast.')}</p>
+    <div class="stick"><button type="button" class="btn big primary" data-gonenew="1">${tl('Neues Wir anlegen')}</button></div>`;
+}
 function wirHub() {
-  if (!hasToken()) return guestHub();
-  if (!auth.family) return SY.invite ? joinView() : onboardingView(); // the first step creates the Wir
+  if (!hasToken() && !auth?.ended) return guestHub();
+  if (auth.ended && !auth.family) return loginView();
+  if (!auth.family) return SY.invite ? joinView() : auth.gone ? goneView() : onboardingView(); // the first step creates the Wir
   if (!store.onboarded) return onboardingView();
   const ms = members(), kids = ms.filter(m => m.kid), adults = store.profile.adults;
   const fam = adults.filter(a => a.grp !== 'helper').length, help = adults.filter(a => a.grp === 'helper').length;
@@ -131,24 +147,25 @@ function wirHub() {
   const over = all > slots, room = over ? slots - 1 : all, h = Math.min(humans.length, room), dg = room - h;
   const more = over ? [`<button type="button" class="avbtn" data-wir="people" aria-label="${tl('Alle anzeigen')}"><span class="av more">+${all - room}</span></button>`] : [];
   const shown = humans.slice(0, h).concat(dg ? [`<span class="avsep" aria-hidden="true"></span>`].concat(pets.slice(0, dg)) : [], more);
-  const shop = perm('shop'), err = perm('errands');
+  const shop = perm('shop'), err = perm('errands'), cal = typeof calSee === 'function' && calSee() ? perm('cal') : 'none';
   const n = openItems().length, e = store.errands.filter(x => x.state !== 'gekauft').length;
   const tile = (open, icon, title, n_) => `<button type="button" class="tile" data-wir="${open}"><span class="navic">${svg(icon)}</span>${n_ ? `<span class="n">${n_}</span>` : ''}<b>${title}</b><small>${signedIn() ? tl('Gemeinsam') : tl('Auf diesem Gerät')}</small></button>`;
   const placesSub = store.places.filter(p => p.mine !== false).map(p => tl(p.name)).slice(0, 3).join(', ');
   const me = meAdult();
-  return `${wirHeadHtml()}
+  return `${wirHeadHtml()}${reloginHint()}
     ${expired(me) && signedIn() ? hint(tl('Dein Zugang ist abgelaufen. Der Admin kann ihn verlängern.')) : ''}
     <div class="card people"><div class="cardhead"><h4>${tl('Personen')}</h4><button type="button" class="linkbtn" data-wir="people">${tl('Verwalten')}</button></div>
       <div class="avrow">${shown.join('')}
         ${isAdmin() ? `<button type="button" class="avbtn" data-wir="add" aria-label="${tl('Person hinzufügen')}"><span class="av add">${svg('plus')}</span></button>` : ''}</div>
       <p class="note">${count || tl('Noch niemand eingetragen.')}</p></div>
-    ${shop !== 'none' || err !== 'none' ? `<div class="tiles">${shop !== 'none' ? tile('shop', 'cart', tl('Einkauf'), n) : ''}${err !== 'none' ? tile('errands', 'list', tl('Besorgungen'), e) : ''}</div>` : ''}
+    ${typeof calTodayHtml === 'function' ? calTodayHtml() : ''}
+    ${shop !== 'none' || err !== 'none' || cal !== 'none' ? `<div class="tiles">${shop !== 'none' ? tile('shop', 'cart', tl('Einkauf'), n) : ''}${err !== 'none' ? tile('errands', 'list', tl('Besorgungen'), e) : ''}${cal !== 'none' ? tile('cal', 'cal', tl('Kalender'), 0) : ''}</div>` : ''}
     ${ferienCard(9999, true)}
     <div class="card navlist">
       ${navRow('places', 'pin', tl('Meine Orte'), esc(placesSub ? placesSub + (store.places.length > 3 ? ' …' : '') : tl('Zuhause, Arbeit, Kita …')))}
-      ${navRow('fit', 'star', tl('Was passt zu euch?'), tl('Freiwillig · für passende Vorschläge'))}
+      ${me?.grp === 'helper' ? '' : navRow('fit', 'star', tl('Was passt zu euch?'), tl('Freiwillig · für passende Vorschläge'))}
       ${navRow('settings', 'gear', tl('Einstellungen'), tl('Benachrichtigungen, Karte, Sprache'))}
-      ${navRow('account', 'card', tl('Konto & Abo'), tl('E-Mail, Abo, Abmelden'))}
+      ${navRow('account', 'card', tl('Konto'), tl('E-Mail, Passwort, Abmelden'))}
       ${navRow('about', 'info', tl('Über Djuu'), tl('Feedback, Rechtliches, Version'))}</div>`;
 }
 
@@ -157,9 +174,9 @@ function wirHub() {
 // Names made automatically before ("Annas Wir", "Anna’s Us", "Familie", "Wir") count as no own name.
 const ownWirName = () => { const n = (auth?.familyName || '').trim(); return !n || /^(wir|us|familie)$/i.test(n) || /^\S+(s|’|') Wir$/.test(n) || /^\S+’s Us$/.test(n) ? '' : n; };
 const wirName = () => ownWirName() || tl('Wir');
-const adminColor = () => (members().find(m => adultById(m.id)?.admin) || members()[0])?.color || MEMBER_COLORS[0];
+const adminColor = () => safeColor((members().find(m => adultById(m.id)?.admin) || members()[0])?.color);
 function wirAvatar(size = 'xl') {
-  return store.wirPhoto ? `<span class="av ring ${size}" style="--c:${adminColor()}"><img src="${store.wirPhoto}" alt=""></span>`
+  return safePhoto(store.wirPhoto) ? `<span class="av ring ${size}" style="--c:${adminColor()}"><img src="${esc(safePhoto(store.wirPhoto))}" alt=""></span>`
     : `<span class="av ${size}" style="--c:${adminColor()};color:${onColor(adminColor())}" aria-hidden="true">${esc(wirName().slice(0, 1).toUpperCase())}</span>`;
 }
 function wirHeadHtml() {
@@ -175,7 +192,7 @@ function wirNameView() {
 }
 // photo, name and colour of one entry: the big avatar with the camera, and how others will see the person
 function looksTop(x, kind, nameField) {
-  const m = kind === 'dog' ? null : members().find(y => y.id === x.id) || { ...x, color: x.color || MEMBER_COLORS[0] };
+  const m = kind === 'dog' ? null : members().find(y => y.id === x.id) || { ...x, color: safeColor(x.color) };
   const edit = kind === 'dog' ? isAdmin() : canEditLooks(x), av = kind === 'dog' ? dogAv(x, 'xl') : avatarHtml(m, 'xl');
   return `<div class="looktop"><span class="photobox">${av}${edit ? `<button type="button" class="cambtn" data-lookphoto="${kind}|${x.id}" aria-label="${tl('Foto ändern')}">${svg('camera')}</button>` : ''}</span>
       ${edit ? `<button type="button" class="linkbtn strong" data-lookphoto="${kind}|${x.id}">${x.photo ? tl('Foto ändern') : tl('Foto hinzufügen')} · ${tl('freiwillig')}</button>` : ''}</div>
@@ -240,6 +257,7 @@ function peopleView() {
   return `${head(tl('Personen'), `${tl('Wir')} · ${ms.length} ${ms.length === 1 ? tl('Person') : tl('Personen')}`)}
     ${group(tl('Familie'), tl('Mit eigenem Zugang'), adults.filter(a => a.grp !== 'helper').map(adultRow))}
     ${group(tl('Kinder'), tl('Nur ein Eintrag, kein Zugang'), kids.map(m => { const k = kidById(m.id); return row(m, kidAgeText(k) + (k.approx && !k.remote ? ` · ${tl('Geburtsdatum ergänzen')}` : ''), null); }))}
+    ${canEditFamily() && !isAdmin() ? `<button type="button" class="linkbtn plus" data-addkidpage="1">${svg('plus')}${tl('Kind hinzufügen')}</button>` : ''}
     ${group(tl('Helfer:innen'), tl('Du bestimmst, was sie sehen'), adults.filter(a => a.grp === 'helper').map(adultRow))}
     ${meAdult()?.grp === 'helper' ? '' : `<div class="sec dogsec"><h4>${tl('Hunde')}<small>${tl('Für Hinweise, wo Hunde erlaubt sind')}</small></h4>
       ${dogs().length ? `<ol class="card plist dogs">${dogs().map(d => `<li><button type="button" class="prow" data-wirdog="${d.id}">${dogAv(d)}<span class="navtx"><b>${esc(dogName(d))}</b></span>${svg('next')}</button></li>`).join('')}</ol>` : ''}
@@ -257,7 +275,11 @@ function moreAboutHtml() {
 }
 
 function addPersonView() {
-  const A = W.add, seg = `<div class="segs" role="tablist">${[['family', tl('Familie')], ['kid', tl('Kind')], ['dog', tl('Hund')], ['helper', tl('Helfer:in')]].map(([g, l]) =>
+  const A = W.add;
+  // the family group adds children and dogs; inviting people is the admin's
+  if (signedIn() && !isAdmin() && !['kid', 'dog'].includes(A.grp)) A.grp = 'kid';
+  const segs = [['family', tl('Familie')], ['kid', tl('Kind')], ['dog', tl('Hund')], ['helper', tl('Helfer:in')]].filter(([g]) => !signedIn() || isAdmin() || ['kid', 'dog'].includes(g));
+  const seg = `<div class="segs" role="tablist">${segs.map(([g, l]) =>
     `<button type="button" role="tab" aria-selected="${A.grp === g}" class="${A.grp === g ? 'on' : ''}" data-addgrp="${g}">${l}</button>`).join('')}</div>`;
   if (A.grp === 'dog') {
     return `${head(tl('Person hinzufügen'))}${seg}<p class="muted text">${tl('Mit einem Hund im Wir zeigt Djuu bei Orten und Terminen, ob Hunde erlaubt sind.')}</p>
@@ -281,7 +303,7 @@ function addPersonView() {
     ${helper ? toggleRow('data-adduntil="1"', !!A.until, tl('Zugang befristet'), A.until ? `${tl('Endet am')} ${fmtUntil(A.until)}` : tl('Endet automatisch an einem Tag deiner Wahl')) +
       (A.until ? `<div class="field"><input id="addUntil" type="date" value="${esc(A.until)}" min="${ymd(today0())}" aria-label="${tl('Endet am')}"></div>` : '') : ''}
     <p class="note center">${tl('Orte und Kinderdaten bleiben privat · jederzeit änderbar')}</p>
-    ${canInvite ? '' : hint(tl('Einladen geht mit einem Konto (Wir › Konto & Abo). Bis dahin trägst du die Person hier nur ein.'))}
+    ${canInvite ? '' : hint(tl('Einladen geht mit einem Konto (Wir › Konto). Bis dahin trägst du die Person hier nur ein.'))}
     <div class="stick"><button type="button" class="btn big primary" data-addsave="${canInvite ? 'invite' : 'local'}"${W.busy ? ' disabled' : ''}>${canInvite ? svg('link') + tl('Einladung senden') : tl('Hinzufügen')}</button></div>`;
 }
 
@@ -296,7 +318,7 @@ function personView(id) {
   const access = a.account ? tl('eigener Zugang') : tl('ohne eigenen Zugang');
   return `${head(tl('{name} bearbeiten', { name: esc(a.name || tl('Person')) }), `${esc(a.grp === 'helper' ? tl('Helfer:in') : tl('Familie'))} · ${access}`)}
     ${looksTop(a, 'adult', canEditName ? `<div class="field"><label for="pName">${tl('Vorname oder Spitzname')}</label><input id="pName" data-adult="${i}" data-k="name" maxlength="30" value="${esc(a.name || '')}"></div>` : '')}
-    <p class="note">${[invited && `${a.account ? tl('Eingeladen am') : tl('Eingetragen am')} ${invited}`, a.email].filter(Boolean).map(esc).join(' · ') || (a.admin ? tl('Admin dieses Wir') : '')}</p>
+    <p class="note">${[invited && `${a.account ? tl('Eingeladen am') : tl('Eingetragen am')} ${invited}`, (admin || self) && a.email].filter(Boolean).map(esc).join(' · ') || (a.admin ? tl('Admin dieses Wir') : '')}</p>
     ${canEditName ? `
       <div class="field"><label>${tl('Rolle')} <small class="muted">${tl('Freiwillig')}</small></label>${chipRow(a.grp === 'helper' ? ROLES_HELPER : self ? ROLES_ME : ROLES_FAMILY, a.role, 'data-prole')}</div>
       <div class="field"><label for="pWork">${tl('Arbeitszeiten')} <small class="muted">${tl('Freiwillig')}</small></label><input id="pWork" data-adult="${i}" data-k="work" maxlength="60" placeholder="${tl('z. B. Mo–Fr 8–16')}" value="${esc(a.work || '')}"></div>` : ''}
@@ -306,7 +328,7 @@ function personView(id) {
     ${canEditAccess ? toggleRow(`data-puntil="${id}"`, !!a.until, tl('Zugang befristet'), a.until ? `${tl('Endet am')} ${fmtUntil(a.until)}${expired(a) ? ` · ${tl('abgelaufen')}` : ''}` : tl('Endet automatisch an einem Tag deiner Wahl')) +
       (a.until ? `<div class="field"><input id="pUntil" data-puntildate="${id}" type="date" value="${esc(a.until)}" aria-label="${tl('Endet am')}"></div>` : '') : ''}
     ${admin && signedIn() && a.account && a.grp !== 'helper' && !self ? toggleRow(`data-padmin="${id}"`, !!a.admin, tl('Zweiter Admin'), tl('Darf Personen einladen und den Zugang ändern')) : ''}
-    ${signedIn() && a.account && !self ? `<button type="button" class="btn wide" data-syask="${id}">${svg('pin')}${tl('Fragen: Wo bist du?')}</button><p class="note">${tl('Die Person entscheidet selbst, ob sie ihren Standort einmal schickt. Er wird nach 24 Stunden gelöscht.')}</p>` : ''}
+    ${signedIn() && a.account && !self && meAdult()?.grp === 'family' && !expired(meAdult()) ? `<button type="button" class="btn wide" data-syask="${id}">${svg('pin')}${tl('Fragen: Wo bist du?')}</button><p class="note">${tl('Die Person entscheidet selbst, ob sie ihren Standort einmal schickt. Er wird nach 24 Stunden gelöscht.')}</p>` : ''}
     ${admin && !self ? `<button type="button" class="btn wide danger" data-premove="${id}">${tl('Person entfernen')}</button>` : ''}
     <div class="stick"><button type="button" class="btn big primary" data-looksave="1">${tl('Speichern')}</button></div>`;
 }
@@ -321,6 +343,7 @@ function kidView(k) {
     <div class="kidline"><div class="field"><label for="kSize">${tl('Kleidergröße')}</label><input id="kSize" data-kid="${i}" data-k="size" maxlength="12" placeholder="104" value="${esc(k.size || '')}"></div>
       <div class="field"><label for="kShoe">${tl('Schuhgröße')}</label><input id="kShoe" data-kid="${i}" data-k="shoe" maxlength="8" placeholder="28" value="${esc(k.shoe || '')}"></div></div>
     <p class="note">${tl('Die Größen stehen bei Besorgungen für dieses Kind.')}</p>
+    ${typeof calKidHtml === 'function' ? calKidHtml(k) : ''}
     ${isAdmin() || meAdult()?.grp === 'family' ? `<button type="button" class="btn wide danger" data-kidremove="${k.id}">${tl('Eintrag entfernen')}</button>` : ''}
     <div class="stick"><button type="button" class="btn big primary" data-looksave="1">${tl('Speichern')}</button></div>`;
 }
@@ -391,10 +414,13 @@ function fitView() {
 
 // ---------- Gemerkt: places and events of the Wir, with who saved them ----------
 function gemerktView() {
+  if (!auth?.family && hasToken()) return `${head(tl('Gemerkt'), '', false)}<div class="locked"><span class="bigic">${svg('heart')}</span><h3>${tl('Zum Merken braucht ihr ein Wir')}</h3>
+    <p class="muted">${tl('Leg euer Wir an, dann merkt ihr Orte und Termine gemeinsam und findet sie auf jedem Gerät wieder.')}</p>
+    <button type="button" class="btn big primary wide" data-lockgo="wir">${tl('Wir anlegen')}</button></div>`;
   if (!auth?.family) return `${head(tl('Gemerkt'), '', false)}<div class="locked"><span class="bigic">${svg('heart')}</span><h3>${tl('Zum Merken brauchst du ein Konto')}</h3>
     <p class="muted">${tl('Dann findest du deine Lieblingsorte und Termine auf jedem Gerät wieder.')}</p>
     <button type="button" class="btn big primary wide" data-wir="register">${tl('Konto erstellen')}</button><button type="button" class="btn big wide" data-wir="login">${tl('Anmelden')}</button></div>`;
-  if (perm('saved') === 'none') return `${head(tl('Gemerkt'), '', false)}<div class="empty"><b>${tl('Kein Zugriff auf Gemerkt.')}</b>${tl('Der Admin eures Wir kann das ändern.')}</div>`;
+  if (perm('saved') === 'none') return `${head(tl('Gemerkt'), '', false)}<div class="empty"><b>${tl('Gemerkt teilt die Familie hier.')}</b>${meAdult()?.grp === 'helper' ? tl('Hier sammelt die Familie Orte und Termine. Wenn der Admin es für dich freigibt, siehst du sie auch.') : tl('Der Admin eures Wir kann es für dich freigeben.')}</div>`;
   const ms = members(), who = W.savedWho, by = id => ms.find(m => m.id === id);
   const placesL = store.favorites.map(id => [byId.get(id), store.favBy[id]]).filter(([p, b]) => p && (!who || b === who));
   const offers = store.savedOffers.filter(s => !who || s.by === who).map(s => [OFFER_BY_ID.get(s.id), s]).filter(([o]) => o && nextDate(o)).map(([o, s]) => [nextDate(o), o, s]).sort((a, b) => a[0] - b[0] || timeKey(a[1]) - timeKey(b[1]));
@@ -428,11 +454,11 @@ function settingsView() {
     ${navRow('mapset', 'map', tl('Karte'), esc(mapStyle().label))}
     ${navRow('lang', 'globe', tl('Sprache'), esc(LANGS[LANG]))}
     ${signedIn() && perm('cal') !== 'none' ? navRow('calsub', 'cal', tl('Familienkalender'), tl('In der Kalender-App abonnieren')) : ''}
-    ${navRow('account', 'user', tl('Konto & Anmeldung'), tl('E-Mail, Abmelden'))}</div>`;
+    ${navRow('account', 'user', tl('Konto'), tl('E-Mail, Passwort, Abmelden'))}</div>`;
 }
 // Einstellungen › Benachrichtigungen: which news come today; choosing them comes later
 // Einstellungen › Benachrichtigungen: one switch per topic (only for me, kept in my account), all on or all off
-const NEWS_DESC = () => ({ shop: tl('Wenn jemand etwas auf die Einkaufsliste setzt'), errands: tl('Wenn jemand eine Besorgung plant'), saved: tl('Wenn jemand einen Termin merkt'), wir: tl('Wenn jemand eurem Wir beitritt'), tipp: tl('Zwei Wochen vor den Schulferien') });
+const NEWS_DESC = () => ({ cal: tl('Neue Einträge im Kalender und Geburtstage eine Woche vorher'), shop: tl('Wenn jemand etwas auf die Einkaufsliste setzt'), errands: tl('Wenn jemand eine Besorgung plant'), saved: tl('Wenn jemand einen Termin merkt'), wir: tl('Wenn jemand eurem Wir beitritt'), tipp: tl('Zwei Wochen vor den Schulferien') });
 function bellView() {
   const topics = NEWS_TOPICS(), off = store.newsOff || [], allOn = topics.every(k => !off.includes(k)), allOff = topics.every(k => off.includes(k));
   return `${head(tl('Benachrichtigungen'))}<p class="text">${tl('Neuigkeiten findest du über die Glocke auf der Karte. Hier wählst du, worüber Djuu dich informiert. Das gilt nur für dich.')}</p>
@@ -460,8 +486,8 @@ function aboutView() {
 function listView_(kind) {
   const p = perm(kind === 'shop' ? 'shop' : 'errands'), title = kind === 'shop' ? tl('Einkauf') : tl('Besorgungen');
   const sub = signedIn() ? (p === 'view' ? tl('Gemeinsam · nur ansehen') : (ownWirName() ? tl('Gemeinsam mit ') + esc(ownWirName()) : tl('Gemeinsam'))) : tl('Bisher nur auf diesem Gerät');
-  if (p === 'none') return `${head(title)}<div class="empty"><b>${tl('Kein Zugriff.')}</b>${tl('Der Admin eures Wir kann das ändern.')}</div>`;
-  return `${head(title, sub)}<div class="${p === 'view' ? 'readonly' : ''}">${kind === 'shop' ? shopHtml() : errandHtml()}</div>`;
+  if (p === 'none') return `${head(title)}<div class="empty"><b>${tl('Diese Liste ist für dich nicht freigegeben.')}</b>${tl('Der Admin eures Wir kann sie für dich freigeben.')}</div>`;
+  return `${head(title, sub)}${reloginHint()}<div class="${p === 'view' ? 'readonly' : ''}">${kind === 'shop' ? shopHtml() : errandHtml()}</div>`;
 }
 
 // ---------- Welcome (first start only) ----------
@@ -481,12 +507,12 @@ function closeWelcome(next) {
 }
 
 // ---------- Rendering ----------
-const WIR_PAGES = { news: () => newsView(), wirname: wirNameView, dog: dogView, guest: guestInfoView, register: registerView, verify: verifyView, login: loginView, forgot: forgotView, newpw: newPwView, invite: inviteView, join: joinView,
+const WIR_PAGES = { news: () => newsView(), wirname: wirNameView, dog: dogView, guest: guestInfoView, register: registerView, verify: verifyView, verifyfail: verifyFailView, login: loginView, forgot: forgotView, newpw: newPwView, invite: inviteView, join: joinView,
   pwchange: pwChangeView, emailchange: emailChangeView, emailconfirm: emailConfirmView, delete: deleteView, people: peopleView, add: addPersonView, places: placesView, place: placeEditView, fit: fitView, settings: settingsView, bell: bellView, mapset: mapSetView, lang: langView, calsub: calSubView, account: accountView, about: aboutView, shop: () => listView_('shop'), errands: () => listView_('errands') };
 // every page fills the sheet, so the main button sits at the bottom like on the phone screens
 function wirRender(v) {
   // pages that need an account show the sign-in instead (for example after signing out on another page)
-  const needsAccount = v.type === 'person' || ['news', 'wirname', 'dog', 'people', 'add', 'places', 'place', 'fit', 'shop', 'errands', 'calsub', 'pwchange', 'emailchange', 'delete'].includes(v.page);
+  const needsAccount = v.type === 'person' || ['news', 'wirname', 'dog', 'people', 'add', 'places', 'place', 'fit', 'shop', 'errands', 'calsub', 'cal', 'calentry', 'calplan', 'pwchange', 'emailchange', 'delete'].includes(v.page);
   const html = needsAccount && !auth?.family && !(hasToken() && ['pwchange', 'emailchange', 'delete'].includes(v.page)) ? loginView()
     : v.type === 'me' ? wirHub() : v.type === 'favs' ? gemerktView() : v.type === 'person' ? personView(v.id) : (WIR_PAGES[v.page] || wirHub)();
   return `<div class="pagewrap">${html}</div>`;
@@ -516,7 +542,7 @@ async function sendInvite() {
     const who = meAdult()?.name || '';
     const text = A.grp === 'helper' ? tl('{name} lädt dich ins Wir bei Djuu ein. Der Link gilt 7 Tage.', { name: who }) : tl('Komm in unser Wir bei Djuu: gemeinsamer Einkauf, Besorgungen und Kalender. Der Link gilt 7 Tage.');
     if (navigator.share) await navigator.share({ title: tl('Einladung zu Djuu'), text, url }).catch(() => {});
-    else await navigator.clipboard?.writeText(text + ' ' + url).then(() => toast('Einladungslink kopiert.'), () => toast(url));
+    else await navigator.clipboard?.writeText(text + ' ' + url).then(() => toast(tl('Einladungslink kopiert.')), () => toast(url));
     W.add = { grp: 'family', role: '', perms: null, until: '', name: '' }; back();
   } catch (e) { toast(e.data?.message || tl('Einladen hat nicht geklappt. Bitte mit Netz noch einmal versuchen.')); }
   W.busy = false; renderPanel();
@@ -543,6 +569,8 @@ document.addEventListener('click', e => {
     go({ type: 'wir', page: d.wir });
   }
   else if (d.wirperson) go({ type: 'person', id: d.wirperson });
+  else if (d.gonenew) { if (auth) { auth.wasGone = auth.gone || null; delete auth.gone; writeJson(AUTH_KEY, auth); } store.onboarded = false; W.onb = 1; renderPanel(); }
+  else if (d.addkidpage) { W.add = { grp: 'kid', role: '', perms: null, until: '', name: '' }; go({ type: 'wir', page: 'add' }); }
   else if (d.lookphoto) openLooksPhoto(d.lookphoto);
   else if (d.color) {
     const [key, c] = d.color.split('|'), dog = dogs().find(y => y.id === key), x = key === 'me' ? ensureMe() : adultById(key) || kidById(key) || dog;
@@ -669,9 +697,9 @@ document.addEventListener('submit', e => {
 });
 document.addEventListener('input', e => {
   if (e.target.id !== 'onbName') return;
-  const me = meAdult(), box = $('#onbAv .av:not(.ring)');
+  const box = $('#onbAv .av:not(.ring)');
   if (box) box.textContent = (e.target.value.trim() || '?').slice(0, 1).toUpperCase();
-  if (me) me.name = e.target.value.trim();
+  ensureMe().name = e.target.value.trim(); // the person exists from the first letter on, so tapping a role or colour keeps the name
 });
 document.addEventListener('change', e => {
   const el = e.target, d = el.dataset;
@@ -703,12 +731,14 @@ const hasToken = () => typeof auth !== 'undefined' && !!auth?.token;
 const isIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const isAndroid = () => /Android/i.test(navigator.userAgent);
 const mailAppUrl = () => isIOS() ? 'message://' : isAndroid() ? 'intent://#Intent;action=android.intent.action.MAIN;category=android.intent.category.APP_EMAIL;end' : '';
+const PW_MAX = 64;
 const pwField = (id, label, auto, extra = '') => `<div class="field"><label for="${id}">${label}</label><div class="pwbox"><input id="${id}" type="password" autocomplete="${auto}" minlength="8" required${extra}>
   <button type="button" class="pweye" data-pweye="${id}" aria-label="${tl('Passwort zeigen')}">${svg('eye')}</button></div></div>`;
 const emailField = (id, value = '') => `<div class="field"><label for="${id}">${tl('E-Mail')}</label><input id="${id}" type="email" autocomplete="email" inputmode="email" required value="${esc(value)}" placeholder="anna@beispiel.de"></div>`;
 const errHtml = () => W.err ? `<p class="error" role="alert">${W.err}</p>` : '';
 const noticeHtml = () => W.notice ? `<p class="okbox" role="status">${svg('check')} ${esc(W.notice)}</p>` : '';
-const consentBox = id => `<label class="consent"><input type="checkbox" id="${id}" required> <span>${tl('Ich akzeptiere die')} <a href="legal.html#agb" target="_blank" rel="noopener"><b>${tl('Nutzungsbedingungen')}</b></a> ${tl('und den')} <a href="legal.html#datenschutz" target="_blank" rel="noopener"><b>${tl('Datenschutz')}</b></a>.</span></label>`;
+const consentBox = id => `<label class="consent"><input type="checkbox" id="${id}" required> <span>${tl('Ich akzeptiere die')} <a href="legal.html#agb" target="_blank" rel="noopener"><b>${tl('Nutzungsbedingungen')}</b></a>.</span></label>
+  <p class="note">${tl('Wie wir mit deinen Daten umgehen, steht im')} <a href="legal.html#datenschutz" target="_blank" rel="noopener">${tl('Datenschutz')}</a>.</p>`;
 const pendingEmail = () => { try { return localStorage.getItem('djuu.pendingEmail') || ''; } catch (e) { return ''; } };
 
 function guestHub() {
@@ -721,7 +751,7 @@ function guestHub() {
     <div class="card navlist">
       <button type="button" class="navrow" data-lock="people"><span class="navic">${svg('user')}</span><span class="navtx"><b>${tl('Personen')}</b><small>${tl('Personen, Orte, Vorschläge')}</small></span>${svg('next')}</button>
       ${navRow('settings', 'gear', tl('Einstellungen'), tl('Karte, Sprache'))}
-      ${navRow('login', 'card', tl('Konto & Abo'), tl('E-Mail, Abmelden'))}
+      ${navRow('login', 'card', tl('Konto'), tl('Anmelden oder registrieren'))}
       ${navRow('about', 'info', tl('Über Djuu'), tl('Feedback, Rechtliches, Version'))}</div>`;
 }
 function guestInfoView() {
@@ -735,8 +765,10 @@ function guestInfoView() {
     <div class="stick"><button type="button" class="btn big primary" data-wir="register">${tl('Konto erstellen')}</button><p class="note center">${tl('Kostenlos · nur E-Mail und Passwort')}</p></div>`;
 }
 function registerView() {
+  if (hasToken()) return `${head(tl('Konto erstellen'))}<div class="empty"><b>${tl('Du bist schon angemeldet.')}</b>${esc(auth.email || '')}</div>
+    ${auth.family ? '' : `<div class="stick"><button type="button" class="btn big primary" data-lockgo="wir">${tl('Wir anlegen')}</button></div>`}`;
   return `${head(tl('Konto erstellen'), tl('Kostenlos · dauert eine Minute'))}
-    <form id="regForm" novalidate>${emailField('regEmail', W.email || '')}${pwField('regPw', tl('Passwort'), 'new-password')}<p class="note">${tl('Mindestens 8 Zeichen.')}</p>
+    <form id="regForm" novalidate>${emailField('regEmail', W.email || '')}${pwField('regPw', tl('Passwort'), 'new-password')}<p class="note">${tl('8 bis 64 Zeichen.')}</p>
       ${consentBox('regOk')}${errHtml()}
       <button type="submit" class="btn big primary wide"${W.busy ? ' disabled' : ''}>${tl('Registrieren')}</button></form>
     <p class="note center">${tl('Schon ein Konto?')} <button type="button" class="linkbtn strong" data-wir="login">${tl('Anmelden')}</button></p>
@@ -755,12 +787,26 @@ function verifyView() {
     ${W.pw ? `<p class="note center">${tl('Sobald du bestätigt hast, geht es hier automatisch weiter.')}</p>` : `<p class="center"><button type="button" class="linkbtn strong" data-wir="login">${tl('Schon bestätigt? Anmelden')}</button></p>`}`;
 }
 function loginView() {
-  return `${head(tl('Anmelden'))}${noticeHtml()}
-    <form id="loginForm" novalidate>${emailField('loginEmail', W.email || pendingEmail())}${pwField('loginPw', tl('Passwort'), 'current-password')}
+  const O = W.otherUser;
+  return `${head(tl('Anmelden'))}${noticeHtml()}${auth?.ended ? `<p class="hintbox">${tl('Bitte melde dich neu an.')} ${unsentCount() ? tl('Noch nicht gesendete Änderungen: {n}. Sie werden danach gesendet.', { n: unsentCount() }) : ''}</p>` : ''}
+    ${O ? `<div class="warnbox choice"><p>${O.other ? tl('Auf diesem Gerät sind noch Daten von {email}.', { email: esc(O.other) }) : tl('Auf diesem Gerät sind noch Daten von einem anderen Konto.')}${O.n ? ' ' + tl('Noch nicht gesendete Änderungen: {n}.', { n: O.n }) : ''} ${tl('Wenn du dich mit diesem Konto anmeldest, werden sie von diesem Gerät gelöscht.')}</p>
+      <div class="twobtns"><button type="button" class="btn danger" data-signdiscard="1"${W.busy ? ' disabled' : ''}>${tl('Löschen und anmelden')}</button><button type="button" class="btn" data-signkeep="1">${tl('Abbrechen')}</button></div></div>` : ''}
+    <form id="loginForm" novalidate>${emailField('loginEmail', W.email || (auth?.ended ? auth.email : '') || pendingEmail())}${pwField('loginPw', tl('Passwort'), 'current-password')}
       <p><button type="button" class="linkbtn strong" data-wir="forgot">${tl('Passwort vergessen?')}</button></p>${errHtml()}
       ${W.unverified ? `<p class="note">${tl('Noch nicht bestätigt?')} <button type="button" class="linkbtn strong" data-resend="login">${tl('Bestätigungslink erneut senden')}</button></p>` : ''}
       <button type="submit" class="btn big primary wide"${W.busy ? ' disabled' : ''}>${tl('Anmelden')}</button></form>
     <p class="note center">${tl('Neu hier?')} <button type="button" class="linkbtn strong" data-wir="register">${tl('Konto erstellen')}</button></p>`;
+}
+// the e-mail address inside a link's token (the token is a signed JWT; only read here, never trusted)
+function emailFromToken(t) {
+  try { const p = JSON.parse(decodeURIComponent(escape(atob(String(t).split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))))); return typeof p.email === 'string' ? p.email : ''; } catch (e) { return ''; }
+}
+function verifyFailView() {
+  return `${head(tl('E-Mail bestätigen'))}<div class="verify"><span class="bigic">${svg('mail')}</span><h2 class="big">${tl('Der Link ist abgelaufen')}</h2>
+      <p class="muted">${tl('Oder er wurde schon benutzt. Wir schicken dir gern einen neuen.')}</p></div>
+    <form id="verifyFailForm" novalidate>${emailField('vfEmail', W.email || pendingEmail())}${noticeHtml()}${errHtml()}
+      <button type="submit" class="btn big primary wide"${W.busy ? ' disabled' : ''}>${tl('Neuen Link senden')}</button></form>
+    <p class="center"><button type="button" class="linkbtn strong" data-wir="login">${tl('Schon bestätigt? Anmelden')}</button></p>`;
 }
 function forgotView() {
   return `${head(tl('Passwort vergessen?'))}<p class="text">${tl('Gib deine E-Mail ein. Wir schicken dir einen Link, mit dem du ein neues Passwort wählst.')}</p>
@@ -768,7 +814,7 @@ function forgotView() {
       <button type="submit" class="btn big primary wide"${W.busy ? ' disabled' : ''}>${tl('Link senden')}</button></form>`;
 }
 function newPwView() {
-  return `${head(tl('Neues Passwort'))}<form id="newpwForm" novalidate>${pwField('newPw', tl('Neues Passwort'), 'new-password')}<p class="note">${tl('Mindestens 8 Zeichen.')}</p>${errHtml()}
+  return `${head(tl('Neues Passwort'))}<form id="newpwForm" novalidate>${pwField('newPw', tl('Neues Passwort'), 'new-password')}<p class="note">${tl('8 bis 64 Zeichen.')}</p>${errHtml()}
     <button type="submit" class="btn big primary wide"${W.busy ? ' disabled' : ''}>${tl('Speichern')}</button></form>`;
 }
 const peopleDots = list => `<div class="avrow center">${(list || []).slice(0, 6).map((l, i) => `<span class="av" style="--c:${MEMBER_COLORS[i % MEMBER_COLORS.length]}">${esc(l)}</span>`).join('')}</div>`;
@@ -778,7 +824,7 @@ function inviteView() {
   if (I.error) return `${head(tl('Einladung'))}<div class="empty"><b>${esc(I.error)}</b>${tl('Bitte die Person, dir einen neuen Link zu schicken.')}</div><button type="button" class="btn wide" data-invitedrop="1">${tl('Schließen')}</button>`;
   return `<div class="invitehead">${peopleDots(I.people)}<h2 class="big center">${I.inviter ? tl('{name} lädt dich ins Wir ein', { name: esc(I.inviter) }) : tl('Du wurdest in ein Wir eingeladen')}</h2>
       <p class="muted center">${tl('Zusammen seht ihr Einkauf, Besorgungen und Kalender. Du bekommst deinen eigenen Zugang.')}</p></div>
-    <form id="inviteForm" novalidate>${emailField('invEmail', W.email || '')}${pwField('invPw', tl('Passwort'), 'new-password')}<p class="note">${tl('Mindestens 8 Zeichen.')}</p>
+    <form id="inviteForm" novalidate>${emailField('invEmail', W.email || '')}${pwField('invPw', tl('Passwort'), 'new-password')}<p class="note">${tl('8 bis 64 Zeichen.')}</p>
       ${consentBox('invOk')}${errHtml()}
       <button type="submit" class="btn big primary wide"${W.busy ? ' disabled' : ''}>${tl('Konto erstellen und beitreten')}</button></form>
     <p class="note center">${tl('Schon ein Konto?')} <button type="button" class="linkbtn strong" data-wir="login">${tl('Anmelden und beitreten')}</button></p>
@@ -801,19 +847,22 @@ function joinView() {
       <div class="stick"><button type="submit" class="btn big primary"${W.busy ? ' disabled' : ''}>${tl('Beitreten')}</button></div></form>`;
 }
 function accountSignedIn() {
-  return `${head(tl('Konto & Anmeldung'))}
+  const n = unsentCount();
+  return `${head(tl('Konto'))}
     <div class="card navlist acct"><div class="acctrow"><span class="navtx"><small>${tl('E-Mail')}</small><b>${esc(auth.email)}</b></span><span class="pill green">${tl('Bestätigt')}</span></div>
       <button type="button" class="navrow" data-wir="emailchange"><span class="navic">${svg('mail')}</span><span class="navtx"><b>${tl('E-Mail ändern')}</b></span>${svg('next')}</button>
-      <button type="button" class="navrow" data-wir="pwchange"><span class="navic">${svg('gear')}</span><span class="navtx"><b>${tl('Passwort ändern')}</b></span>${svg('next')}</button>
-      <div class="navrow static"><span class="navic">${svg('card')}</span><span class="navtx"><b>${tl('Abo')}</b><small>${tl('Kostenlos')}</small></span></div></div>
-    ${hint(`${svg('check')} ${tl('Du bleibst angemeldet, bis du dich abmeldest. Deine Daten bleiben in deinem Konto.')}`)}
-    ${auth.family ? `<p class="note">${SY.online ? `<span class="syok">●</span> ${tl('Verbunden mit')} ${esc(ownWirName() || tl('eurem Wir'))}` : `<span class="syoff">●</span> ${tl('Offline, Änderungen werden nachgereicht')}`}${outbox.length ? ` · ${outbox.length} ${tl('noch nicht gesendet')}` : ''}</p>` : ''}
+      <button type="button" class="navrow" data-wir="pwchange"><span class="navic">${svg('gear')}</span><span class="navtx"><b>${tl('Passwort ändern')}</b></span>${svg('next')}</button></div>
+    ${auth.family ? `<p class="note">${SY.online ? `<span class="syok">●</span> ${tl('Verbunden mit')} ${esc(ownWirName() || tl('eurem Wir'))}` : `<span class="syoff">●</span> ${tl('Offline, Änderungen werden nachgereicht')}`}${n ? ` · ${tl('{n} noch nicht gesendet', { n })}` : ''}</p>` : ''}
     <button type="button" class="btn big wide" data-sylogout="1">${tl('Abmelden')}</button>
+    <p class="center"><button type="button" class="linkbtn" data-logoutall="1">${tl('Auf allen anderen Geräten abmelden')}</button></p>
+    ${auth.family && canLeave() ? `<p class="center"><button type="button" class="linkbtn" data-leavewir="1">${tl('Wir verlassen')}</button></p>` : ''}
     <p class="center"><button type="button" class="linkbtn danger" data-wir="delete">${tl('Konto löschen')}</button></p>`;
 }
+// leaving keeps the account; the last admin cannot leave (first make someone else admin, or delete the Wir with the account)
+const canLeave = () => !isAdmin() || store.profile.adults.some(a => a.admin && a.account && a.id !== auth?.member);
 function pwChangeView() {
   return `${head(tl('Passwort ändern'))}<form id="pwForm" novalidate>${pwField('pwOld', tl('Aktuelles Passwort'), 'current-password')}${pwField('pwNew', tl('Neues Passwort'), 'new-password')}
-    <p class="note">${tl('Mindestens 8 Zeichen. Andere Geräte musst du danach neu anmelden.')}</p>${errHtml()}
+    <p class="note">${tl('8 bis 64 Zeichen. Andere Geräte musst du danach neu anmelden.')}</p>${errHtml()}
     <button type="submit" class="btn big primary wide"${W.busy ? ' disabled' : ''}>${tl('Speichern')}</button></form>`;
 }
 function emailChangeView() {
@@ -828,9 +877,12 @@ function emailConfirmView() {
 }
 function deleteView() {
   const me = meAdult(), others = members().filter(m => m.id !== auth?.member);
-  const text = me?.admin && others.length
-    ? tl('Du bist Admin. Wenn du dein Konto löschst, wird euer ganzes Wir gelöscht, für alle: Einkauf, Besorgungen, Gemerktes, Orte und Einträge. Betroffen: {names}.', { names: others.map(m => m.name).join(', ') })
-    : tl('Dein Konto und alle deine Daten werden gelöscht. Das lässt sich nicht rückgängig machen.');
+  const otherAdmin = store.profile.adults.some(a => a.admin && a.account && a.id !== auth?.member);
+  // the Wir goes only with its last admin; everyone else leaves it, and what they entered stays for the others
+  const text = !auth?.family || !others.length ? tl('Dein Konto und alle deine Daten werden gelöscht. Das lässt sich nicht rückgängig machen.')
+    : me?.admin && !otherAdmin
+      ? tl('Du bist der letzte Admin: das ganze Wir wird gelöscht für {names}, mit Einkauf, Besorgungen, Gemerktem, Orten und Einträgen. Das lässt sich nicht rückgängig machen.', { names: others.map(m => m.name).join(', ') })
+      : tl('Dein Konto wird gelöscht. Du verlässt das Wir; eure gemeinsamen Einträge bleiben. Das lässt sich nicht rückgängig machen.');
   return `${head(tl('Konto löschen'))}<p class="warnbox">${svg('info')} ${esc(text)}</p>
     <form id="delForm" novalidate>${pwField('delPw', tl('Passwort zur Bestätigung'), 'current-password')}${errHtml()}
       <button type="submit" class="btn big wide danger"${W.busy ? ' disabled' : ''}>${tl('Konto endgültig löschen')}</button></form>
@@ -844,12 +896,14 @@ const LOCKS = {
 };
 function lockSheet(kind) {
   document.getElementById('lock')?.remove();
-  const [ic, title, text] = LOCKS[kind] || LOCKS.people, el = document.createElement('div');
+  const noWir = hasToken() && !auth?.family; // signed in, but no Wir yet: the next step is the Wir, not an account
+  const [ic, title, text] = noWir ? [kind === 'merken' ? 'heart' : 'user', tl('Dafür braucht ihr ein Wir'), tl('Leg euer Wir an, dann merkt ihr Orte und Termine gemeinsam und findet sie auf jedem Gerät wieder.')] : LOCKS[kind] || LOCKS.people;
+  const el = document.createElement('div');
   el.id = 'lock'; el.className = 'lockwrap';
   el.innerHTML = `<div class="lockbg" data-lockclose="1"></div><div class="locksheet" role="dialog" aria-modal="true" aria-labelledby="lockT"><i class="lockgrip"></i>
     <span class="bigic">${svg(ic)}</span><h3 id="lockT">${title}</h3><p class="muted">${text}</p>
-    <button type="button" class="btn big primary wide" data-lockgo="register">${tl('Konto erstellen')}</button>
-    <button type="button" class="btn big wide" data-lockgo="login">${tl('Anmelden')}</button>
+    ${noWir ? `<button type="button" class="btn big primary wide" data-lockgo="wir">${tl('Wir anlegen')}</button>` : `<button type="button" class="btn big primary wide" data-lockgo="register">${tl('Konto erstellen')}</button>
+    <button type="button" class="btn big wide" data-lockgo="login">${tl('Anmelden')}</button>`}
     <button type="button" class="linkbtn center" data-lockclose="1">${tl('Später')}</button></div>`;
   document.body.appendChild(el);
   el.querySelector('[data-lockgo]').focus();
@@ -872,32 +926,61 @@ function runPending() {
   if (P.place && !store.favorites.includes(P.place)) { store.favorites.push(P.place); store.favBy[P.place] = meId(); save(); toast(tl('Gemerkt. Du findest es unter „Gemerkt“.')); }
 }
 // friendly words for what the server says
+// error codes of the Djuu routes (server field "code"); see NOTES for the list agreed with the server
+const ROUTE_ERRORS = () => ({
+  name_required: tl('Bitte gib deinen Namen an.'), already_member: tl('Du bist schon in einem Wir.'), not_member: tl('Du bist in keinem Wir.'),
+  admin_only: tl('Das kann nur der Admin.'), invite_limit: tl('Es gibt schon 20 offene Einladungen. Bitte warte, bis welche benutzt oder abgelaufen sind.'),
+  invite_invalid: tl('Diese Einladung gibt es nicht oder sie wurde schon benutzt.'), invite_expired: tl('Diese Einladung ist abgelaufen. Bitte um eine neue.'),
+  no_calendar_access: tl('Kein Zugriff auf den Kalender.'), calendar_not_found: tl('Diesen Kalender gibt es nicht mehr.'), member_not_found: tl('Diese Person gibt es nicht mehr.'),
+  kid_no_access: tl('Kinder haben keinen Zugang.'), admin_not_helper: tl('Ein Admin gehört immer zur Familie.'),
+  admin_needs_account: tl('Admin kann nur ein Erwachsener aus der Familie mit eigenem Zugang sein.'), last_admin: tl('Es muss immer mindestens einen Admin geben.'),
+  cannot_remove_self: tl('Du kannst dich nicht selbst entfernen. Lösche dazu dein Konto.'), wrong_password: tl('Das Passwort stimmt nicht.'),
+  too_many_attempts: tl('Zu viele falsche Versuche. Bitte warte eine Viertelstunde.'), upstream: tl('Die KI-Suche ist gerade nicht erreichbar.'),
+  limit_reached: tl('Das Limit für diesen Bereich ist erreicht.'), invalid_date: tl('Ungültiges Datum.'), entry_not_found: tl('Diesen Eintrag gibt es nicht mehr.'),
+});
+// German texts from the server are shown as they are; English technical messages never reach the page
+const looksGerman = m => /[äöüß]|\b(bitte|nicht|kein|keine|ist|der|die|das|du|dein|deine)\b/i.test(m);
 function accountError(e, kind) {
   if (!e.status) return tl('Keine Verbindung. Bitte später noch einmal.');
+  const code = e.code || e.data?.code || e.data?.data?.code, known = code && ROUTE_ERRORS()[code];
+  if (e.status === 429) return known || tl('Zu viele Versuche. Bitte warte kurz.');
+  if (known) return known;
+  // signing in with the right password before the e-mail is confirmed
+  if (kind === 'login' && e.status === 403) return tl('Deine E-Mail ist noch nicht bestätigt. Tippe auf den Link in der E-Mail, die wir dir geschickt haben.');
   const f = e.data?.data || {};
-  if (f.email?.code === 'validation_not_unique') return tl('Diese E-Mail hat schon ein Konto. Melde dich an.');
+  if (f.email?.code === 'validation_not_unique' || f.newEmail?.code === 'validation_not_unique' || f.newEmail?.code === 'validation_record_email_exists') return tl('Diese E-Mail hat schon ein Konto. Melde dich an.');
+  if (f.newEmail) return f.newEmail.code === 'validation_same_email' ? tl('Das ist schon deine E-Mail.') : tl('Bitte eine gültige E-Mail eingeben.');
   if (f.email) return tl('Bitte eine gültige E-Mail eingeben.');
-  if (f.password || f.oldPassword) return kind === 'pw' && f.oldPassword ? tl('Das aktuelle Passwort stimmt nicht.') : tl('Das Passwort braucht mindestens 8 Zeichen.');
+  if (f.oldPassword || (kind === 'pw' && f.password && /old/i.test(f.password.message || ''))) return tl('Das aktuelle Passwort stimmt nicht.');
+  if (f.password || f.passwordConfirm) return /max|long|less/i.test((f.password || f.passwordConfirm).code + (f.password || f.passwordConfirm).message) ? tl('Das Passwort darf höchstens 64 Zeichen haben.') : tl('Das Passwort braucht mindestens 8 Zeichen.');
   if (f.token) return tl('Der Link ist abgelaufen oder wurde schon benutzt. Fordere einen neuen an.');
   if (kind === 'login') return tl('E-Mail oder Passwort stimmt nicht.');
   if (kind === 'check') return tl('Das Passwort stimmt nicht.');
-  if (e.status === 429) return tl('Zu viele Versuche. Bitte warte kurz.');
-  return esc(e.data?.message || tl('Das hat nicht geklappt.'));
+  const m = String(e.data?.message || '');
+  return m && looksGerman(m) ? esc(m) : tl('Das hat nicht geklappt. Bitte versuch es noch einmal.');
 }
-async function busy(fn) { W.busy = true; W.err = ''; renderPanel(); try { await fn(); } finally { W.busy = false; renderPanel(); } }
+// re-render the page but keep what was typed (password, consent box) after an error
+function renderKeep() {
+  const vals = [...document.querySelectorAll('#panelBody input[id]')].map(i => [i.id, i.type === 'checkbox' ? i.checked : i.value]);
+  renderPanel();
+  for (const [id, v] of vals) { const i = document.getElementById(id); if (!i) continue; if (i.type === 'checkbox') i.checked = v; else if (!i.value) i.value = v; }
+}
+const pwTooLong = pw => pw.length > PW_MAX;
+async function busy(fn) { W.busy = true; W.err = ''; renderKeep(); try { await fn(); } finally { W.busy = false; renderKeep(); } }
 const val = id => ($('#' + id)?.value || '').trim();
 
 document.addEventListener('submit', async e => {
   const id = e.target.id;
-  if (!['regForm', 'loginForm', 'forgotForm', 'newpwForm', 'inviteForm', 'joinForm', 'pwForm', 'emailForm', 'emailConfirmForm', 'delForm'].includes(id)) return;
+  if (!['regForm', 'loginForm', 'forgotForm', 'newpwForm', 'inviteForm', 'joinForm', 'pwForm', 'emailForm', 'emailConfirmForm', 'delForm', 'verifyFailForm'].includes(id)) return;
   e.preventDefault();
-  const fail = msg => { W.err = msg; renderPanel(); };
+  const fail = msg => { W.err = msg; renderKeep(); };
   if (id === 'regForm' || id === 'inviteForm') {
     const p = id === 'regForm' ? 'reg' : 'inv', email = val(p + 'Email'), pw = $('#' + p + 'Pw').value;
     W.email = email;
     if (!/^\S+@\S+\.\S+$/.test(email)) return fail(tl('Bitte eine gültige E-Mail eingeben.'));
     if (pw.length < 8) return fail(tl('Das Passwort braucht mindestens 8 Zeichen.'));
-    if (!$('#' + p + 'Ok').checked) return fail(tl('Bitte stimme den Nutzungsbedingungen und dem Datenschutz zu.'));
+    if (pwTooLong(pw)) return fail(tl('Das Passwort darf höchstens 64 Zeichen haben.'));
+    if (!$('#' + p + 'Ok').checked) return fail(tl('Bitte akzeptiere die Nutzungsbedingungen.'));
     await busy(async () => {
       try { await register(email, pw); W.pw = pw; W.resendAt = Date.now() + 30000; W.notice = ''; stack.pop(); go({ type: 'wir', page: 'verify' }); }
       catch (x) { W.err = accountError(x, 'reg'); }
@@ -906,9 +989,13 @@ document.addEventListener('submit', async e => {
   else if (id === 'loginForm') {
     const email = val('loginEmail'), pw = $('#loginPw').value;
     W.email = email;
+    W.otherUser = null;
     await busy(async () => {
       try { await signIn(email, pw); afterSignIn(); toast(tl('Angemeldet.')); }
-      catch (x) { W.err = accountError(x, 'login'); W.unverified = !!x.status; }
+      catch (x) {
+        if (x.code === 'other_user') { W.otherUser = { other: x.other, n: x.n }; return; }
+        W.err = accountError(x, 'login'); W.unverified = x.status === 403;
+      }
     });
   }
   else if (id === 'forgotForm') {
@@ -919,6 +1006,7 @@ document.addEventListener('submit', async e => {
   else if (id === 'newpwForm') {
     const pw = $('#newPw').value;
     if (pw.length < 8) return fail(tl('Das Passwort braucht mindestens 8 Zeichen.'));
+    if (pwTooLong(pw)) return fail(tl('Das Passwort darf höchstens 64 Zeichen haben.'));
     await busy(async () => {
       try { await confirmReset(W.resetToken, pw); W.resetToken = null; W.notice = tl('Neues Passwort gespeichert. Melde dich jetzt an.'); stack.pop(); go({ type: 'wir', page: 'login' }); }
       catch (x) { W.err = accountError(x); }
@@ -936,6 +1024,7 @@ document.addEventListener('submit', async e => {
   else if (id === 'pwForm') {
     const old = $('#pwOld').value, pw = $('#pwNew').value;
     if (pw.length < 8) return fail(tl('Das Passwort braucht mindestens 8 Zeichen.'));
+    if (pwTooLong(pw)) return fail(tl('Das Passwort darf höchstens 64 Zeichen haben.'));
     await busy(async () => { try { await changePassword(old, pw); back(); toast(tl('Passwort geändert.')); } catch (x) { W.err = accountError(x, 'pw'); } });
   }
   else if (id === 'emailForm') {
@@ -953,11 +1042,19 @@ document.addEventListener('submit', async e => {
       catch (x) { W.err = accountError(x, 'check'); }
     });
   }
+  else if (id === 'verifyFailForm') {
+    const email = val('vfEmail'); W.email = email;
+    if (!/^\S+@\S+\.\S+$/.test(email)) return fail(tl('Bitte eine gültige E-Mail eingeben.'));
+    await busy(async () => {
+      try { await resendVerification(email); try { localStorage.setItem('djuu.pendingEmail', email); } catch (x) { /* storage blocked */ } W.notice = tl('Neuer Link ist unterwegs. Schau auch im Spam-Ordner nach.'); }
+      catch (x) { W.err = accountError(x); }
+    });
+  }
   else if (id === 'delForm') {
     const pw = $('#delPw').value;
     await busy(async () => {
       try { await deleteAccount(pw); home(); toast(tl('Dein Konto ist gelöscht.')); }
-      catch (x) { W.err = x.status === 400 ? tl('Das Passwort stimmt nicht.') : accountError(x); }
+      catch (x) { W.err = x.status === 400 && !x.code ? tl('Das Passwort stimmt nicht.') : accountError(x, 'check'); }
     });
   }
 });
@@ -975,13 +1072,30 @@ document.addEventListener('click', async e => {
   const t = e.target.closest('button'); if (!t) return;
   const d = t.dataset;
   if (d.lockclose) { closeLock(); W.pendingAction = null; }
-  else if (d.lockgo) openWir(d.lockgo);
+  else if (d.lockgo) openWir(d.lockgo === 'wir' ? null : d.lockgo);
   else if (d.pweye) { const i = $('#' + d.pweye); i.type = i.type === 'password' ? 'text' : 'password'; t.classList.toggle('on', i.type === 'text'); }
   else if (d.resend) {
     const email = d.resend === 'login' ? val('loginEmail') : (W.email || pendingEmail());
     if (!email) return;
     try { await resendVerification(email); W.notice = tl('Neuer Link ist unterwegs.'); W.resendAt = Date.now() + 30000; } catch (x) { W.err = accountError(x); }
     renderPanel();
+  }
+  else if (d.signdiscard && SY.pendingSignIn) {
+    W.busy = true; renderPanel();
+    try { await adoptSignIn(SY.pendingSignIn, true); W.otherUser = null; afterSignIn(); toast(tl('Angemeldet.')); }
+    catch (x) { W.err = accountError(x, 'login'); }
+    W.busy = false; renderPanel();
+  }
+  else if (d.signkeep) { W.otherUser = null; SY.pendingSignIn = null; renderPanel(); }
+  else if (d.leavewir) {
+    if (!confirm(tl('Das Wir verlassen? Dein Konto bleibt. Was du gemerkt und eingetragen hast, bleibt für die anderen.'))) return;
+    try { await leaveWir(); store.onboarded = false; W.onb = 1; openWir(); toast(tl('Du hast das Wir verlassen.')); }
+    catch (x) { toast(x.code === 'last_admin' ? tl('Du bist der einzige Admin. Mach zuerst jemand anderen zum Admin.') : accountError(x)); }
+  }
+  else if (d.logoutall) {
+    if (!confirm(tl('Auf allen anderen Geräten abmelden? Dort musst du dich danach neu anmelden. Hier bleibst du angemeldet.'))) return;
+    try { await logoutAll(); toast(tl('Auf allen anderen Geräten abgemeldet.')); renderPanel(); }
+    catch (x) { toast(x.status === 404 ? tl('Das geht gerade noch nicht.') : accountError(x)); }
   }
   else if (d.joinrole) { W.joinName = val('joinName'); W.joinRole = W.joinRole === d.joinrole ? '' : d.joinrole; renderPanel(); }
   else if (d.invitedrop) { try { localStorage.removeItem('djuu.join'); } catch (x) { /* storage blocked */ } SY.invite = null; W.inviteInfo = null; home(); }
@@ -995,7 +1109,8 @@ setInterval(async () => {
   if (n) n.textContent = left ? tl('Du kannst in {n} Sekunden einen neuen Link anfordern.', { n: left }) : tl('Kein Link angekommen? Fordere einen neuen an.');
   if (!W.pw || W.trying || document.visibilityState !== 'visible' || (Date.now() / 1000 | 0) % 5) return;
   W.trying = true;
-  try { await signIn(W.email || pendingEmail(), W.pw); afterSignIn(); toast(tl('E-Mail bestätigt. Willkommen bei Djuu!')); } catch (x) { /* not confirmed yet */ }
+  try { await signIn(W.email || pendingEmail(), W.pw); afterSignIn(); toast(tl('E-Mail bestätigt. Willkommen bei Djuu!')); }
+  catch (x) { if (x.code === 'other_user') { W.otherUser = { other: x.other, n: x.n }; W.pw = null; stack.pop(); go({ type: 'wir', page: 'login' }); } /* else: not confirmed yet */ }
   W.trying = false;
 }, 1000);
 // links from the mails: #verify=, #reset=, #email=; an invite link (sync.js) opens its page
@@ -1009,7 +1124,7 @@ setInterval(async () => {
     $('#welcome')?.remove();
     if (kind === 'verify') {
       try { await confirmVerification(token); W.notice = tl('E-Mail bestätigt. Du kannst dich jetzt anmelden.'); }
-      catch (e) { W.err = tl('Der Link ist abgelaufen oder wurde schon benutzt. Melde dich an oder fordere einen neuen an.'); }
+      catch (e) { W.email = emailFromToken(token) || W.email || ''; W.err = ''; W.notice = ''; return openWir(hasToken() ? null : 'verifyfail'); }
       openWir(hasToken() ? null : 'login');
     } else if (kind === 'reset') { W.resetToken = token; openWir('newpw'); }
     else { W.emailToken = token; openWir('emailconfirm'); }

@@ -10,6 +10,9 @@ function pbId() { const a = 'abcdefghijklmnopqrstuvwxyz0123456789', b = crypto.g
 // the six person colours: Viola, Petrol, Rosa, Orange, Gelb, Nachtblau. Text on yellow is dark.
 const MEMBER_COLORS = ['#6B4EE6', '#0E8F84', '#D6336C', '#CC6A00', '#FFD166', '#1F1B4D'];
 const onColor = c => c === '#FFD166' ? '#1F1B4D' : '#FFFFFF';
+// values from the server that go into style= and src=: only a plain colour, only a small inline JPEG/PNG/WebP picture
+const safeColor = (c, fallback = MEMBER_COLORS[0]) => (/^#[0-9a-f]{6}$/i.test(String(c || '')) ? c : fallback);
+const safePhoto = p => (typeof p === 'string' && /^data:image\/(jpeg|png|webp);base64,[a-z0-9+/=]+$/i.test(p) ? p : '');
 const textOn = c => c === '#FFD166' ? '#8A6100' : c; // the colour as text on white
 store.profile.adults = store.profile.adults || [];
 for (const k of store.profile.kids) k.id = k.id || pbId();
@@ -18,8 +21,8 @@ save();
 // everyone with their own colour (chosen or given automatically, see looks.js) and photo
 function members() {
   const pr = store.profile;
-  const list = pr.adults.map((a, i) => ({ id: a.id, name: a.name || `${tl('Erwachsene*r')} ${i + 1}`, kid: false, color: a.color, photo: a.photo || '' }))
-    .concat(pr.kids.map((k, i) => ({ id: k.id, name: k.name || `${tl('Kind')} ${i + 1}`, kid: true, size: k.size, shoe: k.shoe, color: k.color, photo: k.photo || '' })));
+  const list = pr.adults.map((a, i) => ({ id: a.id, name: a.name || `${tl('Erwachsene*r')} ${i + 1}`, kid: false, color: a.color, photo: safePhoto(a.photo) }))
+    .concat(pr.kids.map((k, i) => ({ id: k.id, name: k.name || `${tl('Kind')} ${i + 1}`, kid: true, size: k.size, shoe: k.shoe, color: k.color, photo: safePhoto(k.photo) })));
   // people whose colour is not stored yet get a free one for display, the same on every phone
   const used = new Set(list.map(m => m.color).filter(c => MEMBER_COLORS.includes(c)));
   let n = 0;
@@ -145,6 +148,10 @@ function catOrder() {
   return out;
 }
 const openItems = () => store.shop.items.filter(i => !i.done && !i.later);
+// items added on purpose although the same thing was on the list ("Trotzdem hinzufügen"): never merged (this phone only)
+const FORCED_KEY = 'djuu.forcedItems';
+const forcedItems = new Set((() => { try { return JSON.parse(localStorage.getItem(FORCED_KEY)) || []; } catch (e) { return []; } })());
+const rememberForced = id => { forcedItems.add(id); try { localStorage.setItem(FORCED_KEY, JSON.stringify([...forcedItems].slice(-200))); } catch (e) { /* storage blocked */ } };
 function findDuplicate(name) {
   const k = itemKey(name);
   return openItems().concat(store.shop.items.filter(i => i.later)).find(i => itemKey(i.name) === k || (k.length >= 5 && typoDist(itemKey(i.name), k, 1) <= 1));
@@ -154,16 +161,36 @@ function addShopItem(text, force = false) {
   if (!name) return;
   const dup = !force && findDuplicate(name);
   if (dup) { SH.pending = { text, qty, name, dup: dup.id }; renderPanel(); return; }
-  store.shop.items.push({ id: pbId(), name, qty, cat: shopCat(name), by: meId(), at: Date.now(), done: false, later: false });
+  const id = pbId();
+  if (force) rememberForced(id);
+  store.shop.items.push({ id, name: name.slice(0, 60), qty: qty.slice(0, 20), cat: shopCat(name), by: meId(), at: Date.now(), done: false, later: false });
   SH.pending = null; save(); renderPanel();
   setTimeout(() => $('#shIn')?.focus(), 30);
 }
-// "Menge erhöhen": numbers add up, everything else is listed
-function raiseQty(item, qty) {
-  const a = parseFloat((item.qty || '1').replace(',', '.')), b = parseFloat((qty || '1').replace(',', '.'));
-  const unitA = (item.qty || '').replace(/[\d.,\s]/g, ''), unitB = (qty || '').replace(/[\d.,\s]/g, '');
-  item.qty = !isNaN(a) && !isNaN(b) && unitA === unitB ? `${String(a + b).replace('.', ',')}${unitA ? ' ' + unitA : ''}` : [item.qty || '1', qty || '1'].join(' + ');
-  item.later = false;
+// "Menge erhöhen": numbers add up, everything else is listed (at most 20 characters, like on the server)
+function addQty(qa, qb) {
+  const a = parseFloat((qa || '1').replace(',', '.')), b = parseFloat((qb || '1').replace(',', '.'));
+  const unitA = (qa || '').replace(/[\d.,\s]/g, ''), unitB = (qb || '').replace(/[\d.,\s]/g, '');
+  const out = !isNaN(a) && !isNaN(b) && unitA === unitB ? `${String(a + b).replace('.', ',')}${unitA ? ' ' + unitA : ''}` : [qa || '1', qb || '1'].join(' + ');
+  return out.length > 20 ? out.slice(0, 19) + '…' : out;
+}
+function raiseQty(item, qty) { item.qty = addQty(item.qty, qty); item.later = false; }
+// The same thing added on two phones at once (one of them offline) shows up twice after syncing: the newer one of mine
+// goes into the older one. Only this phone's own entries are merged, so two phones never merge the same pair.
+function mergeShopDuplicates() {
+  if (typeof perm === 'function' && perm('shop') !== 'edit') return 0;
+  const me = meId(), items = store.shop.items;
+  let merged = 0;
+  for (const mine of items.filter(i => i.by === me && !i.done && !i.unsaved && !forcedItems.has(i.id)).sort((a, b) => b.at - a.at)) {
+    if (!items.includes(mine)) continue;
+    const older = items.find(i => i !== mine && !i.done && !i.unsaved && !!i.later === !!mine.later && (i.at < mine.at || (i.at === mine.at && i.id < mine.id)) && itemKey(i.name) === itemKey(mine.name));
+    if (!older) continue;
+    if (mine.qty && older.qty) older.qty = addQty(older.qty, mine.qty); else if (mine.qty) older.qty = mine.qty;
+    items.splice(items.indexOf(mine), 1);
+    merged++;
+  }
+  if (merged) save();
+  return merged;
 }
 function finishTrip() {
   const s = store.shop, done = s.items.filter(i => i.done);
@@ -175,7 +202,7 @@ function finishTrip() {
   for (const i of done) { const h = s.history[itemKey(i.name)] || { name: i.name, cat: i.cat, n: 0 }; h.n++; h.last = Date.now(); h.name = i.name; h.cat = i.cat; s.history[itemKey(i.name)] = h; }
   s.items = s.items.filter(i => !i.done).map(i => ({ ...i, later: false })); // "Nächstes Mal" comes back
   s.trips++; s.seq = [];
-  save(); toast(`${tl('Einkauf fertig:')} ${done.length} ${done.length === 1 ? tl('Sache') : tl('Sachen')} erledigt.`);
+  save(); toast(tl('Einkauf fertig: {n} erledigt.', { n: `${done.length} ${done.length === 1 ? tl('Sache') : tl('Sachen')}` }));
 }
 function shopHtml() {
   const s = store.shop, order = catOrder(), open = openItems();
@@ -187,13 +214,13 @@ function shopHtml() {
   const often = Object.entries(s.history).filter(([k]) => !onList.has(k)).sort((a, b) => b[1].n - a[1].n || b[1].last - a[1].last).slice(0, 10);
   const row = i => `<li class="shrow${i.done ? ' done' : ''}">
       <button type="button" class="shcheck" data-shtoggle="${i.id}" aria-label="${i.done ? tl('Zurück auf die Liste') : tl('Abhaken')}">${i.done ? svg('check') : ''}</button>
-      <button type="button" class="shname" data-shtoggle="${i.id}">${i.qty ? `<b>${esc(i.qty)}</b> ` : ''}${esc(i.name)}${byLine(i.by)}</button>
+      <button type="button" class="shname" data-shtoggle="${i.id}">${i.qty ? `<b>${esc(i.qty)}</b> ` : ''}${esc(i.name)}${byLine(i.by)}${unsavedMark(i)}</button>
       ${i.done ? '' : `<button type="button" class="round sm" data-shmenu="${i.id}" aria-label="${tl('Mehr')}">⋯</button>`}</li>
       ${SH.menu === i.id ? `<li class="shmenu"><button type="button" class="chip" data-shlater="${i.id}">${tl('Nächstes Mal')}</button><button type="button" class="chip" data-shdel="${i.id}">${tl('Löschen')}</button>
         <span class="muted">${tl('Gang:')}</span>${SHOP_CATS.map(([id, l]) => `<button type="button" class="chip${i.cat === id ? ' on' : ''}" data-shcat="${i.id}|${id}">${esc(tl(l))}</button>`).join('')}</li>` : ''}`;
   const p = SH.pending, pd = p && s.items.find(i => i.id === p.dup);
   return `<form class="shadd" id="shForm"><input id="shIn" autocomplete="off" placeholder="${tl('Was fehlt? z. B. 2 Milch')}" maxlength="60" aria-label="${tl('Neuer Eintrag')}"><button type="submit" class="btn primary" aria-label="${tl('Hinzufügen')}">${svg('plus')}</button></form>
-    ${p && pd ? `<div class="dupcard"><b>„${esc(pd.name)}${tl('“ steht schon drauf')}${pd.later ? tl(' (für nächstes Mal)') : ''}${pd.qty ? ', ' + esc(pd.qty) : ''}${memberById(pd.by) ? `, von ${esc(memberById(pd.by).name)}` : ''}.</b>
+    ${p && pd ? `<div class="dupcard"><b>„${esc(pd.name)}${tl('“ steht schon drauf')}${pd.later ? tl(' (für nächstes Mal)') : ''}${pd.qty ? ', ' + esc(pd.qty) : ''}${memberById(pd.by) ? `, ${tl('von {name}', { name: esc(memberById(pd.by).name) })}` : ''}.</b>
       <div class="fgrid"><button type="button" class="chip on" data-shraise="1">${tl('Menge erhöhen')}</button><button type="button" class="chip" data-shforce="1">${tl('Trotzdem hinzufügen')}</button><button type="button" class="chip" data-shcancel="1">${tl('Abbrechen')}</button></div></div>` : ''}
     ${often.length ? `<div class="row shoften">${often.map(([k, h]) => `<button type="button" class="chip" data-shagain="${esc(k)}">${svg('plus')}${esc(h.name)}</button>`).join('')}</div>` : ''}
     ${open.length ? cats.map(c => `<h4 class="shcat">${esc(tl(SHOP_CAT[c]))}</h4><ol class="shlist">${groups[c].sort((a, b) => a.at - b.at).map(row).join('')}</ol>`).join('')
@@ -207,6 +234,14 @@ function shopHtml() {
 
 // ---------- Errands (Besorgungen): clothes, furniture, presents ----------
 const ERRAND_STATES = [['idee', tl('Idee')], ['ja', tl('Kaufen wir')], ['gekauft', tl('Gekauft')]];
+// an entry the server did not take (too long, no right to change it): a calm grey mark, the reason came as a toast
+const unsavedMark = x => x.unsaved ? ` <small class="unsaved" title="${esc(x.unsaved)}">${tl('nicht gespeichert')}</small>` : '';
+// the server keeps at most 80 characters as title and 140 as note: a longer text goes on in the note
+function splitTitle(t) {
+  if (t.length <= 80) return [t, ''];
+  const cut = t.slice(0, 80).replace(/\s+\S*$/, '') || t.slice(0, 80);
+  return [cut.trim(), t.slice(cut.length).trim().slice(0, 140)];
+}
 const cleanUrl = u => { try { const x = new URL(/^https?:\/\//i.test(u) ? u : 'https://' + u); return /^https?:$/.test(x.protocol) && x.hostname.includes('.') ? x.href : null; } catch (e) { return null; } };
 const hostOf = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch (e) { return ''; } };
 // a readable title from a shop link: last words of the path ("kinderbett-90x200" -> "Kinderbett 90x200"), else the shop's name
@@ -220,7 +255,8 @@ function titleFromUrl(u) {
 function addErrand(text) {
   const t = text.trim(); if (!t) return;
   const url = /^(https?:\/\/|www\.)\S+$/i.test(t) ? cleanUrl(t) : null;
-  const e = { id: pbId(), title: url ? titleFromUrl(url) : t, link: url || '', for: '', note: '', price: '', state: 'idee', by: meId(), at: Date.now() };
+  const [title, note] = url ? [titleFromUrl(url).slice(0, 80), ''] : splitTitle(t);
+  const e = { id: pbId(), title, link: url || '', for: '', note, price: '', state: 'idee', by: meId(), at: Date.now() };
   store.errands.unshift(e); SH.editing = url ? e.id : null; save(); renderPanel();
 }
 function errandHtml() {
@@ -230,7 +266,7 @@ function errandHtml() {
     const m = memberById(e.for), size = m && m.kid && (m.size || m.shoe) ? [m.size && tl('Gr. ') + m.size, m.shoe && tl('Schuhe ') + m.shoe].filter(Boolean).join(' · ') : '';
     return `<li class="ercard${e.state === 'gekauft' ? ' done' : ''}">
       <div class="erhead"><button type="button" class="shcheck" data-erbought="${e.id}" aria-label="${e.state === 'gekauft' ? tl('Doch nicht gekauft') : tl('Gekauft')}">${e.state === 'gekauft' ? svg('check') : ''}</button>
-        <div class="ertitle"><b>${esc(e.title)}</b>
+        <div class="ertitle"><b>${esc(e.title)}</b>${unsavedMark(e)}
           <span class="ermeta">${e.link ? `<a href="${esc(e.link)}" target="_blank" rel="noopener nofollow">${esc(hostOf(e.link))}</a>` : ''}${e.price ? `<span>${esc(e.price)}</span>` : ''}${size ? `<span>${esc(size)}</span>` : ''}${byLine(e.by)}</span>
           ${e.note ? `<span class="muted">${esc(e.note)}</span>` : ''}</div>
         <button type="button" class="round sm" data-eredit="${e.id}" aria-label="${tl('Bearbeiten')}">${svg('edit')}</button></div>
@@ -256,7 +292,7 @@ document.addEventListener('click', e => {
   const d = t.dataset, s = store.shop;
   if (d.shtoggle) { const i = shopItem(d.shtoggle); i.done = !i.done; if (i.done) { i.doneBy = meId(); s.seq.push(i.cat); } SH.menu = null; save(); renderPanel(); }
   else if (d.shmenu) { SH.menu = SH.menu === d.shmenu ? null : d.shmenu; renderPanel(); }
-  else if (d.shlater) { shopItem(d.shlater).later = true; SH.menu = null; save(); renderPanel(); toast('Kommt beim nächsten Einkauf wieder.'); }
+  else if (d.shlater) { shopItem(d.shlater).later = true; SH.menu = null; save(); renderPanel(); toast(tl('Kommt beim nächsten Einkauf wieder.')); }
   else if (d.shnow) { shopItem(d.shnow).later = false; save(); renderPanel(); }
   else if (d.shdel) { s.items = s.items.filter(i => i.id !== d.shdel); SH.menu = null; save(); renderPanel(); }
   else if (d.shcat) { const [id, c] = d.shcat.split('|'), i = shopItem(id); i.cat = c; s.learned[itemKey(i.name)] = c; SH.menu = null; save(); renderPanel(); }
@@ -285,8 +321,8 @@ document.addEventListener('change', e => {
   if (el.dataset.adult != null) { store.profile.adults[+el.dataset.adult][el.dataset.k] = el.value.trim(); save(); }
   if (el.dataset.erf) {
     const [id, k] = el.dataset.erf.split('|'), x = store.errands.find(r => r.id === id);
-    if (k === 'link') { const u = el.value.trim() ? cleanUrl(el.value.trim()) : ''; if (u === null) return toast('Der Link sieht nicht richtig aus.'); x.link = u; }
-    else x[k] = el.value.trim();
+    if (k === 'link') { const u = el.value.trim() ? cleanUrl(el.value.trim()) : ''; if (u === null) return toast(tl('Der Link sieht nicht richtig aus.')); x.link = u; }
+    else x[k] = el.value.trim().slice(0, { title: 80, price: 20 }[k] || 140);
     save();
     if (k === 'for') renderPanel();
   }

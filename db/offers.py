@@ -45,27 +45,27 @@ CREATE INDEX IF NOT EXISTS offers_topic ON offers(topic);
 """
 
 TOPICS = {  # topic id -> label, keyword regex (first match wins, order matters)
-    'geburtsvorbereitung': ('Geburtsvorbereitung', r'geburtsvorbereit|schwanger|werdende'),
+    'geburtsvorbereitung': ('Geburtsvorbereitung', r'geburtsvorbereit|schwanger|werdende|säuglingspflege'),
     'rueckbildung': ('Rückbildung', r'rückbildung|rueckbildung|beckenboden|nach der geburt'),
     'flohmarkt': ('Flohmarkt & Basar', r'flohmarkt|basar|trödel|kleiderbörse|kaufrausch|kaufrau'),
     'pekip': ('PEKiP & Bewegung', r'pekip|delfi|pikler|first step|eltern-kind-turnen|krabbelturnen|turnfrösche|bewegung|yoga'),
     'babymassage': ('Babymassage', r'babymassage|baby-massage'),
     'schwimmen': ('Babyschwimmen', r'babyschwimm|aqua baby|wassergewöhnung|schwimm'),
-    'musik': ('Musik', r'musik|singen|lieder|klang'),
-    'spiele': ('Spielen & Medien', r'brettspiel|spiele(treff|nachmittag|zimmer|universum|abend)|duplo|lego|switch|gaming|konsole|pokemon|medien|robot|coding|programmier'),
+    'musik': ('Musik', r'musik|singen|lieder|klang|singing|\bchor\b|gitarre|klavier|trommel|percussion|ukulele|geige|\bband\b'),
+    'spiele': ('Spielen & Medien', r'brettspiel|spiele(treff|nachmittag|zimmer|universum|abend)|duplo|lego|switch|gaming|konsole|pokemon|medien|robot|coding|programmier|schach|kapla|spielezeit|spielevergangenheit|computer'),
     'krabbelgruppe': ('Krabbel- & Spielgruppe', r'krabbel|spielgruppe|eltern-kind-gruppe|miniclub|spielkreis|kennenlern|treff|morgenkreis|vater-kind|eltern mit (kindern|babys)'),
     'eltern_cafe': ('Eltern-Café & Frühstück', r'café|cafe|frühstück|fruehstueck|offener treff|elterncafé'),
-    'beratung': ('Beratung', r'beratung|sprechstunde|mütterberatung|stillberatung|hebammensprechstunde'),
+    'beratung': ('Beratung', r'beratung|sprechstunde|mütterberatung|stillberatung|stillgruppe|hebammensprechstunde'),
     'erste_hilfe': ('Erste Hilfe am Kind', r'erste hilfe|notfall'),
-    'kreativ': ('Basteln & Kreatives', r'basteln|malen|kreativ|werkst|bastel|malnachmittag|atelier|postkarten|weihnachtskarten|kunstwerk|nähen|drucken'),
+    'kreativ': ('Basteln & Kreatives', r'basteln|malen|kreativ|werkst|bastel|malnachmittag|atelier|postkarten|weihnachtskarten|kunstwerk|nähen|drucken|kunst(?!stoff)|töpfer|keramik|origami|papier|gestalten|dekorieren|diorama|siebdruck|filzen|zeichn|graffiti|comic'),
     'lesen': ('Vorlesen', r'vorlese|bilderbuch|geschichte|lesen|lese|märchen|kamishibai|gedicht|buch'),
     'theater': ('Theater, Kino & Zirkus', r'theater|puppen|zirkus|zauber|kino|film|konzert'),
     # second pass for what the list above leaves open: only reached by titles that matched nothing
     'feste': ('Feste & Laternen', r'laterne|st\. martin|nikolaus|weihnacht|advent|lichterfest|ostern|fasching|karneval|halloween'),
-    'kochen': ('Kochen & Backen', r'backen|kochen|festtagsmenü|beikost|rezept|plätzchen'),
-    'sport': ('Sport & Toben', r'sport|turnen|turn|toben|skating|laufen|springen|tanz|ball\b|kids|eimsbüttelinis|akrobatik|parkour|klettern|judo|karate|stretch'),
-    'eltern_thema': ('Elternthemen', r'gelassen|selbstregulation|patchwork|weint|trotz|schlaf|erziehung|pubertät|familienalltag|grenzen|geschwister|ernährung|elternabend|vortrag|relax'),
-    'wissen': ('Forschen & Wissen', r'mint\b|forsch|experiment|natur|pilze|wissenschaft|workshop|tiere'),
+    'kochen': ('Kochen & Backen', r'backen|kochen|kochkurs|festtagsmenü|beikost|rezept|plätzchen'),
+    'sport': ('Sport & Toben', r'sport|turnen|turn|toben|skating|laufen|springen|tanz|ball\b|kids|eimsbüttelinis|akrobatik|parkour|klettern|judo|karate|stretch|ju-?jutsu|jiu-?jitsu|capoeira|hip-?hop|taekwondo|trampolin|kung ?fu|boxen|kickbox|ballett|ballet\b|dance|kegel|tischtennis|leichtathletik|tauchen|fitness|bodyfit|selbstbehauptung|aikido|fechten|cheer|inline|skate|handball|fu(ß|ss)ball|basketball|volleyball|hockey|tennis|badminton|reiten|voltigier|rudern|segeln|kanu|schwimmkurs|seepferdchen|turnier|saisontraining|probetraining'),
+    'eltern_thema': ('Elternthemen', r'gelassen|selbstregulation|bindungsorientiert|patchwork|weint|trotz|schlaf|erziehung|pubertät|familienalltag|grenzen|geschwister|ernährung|elternabend|vortrag|relax'),
+    'wissen': ('Forschen & Wissen', r'mint\b|forsch|experiment|natur|pilze|wissenschaft|workshop|tiere|entdecker|museum|archäolog|führung|rallye|gartenwissen|gärtnern|hortus|sprach|englisch|französisch|spanisch|english|french|jouer|technik|elektro'),
 }
 
 

@@ -7,7 +7,7 @@
    User input is stored on this device only until the server exists (server-ready shape, see STORE). */
 'use strict'; // i18n-skip
 
-const VERSION = '0.63';
+const VERSION = '0.64';
 const CONTACT = window.DJUU_CONTACT || {}; // config.js: reports and feedback stay hidden until an address is set
 // Logo on light backgrounds, as specified in the design PDF.
 const LOGO = `<span class="logo" role="img" aria-label="djuu"><span style="color:#6B4EE6">d</span><span style="color:#0E8F84">j</span><span style="color:#D6336C">u</span><span style="color:#CC6A00">u</span>
@@ -78,6 +78,8 @@ const ICON = {
   pin: '<path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/>',
   undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/>',
   mic: '<rect x="9" y="2.5" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3.5M8.5 21.5h7"/>',
+  phone: '<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/>',
+  globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.7 3.8 5.7 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-5.7-3.8-9S9.5 5.7 12 3z"/>',
   pill: '<rect x="3" y="8.5" width="18" height="7" rx="3.5" transform="rotate(-45 12 12)"/><path d="M9.5 9.5l5 5"/>',
 };
 const svg = (name, cls = 'i') => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON[name] || ''}</svg>`;
@@ -94,7 +96,7 @@ const GROUPS = [
   { id: 'kurse', mode: 'erleben', label: tl('Termine'), short: tl('Termine'), icon: 'group', color: '#C2255C', cats: [], offers: ['kurs', 'gruppe'] },
   { id: 'events', mode: 'erleben', label: tl('Events'), short: tl('Events'), icon: 'cal', color: '#D9480F', cats: [], offers: ['termin'] },
   { id: 'gesundheit', mode: 'service', label: tl('Notfall & Gesundheit'), short: tl('Notfall & Gesundheit'), icon: 'cross', color: '#E03131', cats: ['kinderarzt', 'klinik', 'apotheke', 'babyklappe', 'hebamme', 'geburtshaus', 'zahnarzt', 'frauenarzt', 'hno', 'augenarzt', 'kinderpsychologie', 'physio', 'therapie'] },
-  { id: 'sanitaer', mode: 'service', label: tl('Sanitär'), short: tl('Sanitär'), icon: 'baby', color: '#0C8599', cats: ['wc', 'wickel', 'familienfreundlich', 'trinkwasser'], extra: p => p.tags.has('wickeln') || p.tags.has('stillen') },
+  { id: 'sanitaer', mode: 'service', label: tl('Sanitär'), short: tl('Sanitär'), icon: 'baby', color: '#0C8599', cats: ['wc', 'wickel', 'familienfreundlich', 'trinkwasser'], extra: p => p.tags.has('wickeln') || p.tags.has('stillen') || p.tags.has('trinkwasser') }, // refill points in cafés and shops
   { id: 'laeden', mode: 'service', label: tl('Läden'), short: tl('Läden'), icon: 'bag', color: '#1971C2', cats: ['windeln', 'laden', 'wochenmarkt'] },
   { id: 'familie', mode: 'service', label: tl('Familie & Beratung'), short: tl('Familie & Beratung'), icon: 'people', color: '#6741D9', cats: ['treffpunkt', 'beratung', 'kita', 'kurs', 'schule', 'musikschule', 'tanzschule', 'sprachschule', 'kreativschule', 'nachhilfe', 'jugend', 'pfadfinder'] },
   { id: 'mobil', mode: 'service', label: tl('Mobilität'), short: tl('Mobilität'), icon: 'elevator', color: '#5C677D', cats: ['haltestelle', 'bahnhof', 'aufzug'] },
@@ -107,18 +109,18 @@ const T = (id, label, p, of) => ({ id, label, p: p ? 1 : 0, of });
 const TAGS = {
   spielen: [T('spielplatz', tl('Spielplatz')), T('abenteuer', tl('Abenteuerspielplatz')), T('indoorspielplatz', tl('Indoor-Spielplatz')), T('klettern', tl('Klettern & Bouldern')),
     T('trampolin', tl('Trampolin')), T('spielhaus', tl('Spielhaus')), T('spielstrasse', tl('Spielstraße')), T('bolzplatz', tl('Bolzplatz')), T('tischtennis', tl('Tischtennis')), T('sportstaette', tl('Sportanlagen')), T('sportverein', tl('Sportvereine')), T('reiten', tl('Reiten')), T('rodeln', tl('Rodeln')), T('minigolf', tl('Minigolf')), T('skaten', tl('Skaten')), T('eislaufen', tl('Eislaufen')),
-    T('bewegung', tl('Sport & Bewegung')), T('wasserspiel', tl('Wasserspiel'), 1)],
+    T('bewegung', tl('Sport & Bewegung')), T('wasserspiel', tl('Wasserspiel'), 1), T('grosser_spielplatz', tl('Großer Spielplatz'), 1)],
   gastro: [T('cafe', tl('Café')), T('restaurant', tl('Restaurant')), T('imbiss', tl('Imbiss')), T('eis', tl('Eis')), T('kindercafe', tl('Kindercafé'), 1),
     T('fruehstueck', tl('Frühstück'), 1), T('kuchen', tl('Kuchen'), 1), T('vegan', tl('Vegan'), 1), T('vegetarisch', tl('Vegetarisch'), 1), T('terrasse', tl('Draußen sitzen'), 1),
     T('italienisch', tl('Pizza & Pasta'), 1), T('asiatisch', tl('Asiatisch'), 1), T('burger', tl('Burger'), 1)],
   entdecken: [T('e_natur', tl('Natur & Parks'), 0, ['natur', 'picknick', 'aussicht', 'hundeauslauf']), T('tiere', tl('Tiere (Zoo, Bauernhof)')),
     T('e_kultur', tl('Museen & Kultur'), 0, ['museum', 'kultur', 'theater', 'buecherei', 'buecherschrank']), T('e_ausflug', tl('Ausflüge'), 0, ['ausflugsziel', 'faehre', 'bootsverleih', 'camping']),
-    T('e_wasser', tl('Wasser & Schwimmen'), 0, ['baden', 'brunnen'])],
+    T('e_wasser', tl('Wasser & Schwimmen'), 0, ['baden', 'brunnen']), T('freilauf_alle', tl('Freilauf für alle Hunde'), 1)],
   gesundheit: [T('kinderarzt', tl('Kinderarzt')), T('apotheke', tl('Apotheke')), T('klinik', tl('Klinik')), T('hebamme', tl('Hebamme')), T('geburtshaus', tl('Geburtshaus')), T('zahnarzt', tl('Zahnarzt')), T('frauenarzt', tl('Frauenarzt')), T('hno', 'HNO'), T('augenarzt', tl('Augenarzt')), T('kinderpsychologie', tl('Kinderpsychologie')), T('physio', tl('Physiotherapie')), T('therapie', tl('Logopädie & Ergotherapie')), T('babyklappe', tl('Babyklappe'))],
   sanitaer: [T('wc', tl('Toilette')), T('wickeln', tl('Wickelplatz')), T('stillen', tl('Stillen')), T('trinkwasser', tl('Trinkwasser'))],
   laeden: [T('drogerie', tl('Drogerie')), T('supermarkt', tl('Supermarkt')), T('spaeti', tl('Späti & Kiosk')), T('tankstelle', tl('Tankstelle')), T('baby', tl('Babyausstattung')),
     T('wochenmarkt', tl('Wochenmarkt')), T('kinderkleidung', tl('Kinderkleidung')), T('spielzeug', tl('Spielzeug')), T('buecher', tl('Bücher')), T('secondhand', tl('Secondhand'))],
-  familie: [T('familienzentrum', tl('Familienzentren')), T('elternschule', tl('Elternschulen')), T('beratung', tl('Beratung')), T('kita', tl('Kitas')), T('schule', tl('Schulen')), T('musikschule', tl('Musikschulen')), T('tanzschule', tl('Tanzschulen')), T('sprachschule', tl('Sprachschulen')), T('kreativschule', tl('Kreativschulen')), T('nachhilfe', tl('Nachhilfe')), T('jugend', tl('Jugendhilfe')), T('pfadfinder', tl('Pfadfinder'))],
+  familie: [T('familienzentrum', tl('Treffpunkte & Familienzentren')), T('elternschule', tl('Elternschulen')), T('beratung', tl('Beratung')), T('kita', tl('Kitas')), T('schule', tl('Schulen')), T('musikschule', tl('Musikschulen')), T('tanzschule', tl('Tanzschulen')), T('sprachschule', tl('Sprachschulen')), T('kreativschule', tl('Kreativschulen')), T('nachhilfe', tl('Nachhilfe')), T('jugend', tl('Jugendhilfe')), T('pfadfinder', tl('Pfadfinder'))],
   mobil: [T('haltestelle', tl('Haltestellen')), T('bahnhof', tl('Bahnhöfe')), T('aufzug', tl('Aufzüge'))],
   kurse: [T('aud:kinder', tl('Für Kinder')), T('aud:erwachsene', tl('Für Erwachsene')), T('krabbelgruppe', tl('Krabbel- & Spielgruppe')), T('pekip', tl('PEKiP & Bewegung')),
     T('musik', tl('Musik')), T('schwimmen', tl('Babyschwimmen')), T('babymassage', tl('Babymassage')), T('kreativ', tl('Kreativ')), T('spiele', tl('Spielen & Medien')),
@@ -156,30 +158,38 @@ const truthy = v => /^(yes|designated|room|true|ja|1|limited|partial)$/i.test(v)
 const INDOOR = ['gastro', 'laeden', 'sanitaer', 'gesundheit', 'entdecken', 'spielen', 'familie', 'mobil'];
 const ATTRS = [
   { id: 'wickeltisch', label: tl('Wickeltisch'), keys: ['changing_table'], groups: INDOOR, q: tl('Gibt es hier einen Wickeltisch?') },
-  { id: 'stillen', label: tl('Stillmöglichkeit'), keys: ['baby_feeding'], groups: INDOOR, q: tl('Kann man hier in Ruhe stillen?') },
+  { id: 'stillen', label: tl('Stillmöglichkeit'), keys: ['baby_feeding'], groups: INDOOR, q: tl('Kann man hier in Ruhe stillen?'), hide: 1 },
   { id: 'hochstuhl', label: tl('Hochstuhl'), keys: ['highchair'], groups: ['gastro'], q: tl('Gibt es Hochstühle?') },
-  { id: 'spielecke', label: tl('Spielecke'), keys: ['kids_area'], groups: ['gastro', 'laeden', 'entdecken', 'gesundheit', 'familie'], q: tl('Gibt es eine Spielecke?') },
+  { id: 'spielecke', label: tl('Mit Spielecke'), keys: ['kids_area'], groups: ['gastro', 'laeden', 'entdecken', 'gesundheit', 'familie'], q: tl('Gibt es eine Spielecke?') },
   { id: 'kindermenue', label: tl('Kindermenü'), keys: ['kids_menu'], groups: ['gastro'], q: tl('Gibt es ein Kindermenü?') },
-  { id: 'windeln', label: tl('Windeln / Babynahrung'), keys: [], groups: ['laeden'], q: tl('Gibt es hier Windeln oder Babynahrung?') },
+  { id: 'windeln', label: tl('Windeln / Babynahrung'), keys: [], groups: ['laeden'], q: tl('Gibt es hier Windeln oder Babynahrung?'), nofilter: 1 },
   { id: 'kleinkind', label: tl('Für Kleinkinder'), keys: ['for_baby', 'for_toddler'], groups: ['spielen'], q: tl('Gibt es einen Bereich für Kleinkinder?') },
   { id: 'eingezaeunt', label: tl('Eingezäunt'), keys: ['fenced'], groups: ['spielen'], q: tl('Ist der Spielplatz eingezäunt?') },
-  { id: 'schatten', label: tl('Schatten'), keys: ['shade'], groups: ['spielen'], q: tl('Gibt es Schatten?') },
+  { id: 'schatten', label: tl('Schatten'), keys: ['shade'], groups: ['spielen'], q: tl('Gibt es Schatten?'), hide: 1 },
   { id: 'wc_nahe', label: tl('WC in der Nähe'), keys: ['wc_near'], groups: ['spielen'], q: tl('Gibt es ein WC in der Nähe?') },
   { id: 'wasser', label: tl('Wasserspiel'), keys: ['water_play'], groups: ['spielen'], q: tl('Gibt es ein Wasserspiel?') },
-  { id: 'kinderwagen', label: tl('Kinderwagen'), keys: ['stroller', 'wheelchair'], q: tl('Kommt man gut mit dem Kinderwagen hin?') },
+  { id: 'kinderwagen', label: tl('Stufenlos'), keys: ['stroller', 'wheelchair'], q: tl('Kommt man gut mit dem Kinderwagen hin?') },
   { id: 'toilette', label: tl('Toilette'), keys: ['toilets'], groups: ['gastro', 'entdecken', 'spielen', 'laeden'], q: tl('Gibt es eine Toilette?') },
-  { id: 'drinnen', label: tl('Drinnen'), keys: ['indoor'], groups: ['spielen', 'entdecken', 'familie'], q: tl('Ist es drinnen oder überdacht?') },
+  { id: 'drinnen', label: tl('Drinnen'), keys: ['indoor'], groups: ['spielen', 'entdecken', 'familie'], q: tl('Ist es drinnen oder überdacht?'), nofilter: 1 },
   { id: 'hund', label: tl('Hunde erlaubt'), keys: ['dog'], q: tl('Sind Hunde erlaubt?') },
-  { id: 'hst_nahe', label: tl('Haltestelle in der Nähe'), keys: ['stop_near'], groups: ['spielen', 'gastro', 'entdecken', 'gesundheit', 'familie'] },
-  { id: 'baenke', label: tl('Sitzbänke'), keys: ['bench_count'], count: 1, groups: ['spielen', 'entdecken'] },
+  { id: 'hst_nahe', label: tl('Haltestelle in der Nähe'), keys: ['stop_near'], groups: ['spielen', 'gastro', 'entdecken', 'gesundheit', 'familie'], nochip: 1 },
+  { id: 'baenke', label: tl('Sitzbänke'), keys: ['bench_count'], count: 1, groups: ['spielen', 'entdecken'], nochip: 1 },
   { id: 'trinkwasser', label: tl('Trinkwasser'), keys: ['drinking_water'], groups: ['spielen', 'entdecken', 'gastro', 'sanitaer'] },
-  { id: 'babyccino', label: tl('Babyccino'), keys: ['babyccino'], groups: ['gastro'] },
-  { id: 'kinder_wc', label: tl('Kindertoilette'), keys: ['toilets_children'], groups: INDOOR },
-  { id: 'kinderbecken', label: tl('Kinderbecken'), keys: ['kids_pool'], groups: ['entdecken'], q: tl('Gibt es ein Kinder- oder Babybecken?') },
-  { id: 'wasserrutsche', label: tl('Wasserrutsche'), keys: ['water_slide'], groups: ['entdecken'] },
-  { id: 'babyschwimmen', label: tl('Babyschwimmen'), keys: ['baby_swimming'], groups: ['entdecken'] },
-  { id: 'notdienst', label: tl('Notdienst jetzt'), keys: ['notdienst_now'], groups: ['gesundheit'], live: true },
+  { id: 'babyccino', label: tl('Babyccino'), keys: ['babyccino'], groups: ['gastro'], hide: 1 },
+  { id: 'kinder_wc', label: tl('Kindertoilette'), keys: ['toilets_children'], groups: INDOOR, nofilter: 1 },
+  // pool facts: only offered when "Wasser & Schwimmen" (or bathing places) is chosen
+  { id: 'kinderbecken', label: tl('Kinderbecken'), keys: ['kids_pool'], groups: ['entdecken'], q: tl('Gibt es ein Kinder- oder Babybecken?'), pool: 1 },
+  { id: 'wasserrutsche', label: tl('Wasserrutsche'), keys: ['water_slide'], groups: ['entdecken'], pool: 1 },
+  { id: 'babyschwimmen', label: tl('Babyschwimmen'), keys: ['baby_swimming'], groups: ['entdecken'], pool: 1 },
+  // live values (data/live.json): Notdienst is worked out at filter time from the duty windows, see dutyNow()
+  { id: 'notdienst', label: tl('Notdienst jetzt'), keys: [], groups: ['gesundheit'], live: true },
   { id: 'aufzug_ok', label: tl('Aufzug in Betrieb'), keys: ['elevator_status'], groups: ['mobil'], live: true },
+  { id: 'aufzug_kaputt', label: tl('Aufzug außer Betrieb'), keys: ['elevator_status'], groups: ['mobil'], live: true, nofact: 1 },
+  // Kitas: what kind of care (Kita register, computed)
+  { id: 'krippe', label: tl('Krippe (unter 3)'), keys: ['krippe'], groups: ['familie'] },
+  { id: 'elementar', label: tl('Elementar (3–6)'), keys: ['elementar'], groups: ['familie'] },
+  { id: 'integration', label: tl('Integration'), keys: ['integration'], groups: ['familie'] },
+  { id: 'hort', label: tl('Hort'), keys: ['hort'], groups: ['familie'] },
   { id: 'kostenlos', label: tl('Kostenlos'), keys: ['fee'], invert: true, groups: ['spielen', 'entdecken', 'sanitaer', 'familie'], q: tl('Ist es kostenlos?') },
 ];
 const ATTR = Object.fromEntries(ATTRS.map(a => [a.id, a]));
@@ -189,6 +199,8 @@ function normValue(attr, v) {
   if (attr.id === 'hund') return /yes|leashed|outside|offleash/.test(v) ? 'yes' : v === 'no' ? 'no' : null;
   if (attr.id === 'wc_nahe' || attr.id === 'hst_nahe') return 'yes';
   if (attr.id === 'aufzug_ok') return v === 'in_betrieb' ? 'yes' : v === 'ausser_betrieb' ? 'no' : null;
+  if (attr.id === 'aufzug_kaputt') return v === 'ausser_betrieb' ? 'yes' : v === 'in_betrieb' ? 'no' : null;
+  if (attr.id === 'babyschwimmen') return truthy(v) === 'no' ? 'no' : 'yes'; // the pools give times or a text: any value means it is offered
   if (attr.count) return +v > 0 ? 'yes' : null;
   if (attr.id === 'trinkwasser') return v === 'no' ? 'no' : 'yes';
   if (attr.invert) { const t = truthy(v); return t === 'yes' ? 'no' : t === 'no' ? 'yes' : null; }
@@ -198,10 +210,10 @@ const GEAR = [
   { id: 'schaukel', label: tl('Schaukel'), re: /swing/ },
   { id: 'rutsche', label: tl('Rutsche'), re: /slide/ },
   { id: 'sand', label: tl('Sandkasten'), re: /sand/ },
-  { id: 'klettern', label: tl('Klettern'), re: /climb|structure|rope|net/ },
-  { id: 'seilbahn', label: tl('Seilbahn'), re: /zipwire|zip_line|cableway/ },
+  { id: 'klettern', label: tl('Klettergerüst'), re: /climb|structure|rope|net/ },
+  { id: 'seilbahn', label: tl('Seilbahn'), re: /zipwire|zip_line|cableway/, hide: 1 },
   { id: 'wippe', label: tl('Wippe'), re: /seesaw|springy/ },
-  { id: 'trampolin', label: tl('Trampolin'), re: /trampoline/ },
+  { id: 'trampolin', label: tl('Trampolin (Spielplatz)'), re: /trampoline/ },
 ];
 const TIME_FILTERS = [{ id: 'jetzt', label: tl('Jetzt offen') }, { id: 'sonntag', label: tl('Sonntags offen') }];
 const AGE_FILTERS = [{ id: 'age_fit', label: tl('Passt zu unseren Kindern'), family: 1 }, { id: 'age_0', label: tl('0–3 Jahre'), from: 0, to: 36 }, { id: 'age_3', label: tl('3–6 Jahre'), from: 36, to: 84 }, { id: 'age_6', label: tl('ab 6 Jahre'), from: 72, to: 216 }];
@@ -211,9 +223,11 @@ const PRESETS = [
   { id: 'windeln-jetzt', label: tl('Jetzt Windeln kaufen'), icon: 'bag', groups: ['laeden'], cats: ['apotheke'], filters: ['jetzt'] },
   { id: 'windeln-sonntag', label: tl('Windeln am Sonntag'), icon: 'bag', groups: ['laeden'], cats: ['apotheke'], filters: ['sonntag'] },
   { id: 'tipps', label: tl('Djuu-Tipps: was Eltern lieben'), icon: 'star', groups: ['tipps'], filters: [] },
-  { id: 'kurse', label: tl('Krabbelgruppen & Kurse'), icon: 'group', groups: ['kurse'], filters: [] },
+  { id: 'kurse', label: tl('Krabbelgruppen & Kurse'), icon: 'group', groups: ['kurse'], filters: [], termine: { page: 'wiederkehrend', topic: 'krabbelgruppe' } },
   { id: 'wickeln', label: tl('Wickeln unterwegs'), icon: 'baby', groups: ['sanitaer'], tags: ['wickeln'], filters: [] },
-  { id: 'regen', label: tl('Es regnet: drinnen spielen und entdecken'), icon: 'house', groups: ['spielen', 'entdecken'], io: 'drinnen', filters: [] },
+  // rain: a curated indoor set (no sports clubs): indoor playgrounds, climbing, trampolines, play houses, museums, libraries, kids' cafés, indoor pools
+  { id: 'regen', label: tl('Es regnet: drinnen spielen und entdecken'), icon: 'house', groups: ['spielen', 'entdecken', 'gastro'], cats: ['indoor', 'spielhaus'],
+    tags: ['indoorspielplatz', 'klettern', 'trampolin', 'spielhaus', 'museum', 'buecherei', 'baden', 'kindercafe'], io: 'drinnen', filters: [] },
   { id: 'kindercafe', label: tl('Kindercafé'), icon: 'cup', groups: ['gastro'], tags: ['kindercafe'], filters: [] },
   { id: 'kleinkind', label: tl('Spielplatz für die Kleinen'), icon: 'playground', groups: ['spielen'], tags: ['spielplatz'], filters: ['kleinkind'] },
   { id: 'wasser', label: tl('Wasserspielplatz'), icon: 'waves', groups: ['spielen'], tags: ['wasserspiel'], filters: [] },
@@ -229,11 +243,15 @@ const DAY_DE = I18N_DAYS; // weekday names in the chosen language
 function parseOH(s) {
   if (!s) return null;
   s = s.replace(/"[^"]*"/g, '').replace(/\bDi\b/g, 'Tu').replace(/\bMi\b/g, 'We').replace(/\bDo\b/g, 'Th').replace(/\bSo\b/g, 'Su').trim(); // i18n-skip
+  // tolerate common typing variants: "Tu- Sa", "Sa-Su12:00", "17:30--22:30", "... open", a "||" fallback rule
+  s = s.split('||')[0].replace(/([A-Z][a-z])\s*-\s*([A-Z][a-z])/g, '$1-$2').replace(/([a-z])(\d)/g, '$1 $2').replace(/(\d)\s*-{2,}\s*(\d)/g, '$1-$2')
+    .replace(/(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/g, '$1-$2').replace(/\s+open\b/g, '').trim(); // i18n-skip
   if (s === '24/7') return { always: true };
   const week = Array(7).fill(null);
   const spill = Array(7).fill(null).map(() => []);
   let ph;
-  const rules = s.split(/;|,\s+(?=[A-Z][a-z])/).map(r => r.trim()).filter(Boolean);
+  // rules end at ";", at ", Mo ..." and at ", PH ..." right after a time ("Mo-Sa 07:00-22:00, PH off")
+  const rules = s.split(/;|,\s+(?=[A-Z][a-z])|(?<=\d)\s*,\s*(?=(?:PH|SH)\b)/).map(r => r.trim()).filter(Boolean);
   for (const rule of rules) {
     let days, times;
     const m = rule.match(/^((?:Mo|Tu|We|Th|Fr|Sa|Su|PH|SH)(?:-(?:Mo|Tu|We|Th|Fr|Sa|Su))?(?:\s*,\s*(?:Mo|Tu|We|Th|Fr|Sa|Su|PH|SH)(?:-(?:Mo|Tu|We|Th|Fr|Sa|Su))?)*)(?:\s+(.*))?$/);
@@ -252,6 +270,8 @@ function parseOH(s) {
     }
     let ranges = [];
     const ownSpill = [];
+    if (times === 'unknown') continue; // "PH unknown": nothing is known for that rule
+    if (times === '24/7') times = '00:00-24:00';
     if (!times || /^(off|closed)$/.test(times)) ranges = times ? [] : [[0, 1440]];
     else {
       for (const tr of times.split(/\s*,\s*/)) {
@@ -324,16 +344,35 @@ function isOpen(oh, date = new Date()) {
 }
 const opensSunday = oh => !oh ? null : oh.always ? true : oh.week[6].length > 0;
 const fmtMin = m => m === 1440 ? '24:00' : String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
-// "Offen bis 18:00" / "Öffnet um 10:00" / "Heute geschlossen"
+// Emergency duty of a pharmacy (data/live.json): the duty window covering the given time, else null
+const dutyNow = (p, t = Date.now()) => (p.duty || []).find(([a, b]) => Date.parse(a) <= t && t < Date.parse(b)) || null;
+// open right now: by its opening hours, or because the pharmacy is on emergency duty (true / false / null = unknown)
+// open_always: outdoor places without opening hours (playgrounds, parks) count as open
+const openNow = (p, date = new Date()) => dutyNow(p, +date) ? true : isOpen(p.oh, date) ?? (p.f?.open_always ? true : null);
+// the next opening within a week: { days: 0 today, 1 tomorrow …, date, at: minutes after midnight }, or null
+function nextOpening(oh, now = new Date()) {
+  if (!oh || oh.always) return null;
+  for (let k = 0; k <= 7; k++) {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + k), from = k ? -1 : now.getHours() * 60 + now.getMinutes();
+    const r = dayRanges(oh, d).filter(([a]) => a > from).sort((x, y) => x[0] - y[0])[0];
+    if (r) return { days: k, date: d, at: r[0] };
+  }
+  return null;
+}
+// "Offen bis 18:00" / "Notdienst bis 09:00" / "Öffnet um 10:00" / "Geschlossen · öffnet morgen 08:30"
 function openText(p) {
-  const oh = p.oh; if (!oh) return '';
+  const duty = dutyNow(p);
+  if (duty) { const end = new Date(duty[1]); return `<span class="open duty">${tl('Notdienst bis')} ${fmtMin(end.getHours() * 60 + end.getMinutes())}</span>`; }
+  const oh = p.oh; if (!oh) return p.f?.open_always ? `<span class="open">${tl('Frei zugänglich')}</span>` : '';
   if (oh.always) return `<span class="open">${tl('24 Stunden offen')}</span>`;
   const now = new Date(), d = dayIdx(now), min = now.getHours() * 60 + now.getMinutes();
   const today = dayRanges(oh, now), hol = holidayName(now);
   const cur = today.find(([a, b]) => min >= a && min < b) || oh.spill[d].find(([a, b]) => min >= a && min < b);
   if (cur) return `<span class="open">${tl('Offen bis')} ${fmtMin(cur[1] === 1440 && oh.spill[(d + 1) % 7][0] ? oh.spill[(d + 1) % 7][0][1] : cur[1])}</span>`;
-  const next = today.find(([a]) => a > min);
-  return next ? `<span class="closed">${tl('Öffnet um')} ${fmtMin(next[0])}</span>` : `<span class="closed">${tl('Heute geschlossen')}${hol ? tl(' (Feiertag)') : ''}</span>`;
+  const next = nextOpening(oh, now);
+  if (next && next.days === 0) return `<span class="closed">${tl('Öffnet um')} ${fmtMin(next.at)}</span>`;
+  const when = !next ? '' : next.days === 1 ? tl('öffnet morgen {time}', { time: fmtMin(next.at) }) : tl('öffnet {day} {time}', { day: DAY_DE[dayIdx(next.date)], time: fmtMin(next.at) });
+  return `<span class="closed">${tl('Geschlossen')}${hol ? tl(' (Feiertag)') : ''}${when ? ' · ' + when : ''}</span>`;
 }
 
 // ---------- Local store (server-ready shape) ----------
@@ -346,7 +385,9 @@ store.visits = store.visits || {}; // offer id -> ['YYYY-MM-DD', ...]
 // v0.8: expected date is a full date now; an old 'YYYY-MM' value becomes the middle of that month
 if (store.profile && /^\d{4}-\d{2}$/.test(store.profile.expecting || '')) store.profile.expecting += '-15';
 store.profile = Object.assign({ kids: [], expecting: '', dogs: 0, state: 'DE-HH' }, store.profile || {});
-function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(store)); } catch (e) { toast('Speicher voll. Bitte weniger Fotos verwenden.'); } }
+// a shared link (place or event) opens that page directly: no welcome screen in front of it (wir.js shows it only while store.welcomed is unset)
+if (/^#(dj_|u_|o=)/.test(location.hash)) store.welcomed = true;
+function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(store)); } catch (e) { toast(tl('Speicher voll. Bitte weniger Fotos verwenden.')); } }
 const uid = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
 const photoDB = (() => {
@@ -403,6 +444,7 @@ function attrVal(p, id) {
   if (GEAR.some(g => g.id === id)) return { v: p.gear?.has(id) ? 'yes' : null, src: p.gear ? tl('OpenStreetMap') : null };
   const a = ATTR[id];
   let base = { v: null };
+  if (id === 'notdienst') return p.cat !== 'apotheke' || !LIVE.ok ? { v: null } : { v: dutyNow(p) ? 'yes' : 'no', src: 'aponet.de', method: 'live' }; // worked out now, not at load
   if (id === 'toilette' && p.cat === 'wc') base = { v: 'yes', src: tl('Kategorie') };
   else if (id === 'wasser' && p.gear?.has('wasser')) base = { v: 'yes', src: tl('OpenStreetMap') };
   else for (const k of a.keys) {
@@ -430,12 +472,19 @@ function ageFilter(p, id) {
 }
 function filterVal(p, f) {
   if (f.startsWith('age_')) return ageFilter(p, f);
-  if (f === 'jetzt') return isOpen(p.oh);
-  if (f === 'sonntag') return opensSunday(p.oh);
+  if (f === 'jetzt') return openNow(p);
+  if (f === 'sonntag') return opensSunday(p.oh) ?? (p.f.open_always ? true : null);
   const v = attrVal(p, f).v;
   return v === 'yes' || v === 'limited' ? true : v === 'no' ? false : null;
 }
 const relevantAttrs = p => ATTRS.filter(a => (!a.groups || a.groups.includes(groupOf(p).id)) && (a.id !== 'hund' || hasDog()));
+// the few "yes" facts shown under a name in lists and on the pin card: no dog (own chip), no near-by facts, no duplicates of tags
+function chipAttrs(p, n = 2) {
+  return relevantAttrs(p).filter(a => a.id !== 'hund' && !a.nochip && !a.nofilter && !a.nofact && !a.live && attrVal(p, a.id).v === 'yes' && ![...p.tags].some(t => PROP_TAGS.has(t) && TAG_LABEL[t] === a.label)).slice(0, n);
+}
+// live state of a lift as a chip (emergency duty is already in the opening line: "Notdienst bis 09:00")
+const liveChip = p => p.lift?.[0] === 'ausser_betrieb' ? `<span class="livechip bad">${tl('Außer Betrieb')}</span>`
+  : p.lift?.[0] === 'in_betrieb' ? `<span class="livechip ok">${tl('In Betrieb')}</span>` : '';
 
 // ---------- Data ----------
 function buildPlace(row) {
@@ -448,6 +497,23 @@ function buildPlace(row) {
     if (/water|splash|pump|archimedes/.test(f.gear[0])) p.gear.add('wasser');
   }
   return p;
+}
+// Elevators rarely have a name in OpenStreetMap ("Aufzug <street>"): name them after their station (the nearest Bahnhof within
+// 300 m, else a stop within 150 m) and their platform, so "Aufzug Hauptbahnhof" can be found. The station keeps a list of its lifts.
+function nameLifts() {
+  const named = cat => places.filter(p => p.cat === cat && p.named);
+  const rail = named('bahnhof'), stops = named('haltestelle');
+  const nearest = (p, list, max) => { let best = null, bd = max; for (const s of list) { if (Math.abs(s.lat - p.lat) > 0.004 || Math.abs(s.lon - p.lon) > 0.007) continue; const d = dist([p.lat, p.lon], [s.lat, s.lon]); if (d < bd) { bd = d; best = s; } } return best; };
+  for (const p of places) {
+    if (p.cat !== 'aufzug') continue;
+    const s = nearest(p, rail, 300) || nearest(p, stops, 150); if (!s) continue;
+    const station = s.name.replace(/^Hamburg[\s-]+(?=\S)/, '') || s.name;
+    const plat = ((p.f.description?.[0] || '').match(/(?:Bahnsteig|Gleis)[^/;,]*/) || [''])[0].trim();
+    if (!p.named) p.name = `${tl('Aufzug')} ${station}${plat ? ' · ' + plat : ''}`;
+    else if (!words(station).some(w => w.length > 3 && words(p.name).includes(w))) p.name = `${p.name} · ${station}`;
+    p.named = true; p.station = s.id;
+    (s.lifts || (s.lifts = [])).push(p.id);
+  }
 }
 function addUserPlaces() {
   SI = null;
@@ -464,7 +530,7 @@ const OFFER_BY_ID = new Map();
 const offersByPlace = new Map();
 const TOPIC_LABEL = {
   geburtsvorbereitung: tl('Geburtsvorbereitung'), rueckbildung: tl('Rückbildung'), pekip: tl('PEKiP & Bewegung'), babymassage: tl('Babymassage'),
-  schwimmen: tl('Babyschwimmen'), musik: tl('Musik'), krabbelgruppe: tl('Krabbel- & Spielgruppe'), eltern_cafe: tl('Eltern-Café'), beratung: tl('Beratung'),
+  schwimmen: tl('Schwimmen'), musik: tl('Musik'), krabbelgruppe: tl('Krabbel- & Spielgruppe'), eltern_cafe: tl('Eltern-Café'), beratung: tl('Beratung'),
   erste_hilfe: tl('Erste Hilfe am Kind'), kreativ: tl('Basteln'), lesen: tl('Vorlesen'), spiele: tl('Spielen & Medien'), theater: tl('Theater, Kino & Zirkus'),
   flohmarkt: tl('Flohmarkt & Basar'), feste: tl('Feste & Laternen'), kochen: tl('Kochen & Backen'), sport: tl('Sport & Toben'), eltern_thema: tl('Elternthemen'), wissen: tl('Forschen & Wissen'), sonstiges: tl('Angebot'),
 };
@@ -474,30 +540,43 @@ const titleOf = o => (LANG !== 'de' && o['title_' + LANG]) || o.title;
 function loadOffers(data) {
   const cols = data.cols;
   OFFERS = data.offers.map(r => Object.fromEntries(cols.map((c, i) => [c, r[i]])));
-  for (const o of OFFERS) OFFER_BY_ID.set(o.id, o);
+  OFFER_BY_ID.clear(); for (const o of OFFERS) OFFER_BY_ID.set(o.id, o);
+  offersByPlace.clear();
   for (const o of OFFERS) if (o.place_id) (offersByPlace.get(o.place_id) || offersByPlace.set(o.place_id, []).get(o.place_id)).push(o);
+  SERIES_N = null; EVB.clear(); TODAY_C.key = ''; // rarity, Termine lists and the map card follow the new data
 }
 const today0 = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
 const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-// Next date this offer takes place (today included), or null.
-function nextDate(o) {
-  const t = today0();
+// Next date this offer takes place from day t on (today included), or null. A show or exhibition that started earlier
+// and is still running takes place today.
+function nextDate(o, t = today0()) {
   const start = o.start_date ? new Date(o.start_date + 'T00:00') : null;
   const end = o.end_date ? new Date(o.end_date + 'T00:00') : null;
-  if (o.kind === 'termin') return start && start >= t ? start : null;
+  if (o.kind === 'termin') return start && start >= t ? start : start && end && end >= t ? new Date(t) : null;
   if (o.weekday != null) {
     const from = start && start > t ? start : t;
     const d = new Date(from); d.setDate(d.getDate() + ((o.weekday - dayIdx(d) + 7) % 7));
     return end && d > end ? null : d;
   }
   if (start && start >= t) return start;
-  return end && end >= t ? t : null;
+  return end && end >= t ? new Date(t) : null;
+}
+// minutes after midnight when the offer is over today: its end, else one hour after the start, else the end of the day
+const endMin = o => o.time_to ? +o.time_to.slice(0, 2) * 60 + +o.time_to.slice(3, 5) : o.time_from ? +o.time_from.slice(0, 2) * 60 + +o.time_from.slice(3, 5) + 60 : 24 * 60;
+// the next date that is not over yet: a session that ended today moves on (a weekly group to next week)
+function nextAfterNow(o) {
+  const t = today0(), d = nextDate(o, t);
+  if (!d || +d !== +t) return d;
+  const now = new Date();
+  if (endMin(o) > now.getHours() * 60 + now.getMinutes()) return d;
+  const tm = new Date(t); tm.setDate(tm.getDate() + 1);
+  return nextDate(o, tm);
 }
 function ageLabel(min, max) {
   if (min == null && max == null) return '';
-  const f = m => m < 24 ? `${m} ${tl('Mon.')}` : `${Math.floor(m / 12)} J.`;
-  if (max == null) return `ab ${f(min)}`;
-  if (!min) return `bis ${f(max - 1)}`;
+  const f = m => m < 24 ? `${m} ${tl('Mon.')}` : tl('{n} J.', { n: Math.floor(m / 12) });
+  if (max == null) return tl('ab {age}', { age: f(min) });
+  if (!min) return tl('bis {age}', { age: f(max - 1) });
   return min < 24 && max <= 25 ? `${min}–${max - 1} ${tl('Mon.')}` : `${f(min)}–${f(max - 1)}`;
 }
 // A child's age in months, always worked out from the birth date (never stored, so it grows by itself).
@@ -580,19 +659,21 @@ function offerItem(o, nd, opts = {}) {
   const place = o.place_id && byId.get(o.place_id);
   const d = state.me && ((o.lat && o.lon) || place) ? dist(origin(), place ? [place.lat, place.lon] : [o.lat, o.lon]) : null;
   const fits = offerFits(o), n = o.id ? visitsOf(o.id).length : 0;
-  const tags = [o.audience === 'erwachsene' ? tl('für Erwachsene') : ageLabel(o.age_min_m, o.age_max_m), o.free ? tl('kostenlos') : o.price, o.kind === 'gruppe' ? (isRecurring(o) ? tl('regelmäßig') : tl('offenes Treffen')) : o.kind === 'kurs' ? (o.sessions ? `${tl('Kurs,')} ${o.sessions}×` : tl('Kurs')) : '']
+  const tags = [o.audience === 'erwachsene' ? tl('für Erwachsene') : ageLabel(o.age_min_m, o.age_max_m), o.free ? tl('kostenlos') : o.price, o.kind === 'gruppe' ? (isRecurring(o) ? tl('regelmäßig') : tl('offenes Treffen')) : o.kind === 'kurs' ? (o.sessions ? `${tl('Kurs,')} ${o.sessions}×` : tl('Kurs')) : '',
+    o.status === 'ausgebucht' ? tl('Ausgebucht') : '', opts.more ? tl('+{n} weitere Termine', { n: opts.more }) : '']
     .filter(Boolean).map(t => `<span>${esc(t)}</span>`).join('');
   const box = opts.timeOnly
-    ? (o.time_from ? `<span class="datebox time"><b>${esc(o.time_from)}</b><span>${o.time_to ? tl('bis') + ' ' + esc(o.time_to) : tl('Uhr')}</span></span>` : '<span class="datebox time"><span>ganztags</span></span>')
+    ? (o.time_from ? `<span class="datebox time"><b>${esc(o.time_from)}</b><span>${o.time_to ? tl('bis') + ' ' + esc(o.time_to) : tl('Uhr')}</span></span>` : `<span class="datebox time"><span>${tl('ganztags')}</span></span>`)
     : `<span class="datebox"><b>${nd ? esc(fmtDay(nd)) : '–'}</b><span>${esc(o.time_from || '')}</span></span>`;
   const inner = `${box}
     <span><h3>${esc(titleOf(o))}</h3><span class="meta">${esc(TOPIC_LABEL[o.topic] || '')}${o.venue ? ' · ' + esc(o.venue) : ''}${d != null ? ' · ' + fmtDist(d) : ''}</span>
-    <span class="mini${fits === true ? ' fit' : ''}">${fits === true ? `<span class="fitchip">${tl('passt zu euch')}</span>` : ''}${n ? `<span class="visitchip">${n === 1 ? tl('wart ihr schon') : n + '× dabei'}</span>` : ''}${tags}</span></span><span></span>`;
+    <span class="mini${fits === true ? ' fit' : ''}">${fits === true ? `<span class="fitchip">${tl('passt zu euch')}</span>` : ''}${n ? `<span class="visitchip">${n === 1 ? tl('wart ihr schon') : tl('{n}× dabei', { n })}</span>` : ''}${tags}</span></span><span></span>`;
   return o.id ? `<li class="offrow"><button type="button" class="item offer" data-offer="${o.id}">${inner}</button>${saveBtn(o)}</li>` : `<li><div class="item offer">${inner}</div></li>`;
 }
 
 // ---------- Map ----------
-const map = L.map('map', { zoomControl: false, minZoom: 10, maxZoom: 19, maxBounds: [[53.25, 9.55], [53.85, 10.45]] }).setView([53.5600, 9.9800], 13);
+// wide enough for the Umland highlights (up to 100 km: Heide Park, Hansa-Park, Walsrode …) and for Neuwerk
+const map = L.map('map', { zoomControl: false, minZoom: 8, maxZoom: 19, maxBounds: [[52.6, 8.3], [54.4, 11.2]] }).setView([53.5600, 9.9800], 13);
 // Simplified, Google-like vector basemap from OpenFreeMap (free, no key). Always the light style (dark was too dark).
 // Free basemaps without an API key. Vector styles load by URL, raster tiles through a small style object.
 const OSM_C = `© <a href="https://www.openstreetmap.org/copyright">${tl('OpenStreetMap')}</a>`;
@@ -651,7 +732,7 @@ const cluster = L.markerClusterGroup({
   maxClusterRadius: z => z <= 13 ? 50 : 34,
   iconCreateFunction: c => {
     const n = c.getChildCount(), size = n < 50 ? '' : n < 300 ? 'm' : 'l';
-    return L.divIcon({ html: `<div class="mkhit"><div class="cluster ${size}">${n < 1000 ? n : Math.round(n / 100) / 10 + 'k'}</div></div>`, className: '', iconSize: [44, 44] });
+    return L.divIcon({ html: `<div class="mkhit"><div class="cluster ${size}" aria-hidden="true">${n < 1000 ? n : Math.round(n / 100) / 10 + 'k'}</div><span class="sr">${esc(tl('{n} Orte', { n: nf.format(n) }))}</span></div>`, className: '', iconSize: [44, 44] });
   },
 });
 map.addLayer(cluster);
@@ -664,12 +745,15 @@ let offerDate = new Map();
 const pinDate = d => `${d.getDate()}.${d.getMonth() + 1}.`;
 function iconFor(p, unknown, og) {
   const date = og?.id === 'events' && offerDate.get(p.id) ? pinDate(offerDate.get(p.id)) : '';
-  const g = og || groupOf(p), icon = og ? og.icon : iconOf(p), tip = !!p.f.tipp, k = g.id + icon + (unknown ? 'u' : '') + (p.mine ? 'm' : '') + (tip ? 't' : '') + date;
-  return iconCache[k] || (iconCache[k] = L.divIcon({ className: '', iconSize: [44, 44], html: `<div class="mkhit"><div class="mk${unknown ? ' unk' : ''}${p.mine ? ' mine' : ''}${tip ? ' tip' : ''}" style="--c:${tip ? '#0E8F84' : g.color}"><svg viewBox="0 0 24 24">${ICON[icon]}</svg>${tip ? `<span class="star">${svg('star', '')}</span>` : ''}</div>${date ? `<span class="mkdate">${date}</span>` : ''}</div>` }));
+  // live state on the pin: a lift out of order (red, crossed), a pharmacy on emergency duty (green ring)
+  const bad = !og && p.lift?.[0] === 'ausser_betrieb', duty = !og && !!dutyNow(p);
+  const g = og || groupOf(p), icon = og ? og.icon : iconOf(p), tip = !!p.f.tipp, k = g.id + icon + (unknown ? 'u' : '') + (p.mine ? 'm' : '') + (tip ? 't' : '') + (bad ? 'b' : '') + (duty ? 'd' : '') + date;
+  return iconCache[k] || (iconCache[k] = L.divIcon({ className: '', iconSize: [44, 44], html: `<div class="mkhit"><div class="mk${unknown ? ' unk' : ''}${p.mine ? ' mine' : ''}${tip ? ' tip' : ''}${bad ? ' bad' : ''}${duty ? ' duty' : ''}" style="--c:${bad ? '#C92A2A' : tip ? '#0E8F84' : g.color}"><svg viewBox="0 0 24 24">${ICON[icon]}</svg>${tip ? `<span class="star">${svg('star', '')}</span>` : ''}${bad ? `<span class="badx">${svg('close', '')}</span>` : ''}</div>${date ? `<span class="mkdate">${date}</span>` : ''}</div>` }));
 }
 function markerFor(p, unknown, og) {
-  if (!p.marker) { p.marker = L.marker([p.lat, p.lon]); p.marker.on('click', () => showPlace(p.id, true)); }
-  p.marker.setIcon(iconFor(p, unknown, og));
+  if (!p.marker) { p.marker = L.marker([p.lat, p.lon], { title: p.name, alt: p.name }); p.marker.on('click', () => showPlace(p.id, true)); }
+  const icon = iconFor(p, unknown, og);
+  if (p.marker.options.icon !== icon) p.marker.setIcon(icon);
   return p.marker;
 }
 const WX_LABEL = { dry: '', fog: tl('Nebel'), rain: tl('Regen'), sleet: tl('Schneeregen'), snow: tl('Schnee'), hail: tl('Hagel'), thunderstorm: tl('Gewitter') };
@@ -687,14 +771,14 @@ function wxHtml() {
   if (!WX) return '';
   const wet = ['rain', 'sleet', 'snow', 'hail', 'thunderstorm'].includes(WX.cond), hot = WX.temp >= 26;
   const label = `${WX.temp}°${WX_LABEL[WX.cond] ? ' ' + WX_LABEL[WX.cond] : ''}`;
-  if (wet) return `<button type="button" class="tool wx${state.io === 'drinnen' ? ' on' : ''}" data-wx="rain"><span>${esc(label)} ${tl('· Drinnen zeigen')}</span></button>`;
+  if (wet) return `<button type="button" class="tool wx${state.preset === 'regen' ? ' on' : ''}" data-wx="rain"><span>${esc(label)} ${tl('· Drinnen zeigen')}</span></button>`;
   if (hot) return `<button type="button" class="tool wx" data-wx="hot"><span>${esc(label)} ${tl('· Wasser zeigen')}</span></button>`;
   return `<span class="tool wx plain"><span>${esc(label)}</span></span>`;
 }
 let meMarker = null;
 map.on('click', e => {
   if (state.picking) { state.picking = false; setArea({ type: 'radius', r: state.area.type === 'radius' ? state.area.r : 1000, center: [e.latlng.lat, e.latlng.lng] }); stack = [{ type: 'list' }]; go({ type: 'area' }, 'half'); return; }
-  if (state.drawing) { state.drawing.push([e.latlng.lat, e.latlng.lng]); drawArea(); renderPanel(); return; }
+  if (state.drawing) { state.drawing.push([e.latlng.lat, e.latlng.lng]); drawArea(); renderPanel(); renderTop(); return; }
   if (view().type === 'card') return home('peek');
   if (!desktop() && view().type === 'list') setSize('peek');
 });
@@ -765,23 +849,30 @@ function districtList() {
 // the one selected sub-category (tags only apply then), or null
 const soleGroup = () => state.groups.size === 1 ? GROUP[[...state.groups][0]] : null;
 const offerGroup = () => { const g = soleGroup(); return g && g.offers ? g : null; };
-// selected tags of a group, split into alternatives (any) and properties (all), plus the audience of offers
-function tagSel(g) {
+// the tags that belong to a group: its sub-categories and the place tags they stand for (Museen & Kultur = museum, kultur …)
+const groupTagIds = g => new Set((TAGS[g.id] || []).flatMap(t => [t.id, ...(t.of || [])]));
+// selected tags of a group, split into alternatives (any) and properties (all), plus the audience of offers.
+// Kinds widen the choice (Café or Restaurant or Eis); properties (p: 1, e.g. Vegan, Draußen sitzen, Wasserspiel) must hold in addition.
+// only: with several groups chosen (quick questions), a group looks only at the tags that belong to it
+function tagSel(g, only) {
   const list = TAGS[g.id] || [], sel = list.filter(t => state.tags.has(t.id));
   // tags chosen elsewhere (quick questions, search) that are not a sub-category of their own count as alternatives too
-  const loose = [...state.tags].filter(t => !t.startsWith('aud:') && !list.some(x => x.id === t));
-  // several sub-categories widen the choice (Café or Vegan or Eis), they never narrow it
-  return { any: sel.filter(t => !t.id.startsWith('aud:')).flatMap(t => t.of || [t.id]).concat(loose), all: [], aud: sel.filter(t => t.id.startsWith('aud:')).map(t => t.id.slice(4)) };
+  let loose = [...state.tags].filter(t => !t.startsWith('aud:') && !list.some(x => x.id === t));
+  if (only) loose = loose.filter(t => only.has(t));
+  const kinds = sel.filter(t => !t.id.startsWith('aud:') && !t.p);
+  return { any: kinds.flatMap(t => t.of || [t.id]).concat(loose), all: sel.filter(t => t.p).map(t => t.id), aud: sel.filter(t => t.id.startsWith('aud:')).map(t => t.id.slice(4)) };
 }
-function tagsOk(tags, g) {
-  const s = tagSel(g);
+function tagsOk(tags, g, only) {
+  const s = tagSel(g, only);
   return (!s.any.length || s.any.some(t => tags.has(t))) && s.all.every(t => tags.has(t));
 }
 // offers of an offer group (next 8 weeks) that pass the selected tags
 function groupOffers(g) {
   const s = tagSel(g), t0 = today0(), r = g.id === 'events' && state.evRange;
-  return OFFERS.filter(o => g.offers.includes(o.kind) && (!s.aud.length || s.aud.includes(o.audience)) && (!s.any.length || s.any.includes(o.topic)))
-    .map(o => [r ? firstIn(o, r[0], r[1]) : nextDate(o), o]).filter(([d]) => d && d - t0 < 56 * 864e5); // events without a date never reach the map
+  // opened from Termine ("Karte"): exactly the offers the Termine list showed
+  const ev = state.evIds?.g === g.id ? state.evIds.ids : null;
+  return OFFERS.filter(o => g.offers.includes(o.kind) && (!ev || ev.has(o.id)) && (!s.aud.length || s.aud.includes(o.audience)) && (!s.any.length || s.any.includes(o.topic)))
+    .map(o => [r ? firstIn(o, r[0], r[1]) : nextAfterNow(o), o]).filter(([d]) => d && (ev || d - t0 < 56 * 864e5)); // events without a date never reach the map
 }
 let offerPlaces = new Map(); // group id -> Set of place ids with matching offers (rebuilt in compute)
 function memberOf(p, g) {
@@ -789,12 +880,23 @@ function memberOf(p, g) {
   if (g.offers) return offerPlaces.get(g.id)?.has(p.id) || false;
   return g.cats.includes(p.cat) || !!(g.extra && g.extra(p));
 }
-const ioOk = p => !state.io || !(p.tags.has('drinnen') || p.tags.has('draussen')) || p.tags.has(state.io);
+// Drinnen: only places we know are indoors; Draußen: outdoor places and those without the information
+const ioOk = p => !state.io || (state.io === 'drinnen' ? p.tags.has('drinnen') : p.tags.has('draussen') || !p.tags.has('drinnen'));
 function inSelection(p) {
   if (!ioOk(p) || !areaOk(p)) return false;
   if (!state.groups.size && !state.cats.size) return true;
   if (state.cats.has(p.cat)) return true;
-  for (const id of state.groups) { const g = GROUP[id]; if (memberOf(p, g) && (state.groups.size > 1 || g.offers || tagsOk(p.tags, g))) return true; }
+  const several = state.groups.size > 1;
+  for (const id of state.groups) {
+    const g = GROUP[id];
+    if (!memberOf(p, g)) continue;
+    if (g.offers) return true;
+    // several groups (quick questions like "Es ist heiß"): each group is checked against its own tags; a group without any of
+    // the chosen tags counts as a whole
+    const own = several ? groupTagIds(g) : null;
+    if (several && ![...state.tags].some(t => own.has(t))) return true;
+    if (tagsOk(p.tags, g, own)) return true;
+  }
   return false;
 }
 function compute() {
@@ -825,17 +927,27 @@ function compute() {
 }
 let last = { match: [], unknown: [] };
 const shownList = () => state.showUnknown ? last.match.concat(last.unknown) : last.match;
-let onlyMarker = null;
+let onlyMarker = null, shownMk = new Set();
 function refresh() {
   last = compute();
-  cluster.clearLayers();
   if (onlyMarker) { map.removeLayer(onlyMarker); onlyMarker = null; }
-  const og = offerGroup(), only = state.onlyPlace && byId.get(state.onlyPlace);
+  const og = offerGroup(), only = state.onlyPlace && byId.get(state.onlyPlace), want = new Set();
   if (only) {
     // "Nur dieser Ort": one big pin with its name, the others are hidden
-    onlyMarker = L.marker([only.lat, only.lon], { zIndexOffset: 1000, icon: L.divIcon({ className: '', iconSize: [52, 52], iconAnchor: [26, 26], html: `<div class="mkhit"><div class="mk big" style="--c:${groupOf(only).color}">${svg(iconOf(only), '')}</div><span class="mklabel">${esc(only.name)}</span></div>` }) })
-      .on('click', () => showPlace(only.id, true)).addTo(map);
-  } else cluster.addLayers(last.match.map(p => markerFor(p, false, og)).concat(state.showUnknown ? last.unknown.map(p => markerFor(p, true, og)) : []));
+    onlyMarker = L.marker([only.lat, only.lon], { zIndexOffset: 1000, title: only.name, icon: L.divIcon({ className: '', iconSize: [52, 52], iconAnchor: [26, 26], html: `<div class="mkhit"><div class="mk big" style="--c:${groupOf(only).color}">${svg(iconOf(only), '')}</div><span class="mklabel">${esc(only.name)}</span></div>` }) })
+      .on('click', () => showPlace(only.id, true));
+    if (!state.drawing) onlyMarker.addTo(map);
+  } else {
+    for (const p of last.match) want.add(markerFor(p, false, og));
+    if (state.showUnknown) for (const p of last.unknown) want.add(markerFor(p, true, og));
+  }
+  // only the difference goes in and out of the cluster layer (a full rebuild of 22,000 markers took ~170 ms per tap)
+  const drop = [], add = [];
+  for (const m of shownMk) if (!want.has(m)) drop.push(m);
+  for (const m of want) if (!shownMk.has(m)) add.push(m);
+  if (drop.length > shownMk.size / 2) { cluster.clearLayers(); cluster.addLayers([...want]); }
+  else { if (drop.length) cluster.removeLayers(drop); if (add.length) cluster.addLayers(add); }
+  shownMk = want;
   renderTop();
   if (['list', 'filters'].includes(view().type) || (view().type === 'search' && (ASK.wo || ASK.fi) && !state.sq && !ASK.u)) renderPanel();
 }
@@ -852,6 +964,8 @@ function topTitle() {
 // Under the search bar: the choice as one chip ("✓ Spielen & Toben ✕"), then its sub-categories. Nothing chosen: nothing here.
 function selectionHtml() {
   const g = soleGroup(), x = svg('close');
+  // drawing an own area: the pins are hidden, "Fertig" floats under the search bar
+  if (state.drawing) { const n = state.drawing.length; return `<div class="row selrow drawrow"><button type="button" class="chip selchip" data-drawdone="1"${n >= 3 ? '' : ' disabled'}>${svg('check')}${n >= 3 ? tl('Fertig') : tl('Mindestens 3 Ecken')} · ${n}</button><button type="button" class="chip subsel" data-drawcancel="1">${tl('Abbrechen')}</button></div>`; }
   const only = state.onlyPlace && byId.get(state.onlyPlace);
   if (only) return `<div class="row selrow"><button type="button" class="chip selchip" data-clearonly="1">${svg('check')}${tl('Nur dieser Ort')} ${x}</button></div>`;
   const label = state.q ? `„${state.q}“` : state.preset ? PRESETS.find(p => p.id === state.preset).label : state.groups.size ? (g ? g.label : tl('Mehrere Kategorien')) : '';
@@ -934,7 +1048,7 @@ function arm() { if (!armed && canClose()) { history.pushState({ djuu: 1 }, '');
 function closeTop() {
   const v = view();
   if (state.picking) { state.picking = false; return setSize(desktop() ? 'full' : 'half'); }
-  if (state.drawing) { state.drawing = null; drawArea(); return back(); }
+  if (state.drawing) { endDrawing(); return back(); }
   if (v.type === 'wizard' && wiz.step > 1) { keepFields(); wiz.step--; return renderWizard(); }
   if (stack.length === 1) return setSize('peek');
   if (stack.length === 2 && ['card', 'search', 'events', 'favs', 'me', 'sos'].includes(v.type)) return home(desktop() ? 'full' : 'peek');
@@ -947,7 +1061,7 @@ window.addEventListener('popstate', () => {
 });
 function go(v, size) { if (view().type === v.type && !['detail', 'wir', 'person'].includes(v.type)) stack.pop(); stack.push(v); renderPanel(); setSize(size || 'full'); }
 function back() { stack.pop(); if (!stack.length) stack = [{ type: 'list' }]; clearSel(); renderPanel(); if (view().type === 'list') setSize(desktop() ? 'full' : 'half'); else if (view().type === 'card') setSize('card'); if (view().type === 'list') setTab('map'); arm(); }
-function home(size = 'peek') { stack = [{ type: 'list' }]; clearSel(); renderPanel(); setSize(size); setTab('map'); }
+function home(size = 'peek') { stack = [{ type: 'list' }]; clearSel(); renderPanel(); $('#panelBody').scrollTop = 0; setSize(size); setTab('map'); }
 function setSize(s) {
   if (desktop()) s = 'full';
   $('#panel').dataset.size = s; $('#app').dataset.size = s; arm();
@@ -978,12 +1092,14 @@ async function renderPanel() {
   else if (v.type === 'evtopics') body.innerHTML = evTopicsView();
   else if (v.type === 'evdistricts') body.innerHTML = evDistrictsView();
   else if (v.type === 'evplace') body.innerHTML = evPlaceView();
+  else if (v.type === 'evsettings') body.innerHTML = evSettingsView();
+  else if (v.type === 'evseries') body.innerHTML = evSeriesView(v.key);
   else if (v.type === 'rate') { body.innerHTML = rateView(v.id); bindRate(v.id); }
   else if (v.type === 'report') body.innerHTML = reportView(v.id);
   else if (v.type === 'wizard') { renderWizard(); return; }
   else if (v.type === 'thanks') body.innerHTML = v.html;
   decorateEmpty(body);
-  if (v.type !== 'detail' && v.type !== 'rate' && v.type !== 'list' && !(stayType === v.type && ['evfilters', 'evtopics', 'events'].includes(v.type))) body.scrollTop = 0;
+  if (v.type !== 'detail' && v.type !== 'rate' && v.type !== 'list' && !(stayType === v.type && ['evfilters', 'evtopics', 'events', 'evsettings', 'evplace'].includes(v.type))) body.scrollTop = 0;
   stayType = v.type;
 }
 
@@ -992,18 +1108,22 @@ const panelHead = title => `<div class="panelhead" data-drag="1"><h2>${title}</h
 // list (the home view)
 function listView() {
   if (offerGroup()) return offerListView(offerGroup());
-  const o = origin();
-  const shown = shownList();
+  const o = origin(), only = state.onlyPlace && byId.get(state.onlyPlace);
+  const shown = only ? [only] : shownList(); // "Nur dieser Ort": the list says what the map shows
   const sorted = shown.map(p => [dist(o, [p.lat, p.lon]), p]).sort((a, b) => a[0] - b[0]);
-  const u = last.unknown.length;
-  const sub = state.filters.size
-    ? `${nf.format(last.match.length)} ${tl('passen sicher')}${u ? ` · ${nf.format(u)} ${tl('ohne Angabe')} <button type="button" data-unk="1">${state.showUnknown ? 'ausblenden' : tl('auch zeigen')}</button>` : ''}`
+  const u = only ? 0 : last.unknown.length;
+  const sub = state.filters.size && !only
+    ? `${nf.format(last.match.length)} ${tl('passen sicher')}${u ? ` · ${nf.format(u)} ${tl('ohne Angabe')} <button type="button" data-unk="1">${state.showUnknown ? tl('ausblenden') : tl('auch zeigen')}</button>` : ''}`
     : `${tl('Nächste zuerst,')} ${state.area.type === 'radius' ? tl('ab Mittelpunkt') : state.me ? tl('von dir aus') : tl('ab Kartenmitte')}`;
-  const todayFits = hasFamily() ? OFFERS.filter(o => { const d = nextDate(o); return d && +d === +today0() && offerFits(o) === true; }).length : 0;
+  // offline: one calm line (the places work from the stored copy, the map background needs the network)
+  const offline = navigator.onLine === false ? `<p class="note offline">${tl('Offline: Orte und Öffnungszeiten gehen, die Karte lädt erst wieder mit Netz.')}</p>` : '';
+  // today for the family: counted exactly as Termine › Für euch shows it, a tap opens that view
+  const tc = hasFamily() && OFFERS.length ? todayCounts() : { ev: 0, wk: 0 }, todayFits = tc.ev + tc.wk;
+  const todayText = [tc.ev && (tc.ev === 1 ? tl('1 Event') : tl('{n} Events', { n: tc.ev })), tc.wk && (tc.wk === 1 ? tl('1 Gruppe oder Kurs') : tl('{n} Gruppen und Kurse', { n: tc.wk }))].filter(Boolean).join(' · ');
   const breakCard = ferienCard(21);
-  const famCard = breakCard || todayFits && !state.filters.size ? breakCard + (!todayFits || state.filters.size ? '' : `<button type="button" class="askcard" data-tab="events" style="width:100%;border:0;text-align:left;margin:0 0 8px"><div><b>${tl('Heute:')} ${todayFits} passende ${todayFits === 1 ? tl('Gruppe') : tl('Gruppen und Kurse')}</b><span>${tl('für')} ${esc(familyAges().map(k => k.name).join(', ') || 'euch')}</span></div>${svg('cal')}</button>`) : '';
+  const famCard = breakCard || todayFits && !state.filters.size ? breakCard + (!todayFits || state.filters.size ? '' : `<button type="button" class="askcard" data-evtodaycard="1" style="width:100%;border:0;text-align:left;margin:0 0 8px"><div><b>${esc(tl('Heute passend: {what}', { what: todayText }))}</b><span>${tl('für')} ${esc(familyAges().map(k => k.name).join(', ') || tl('euch'))}</span></div>${svg('cal')}</button>`) : '';
   const chosen = state.groups.size || state.q || state.preset;
-  return `${panelHead(`${nf.format(shown.length)} ${shown.length === 1 ? tl('Ort') : tl('Orte')}${chosen ? ' · ' + esc(topTitle()) : ''}`)}<p class="sub panelsub">${sub}</p>${toolsHtml()}${famCard}
+  return `${panelHead(`${nf.format(shown.length)} ${shown.length === 1 ? tl('Ort') : tl('Orte')}${only ? ' · ' + tl('Nur dieser Ort') : chosen ? ' · ' + esc(topTitle()) : ''}`)}<p class="sub panelsub">${sub}</p>${offline}${toolsHtml()}${famCard}
     ${sorted.length ? `<ol class="list">${sorted.slice(0, state.listLimit).map(([d, p]) => itemHtml(p, d)).join('')}</ol>
     ${sorted.length > state.listLimit ? `<button type="button" class="more" data-more="1">${tl('Mehr anzeigen')}</button>` : ''}`
     : `<div class="empty"><b>${tl('Hier ist nichts dabei.')}</b>${state.area.type !== 'all' ? tl('Probier ein größeres Gebiet oder weniger Filter.') : tl('Probier weniger Filter oder zoom raus.')}</div>`}`;
@@ -1014,7 +1134,10 @@ function offerListView(g) {
   const near = o => { const pl = o.place_id && byId.get(o.place_id); return pl ? dist(o0, [pl.lat, pl.lon]) : o.lat ? dist(o0, [o.lat, o.lon]) : 9e9; };
   const list = groupOffers(g).filter(([, o]) => offerInArea(o) && (!o.place_id || !byId.get(o.place_id) || inSelection(byId.get(o.place_id))))
     .map(([d, o]) => [near(o), d, o]).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-  return `${panelHead(`${nf.format(list.length)} ${tl('Angebote ·')} ${esc(topTitle())}`)}<p class="sub panelsub">${tl('in den nächsten 8 Wochen,')} ${state.me ? tl('von dir aus') : tl('ab Kartenmitte')}</p>${toolsHtml(false)}
+  const fromEv = state.evIds?.g === g.id, r = g.id === 'events' && state.evRange;
+  const when = fromEv ? tl('wie in Termine gefiltert') : r ? rangeText(r) : tl('in den nächsten 8 Wochen');
+  const unit = g.id === 'events' ? (list.length === 1 ? tl('Event') : tl('Events')) : (list.length === 1 ? tl('Angebot') : tl('Angebote'));
+  return `${panelHead(`${nf.format(list.length)} ${unit} · ${esc(topTitle())}`)}<p class="sub panelsub">${esc(when)}${fromEv && r ? ' · ' + esc(rangeText(r)) : ''}, ${state.me ? tl('von dir aus') : tl('ab Kartenmitte')}</p>${toolsHtml(false)}
     ${list.length ? `<ol class="list">${list.slice(0, state.listLimit).map(([, d, o]) => offerItem(o, d)).join('')}</ol>
     ${list.length > state.listLimit ? `<button type="button" class="more" data-more="1">${tl('Mehr anzeigen')}</button>` : ''}`
     : `<div class="empty"><b>${tl('Hier ist nichts dabei.')}</b>${tl('Probier andere Tags.')}</div>`}
@@ -1026,11 +1149,12 @@ function offerInArea(o) {
   return pl ? areaOk(pl) : o.lat ? areaOk({ lat: o.lat, lon: o.lon, district: null }) : false;
 }
 const PROP_TAGS = new Set(Object.values(TAGS).flat().filter(t => t.p).map(t => t.id).concat('groessere'));
-function itemHtml(p, d) {
-  const yes = [...p.tags].filter(t => PROP_TAGS.has(t)).slice(0, 2).map(t => `<span>${esc(TAG_LABEL[t])}</span>`)
+// opts.hours: say "Öffnungszeiten unbekannt" when nothing is known (Dringend)
+function itemHtml(p, d, opts = {}) {
+  const yes = liveChip(p) + [...p.tags].filter(t => PROP_TAGS.has(t)).slice(0, 2).map(t => `<span>${esc(TAG_LABEL[t])}</span>`)
     .concat(dogChip(dogOf(p)) || [])
-    .concat(relevantAttrs(p).filter(a => a.id !== 'hund' && attrVal(p, a.id).v === 'yes' && ![...p.tags].some(t => PROP_TAGS.has(t) && TAG_LABEL[t] === a.label)).slice(0, 2).map(a => `<span>${esc(a.label)}</span>`)).join('');
-  const ot = openText(p);
+    .concat(chipAttrs(p).map(a => `<span>${esc(a.label)}</span>`)).join('');
+  const ot = openText(p) || (opts.hours ? `<span class="muted">${tl('Öffnungszeiten unbekannt')}</span>` : '');
   return `<li><button type="button" class="item" data-id="${p.id}">${badge(p)}
     <span><h3>${esc(p.name)}${p.f.tipp ? ` <span class="tipdot" title="${tl('Djuu-Tipp')}">${svg('star', '')}</span>` : ''}</h3><span class="meta">${esc(CAT_LABEL[p.cat] || '')}${ot ? ' · ' + ot : ''}</span>${yes ? `<span class="mini">${yes}</span>` : ''}</span>
     <span class="dist">${fmtDist(d)}</span></button></li>`;
@@ -1049,8 +1173,8 @@ function showPlace(id, fromMap) {
 // small card for a tapped pin: the map stays visible, a tap opens the full page
 function cardView(id) {
   const p = byId.get(id), d = dist(origin(), [p.lat, p.lon]), fav = store.favorites.includes(id), ot = openText(p);
-  const yes = [...p.tags].filter(t => PROP_TAGS.has(t)).slice(0, 2).map(t => `<span>${esc(TAG_LABEL[t])}</span>`).concat(dogChip(dogOf(p)) || [])
-    .concat(relevantAttrs(p).filter(a => a.id !== 'hund' && attrVal(p, a.id).v === 'yes' && ![...p.tags].some(t => PROP_TAGS.has(t) && TAG_LABEL[t] === a.label)).slice(0, 2).map(a => `<span>${esc(a.label)}</span>`)).join('');
+  const yes = liveChip(p) + [...p.tags].filter(t => PROP_TAGS.has(t)).slice(0, 2).map(t => `<span>${esc(TAG_LABEL[t])}</span>`).concat(dogChip(dogOf(p)) || [])
+    .concat(chipAttrs(p).map(a => `<span>${esc(a.label)}</span>`)).join('');
   return `<div class="pincard"><button type="button" class="pinmain" data-detail="${id}">${badge(p)}
       <span><h3>${esc(p.name)}${p.f.tipp ? ` <span class="tipdot" title="${tl('Djuu-Tipp')}">${svg('star', '')}</span>` : ''}</h3>
       <span class="meta">${esc(CAT_LABEL[p.cat] || '')}${ot ? ' · ' + ot : ''}${state.me ? ' · ' + fmtDist(d) : ''}</span>${yes ? `<span class="mini">${yes}</span>` : ''}</span></button>
@@ -1073,8 +1197,17 @@ async function detailView(id) {
   const d = dist(origin(), [p.lat, p.lon]);
   const fav = store.favorites.includes(id);
   const known = [];
-  for (const a of relevantAttrs(p)) { const r = attrVal(p, a.id); if (r.v && a.id !== 'hund') known.push([a, r]); }
-  for (const a of ATTRS) if (a.id !== 'hund' && !relevantAttrs(p).includes(a) && attrVal(p, a.id).v) known.push([a, attrVal(p, a.id)]);
+  // facts on the page: no dog (own chip), no "Haltestelle in der Nähe" (its own line below), no "Kein Notdienst" on every pharmacy
+  const factOk = (a, r) => r.v && a.id !== 'hund' && !a.nofact && a.id !== 'hst_nahe' && !(a.id === 'notdienst' && r.v === 'no');
+  for (const a of relevantAttrs(p)) { const r = attrVal(p, a.id); if (factOk(a, r)) known.push([a, r]); }
+  for (const a of ATTRS) if (!relevantAttrs(p).includes(a)) { const r = attrVal(p, a.id); if (factOk(a, r)) known.push([a, r]); }
+  const hasWickel = known.some(([a, r]) => a.id === 'wickeltisch' && r.v === 'yes');
+  // a station: the status of its lifts (hvv), broken ones named
+  const lifts = (p.liftSum ? p.liftSum[5] : p.lifts || []).map(i => byId.get(i)).filter(x => x && x.lift), broken = lifts.filter(x => x.lift[0] === 'ausser_betrieb');
+  const nOk = p.liftSum ? p.liftSum[0] : lifts.filter(x => x.lift[0] === 'in_betrieb').length;
+  const cabin = p.liftSum && p.liftSum[3] ? ` · ${tl('kleinste Kabine {cm} cm breit, Tür {door} cm', { cm: p.liftSum[3], door: p.liftSum[4] || '?' })}` : '';
+  const liftLine = lifts.length || p.liftSum ? `<b>${tl('Aufzüge hier:')}</b> ${tl('{n} in Betrieb', { n: nOk })}${broken.length ? `, <span class="badtext">${tl('{n} außer Betrieb', { n: broken.length })}</span> (${broken.map(x => esc(x.name)).join(', ')})` : ''}${cabin} <span class="muted">(${tl('laut hvv')})</span>` : '';
+  const phone = f.phone?.[0] ? f.phone[0].split(/[;,]/)[0].trim() : '', tel = phone.replace(/[^+\d]/g, '');
   const dog = dogChip(dogOf(p));
   const reviews = store.reviews.filter(r => r.placeId === id && !store.reports.some(x => x.targetId === r.id));
   const avg = reviews.filter(r => r.stars).length ? (reviews.reduce((s, r) => s + (r.stars || 0), 0) / reviews.filter(r => r.stars).length).toFixed(1).replace('.', ',') : null;
@@ -1089,7 +1222,9 @@ async function detailView(id) {
     hasDog() && f.dog_rule && `<b>${esc(f.dog_rule[0])}</b>`,
     f.water_status && `<b>${tl('Wasserqualität:')}</b> ${esc(f.water_status[0])}`,
     f.age_groups && `<b>${tl('Für Altersgruppen:')}</b> ${esc(f.age_groups[0])} ${tl('Jahre')}`,
-    f.care_types && `${tl('Betreuung:')} ${esc(f.care_types[0])}`,
+    f.care_types && !f.krippe && !f.elementar && `${tl('Betreuung:')} ${esc(f.care_types[0])}`,
+    f.baby_swimming_courses && `<b>${tl('Babyschwimmen:')}</b> ${esc(f.baby_swimming_courses[0]).slice(0, 280)}`,
+    hasDog() && f.dog_offleash && `<b>${f.dog_offleash[0] === 'alle' ? tl('Freilauf für alle Hunde') : f.dog_offleash[0] === 'gepruefte' ? tl('Freilauf nur für geprüfte Hunde (§ 9)') : tl('Nur an der Leine')}</b>`,
     f.services && esc(f.services[0]).slice(0, 280),
     f.transit && p.cat === 'haltestelle' && `<b>${tl('Linien:')}</b> ${esc(f.transit[0])}`,
     f.stop_near && `${tl('Nächste Haltestelle:')} ${esc(f.stop_near[0].split('|')[1])} (${esc(f.stop_near[0].split('|')[0])} m)`,
@@ -1099,14 +1234,15 @@ async function detailView(id) {
     cuisineText(f.cuisine?.[0]) && `<b>${tl('Küche:')}</b> ${esc(cuisineText(f.cuisine[0]))}`,
     f.device_count && +f.device_count[0] > 1 && `${esc(f.device_count[0])} ${tl('Spielgeräte')}`,
     f.area_ha && +f.area_ha[0] >= 1 && `${tl('Größe:')} ${esc(String(Math.round(+f.area_ha[0] * 10) / 10).replace('.', ','))} ${tl('Hektar')}`,
-    p.lift && `<b>${tl('Aufzug:')}</b> ${p.lift[0] === 'in_betrieb' ? tl('in Betrieb') : p.lift[0] === 'ausser_betrieb' ? tl('außer Betrieb') : tl('Status unbekannt')}${p.lift[2] ? ' – ' + esc(p.lift[2]) : ''} <span class="muted">(${tl('laut hvv, Stand')} ${esc(fmtStamp(p.lift[1]))})</span>`,
+    liftLine,
+    p.lift && `<b>${tl('Aufzug:')}</b> ${p.lift[0] === 'in_betrieb' ? tl('in Betrieb') : p.lift[0] === 'ausser_betrieb' ? `<span class="badtext">${tl('außer Betrieb')}</span>` : tl('Status unbekannt')}${p.lift[2] ? ' – ' + esc(p.lift[2]) : ''} <span class="muted">(${LIVE.at ? tl('laut hvv, geprüft {time}', { time: esc(fmtStamp(LIVE.at)) }) : `${tl('laut hvv, Stand')} ${esc(fmtStamp(p.lift[1]))}`})</span>`,
     f.cabin_width_cm && `${tl('Kabine:')} ${esc(f.cabin_length_cm?.[0] || '?')} × ${esc(f.cabin_width_cm[0])} cm${f.door_width_cm ? `, ${tl('Tür')} ${esc(f.door_width_cm[0])} cm` : ''}`,
     p.duty && p.duty.length && `<b>${tl('Notdienst:')}</b> ${p.duty.map(([a, b]) => esc(fmtStamp(a)) + ' – ' + esc(fmtStamp(b))).join(', ')} <span class="muted">(${tl('laut aponet.de, bitte vorher anrufen')})</span>`,
     f.kinder_notinsel && `<b>${tl('Kinder-Notinsel:')}</b> ${tl('Hier bekommen Kinder Hilfe, wenn sie sich bedroht fühlen oder verlaufen haben.')}`,
     f.operator && p.cat !== 'aufzug' && `<span class="muted">${tl('Betreiber:')} ${esc(f.operator[0])}</span>`,
   ].filter(Boolean);
   const today = dayIdx(new Date());
-  const factChip = ([a, r]) => `<span class="fact${r.v === 'no' ? ' no' : r.v === 'limited' ? ' lim' : ''}">${r.v === 'no' ? '' : svg('check')}${esc(r.v === 'no' ? NO_LABEL[a.id] || tl('Kein ') + a.label : a.label)}${r.v === 'limited' ? tl(' (eingeschränkt)') : ''}</span>`;
+  const factChip = ([a, r]) => a.id === 'aufzug_ok' && r.v === 'no' ? `<span class="fact bad">${esc(NO_LABEL.aufzug_ok)}</span>` : `<span class="fact${r.v === 'no' ? ' no' : r.v === 'limited' ? ' lim' : ''}">${r.v === 'no' ? '' : svg('check')}${esc(r.v === 'no' ? NO_LABEL[a.id] || tl('Kein ') + a.label : a.label)}${r.v === 'limited' ? tl(' (eingeschränkt)') : ''}</span>`;
   return `
     <div class="ph"><button type="button" class="round" data-back="1" aria-label="${tl('Zurück')}">${svg('back')}</button><span style="flex:1"></span>
       <button type="button" class="round" data-home="1" aria-label="${tl('Schließen')}">${svg('close')}</button></div>
@@ -1128,16 +1264,16 @@ async function detailView(id) {
     ${photos ? `<div class="photos" style="margin-top:12px">${photos}</div>` : ''}
     <div class="sec"><h4>${tl('Auf einen Blick')}</h4>
       ${known.length || dog || p.gear || ages.length || p.tags.size ? `<div class="facts">${dog}${known.map(factChip).join('')}
-        ${[...p.tags].filter(t => t !== p.cat && TAG_LABEL[t]).map(t => `<span class="fact neutral">${esc(TAG_LABEL[t])}</span>`).join('')}
+        ${[...p.tags].filter(t => t !== p.cat && TAG_LABEL[t] && !(t === 'wickeln' && hasWickel)).map(t => `<span class="fact neutral">${esc(TAG_LABEL[t])}</span>`).join('')}
         ${p.gear ? GEAR.filter(g => p.gear.has(g.id)).map(g => `<span class="fact neutral">${esc(g.label)}</span>`).join('') : ''}
         ${ages.map(a => `<span class="fact neutral">${esc(AGES.find(x => x.id === a)?.label || a)}</span>`).join('')}</div>`
       : `<p class="muted text">${tl('Zu diesem Ort wissen wir noch wenig.')}</p>`}
     </div>
     ${placeOffersHtml(id)}
     ${extra.length ? `<div class="sec">${extra.map(x => `<p class="text">${x}</p>`).join('')}</div>` : ''}
-    <div class="sec"><h4>${tl('Kontakt')}</h4>${addr ? `<p class="text">${esc(addr)}</p>` : ''}
-      ${f.phone ? `<p class="text">${tl('Telefon:')} <span style="user-select:all">${esc(f.phone[0])}</span></p>` : ''}
-      ${web ? `<p class="text"><a href="${esc(web.startsWith('http') ? web : 'https://' + web)}" target="_blank" rel="noopener">${tl('Webseite öffnen')}</a></p>` : ''}
+    <div class="sec"><h4>${tl('Kontakt')}</h4>${addr ? `<p class="text"><a class="contact" href="https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lon}" target="_blank" rel="noopener">${svg('pin')}${esc(addr)}</a></p>` : ''}
+      ${phone && tel.length >= 5 ? `<p class="text"><a class="contact" href="tel:${esc(tel)}">${svg('phone')}${esc(phone)}</a></p>` : phone ? `<p class="text">${tl('Telefon:')} ${esc(phone)}</p>` : ''}
+      ${web ? `<p class="text"><a class="contact" href="${esc(web.startsWith('http') ? web : 'https://' + web)}" target="_blank" rel="noopener">${svg('globe')}${tl('Webseite öffnen')}</a></p>` : ''}
       <button type="button" class="btn" data-onlyplace="${p.id}">${svg('pin')}${tl('Auf der Karte zeigen')}</button></div>
     ${p.hoursRaw ? `<details class="fold"><summary>${tl('Öffnungszeiten')}</summary>${!p.oh ? `<p>${esc(p.hoursRaw)}</p>` : p.oh.always ? `<p>${tl('Rund um die Uhr')}</p>` :
       '<table class="hours">' + p.oh.week.map((r, i) => `<tr class="${i === today ? 'today' : ''}"><td>${DAY_DE[i]}</td><td>${r.length ? r.map(([a, b]) => fmtMin(a) + '–' + fmtMin(b)).join(', ') : tl('geschlossen')}</td></tr>`).join('') + '</table>' + (p.oh.ph ? `<p class="note">${tl('An Feiertagen:')} ${p.oh.ph.length ? p.oh.ph.map(([a, b]) => fmtMin(a) + '–' + fmtMin(b)).join(', ') : tl('geschlossen')}</p>` : `<p class="note">${tl('An Feiertagen wie sonntags, soweit nichts anderes bekannt ist.')}</p>`)}</details>` : ''}
@@ -1149,18 +1285,23 @@ async function detailView(id) {
       <button type="button" class="btn" data-rate="${id}" style="margin-top:8px">${tl('Bewerten')}</button></div></details>
     <details class="fold"><summary>${tl('Woher stammen die Infos?')}</summary><div style="margin-top:8px">
       ${known.map(([a, r]) => `<div class="srcrow"><b>${esc(a.label)}</b><span>${r.v === 'yes' ? tl('Ja') : r.v === 'no' ? tl('Nein') : tl('Eingeschränkt')}</span>
-        <span class="s">${r.method === 'user' ? `${tl('Von Nutzern bestätigt (')}${r.confirmations.length}×, zuletzt ${fmtDate(r.confirmations[0].at)}${tl(', auf diesem Gerät)')}` : r.method === 'website' ? `${tl('Webseite des Ortes, automatisch gelesen (')}${Math.round((r.conf || .6) * 100)} % sicher)` : r.method === 'computed' ? tl('Aus Kartendaten berechnet') : esc(r.src || '')}</span>
+        <span class="s">${r.method === 'user' ? tl('Von Nutzern bestätigt ({n}×, zuletzt {date}, auf diesem Gerät)', { n: r.confirmations.length, date: fmtDate(r.confirmations[0].at) }) : r.method === 'website' ? `${tl('Webseite des Ortes, automatisch gelesen (')}${Math.round((r.conf || .6) * 100)} % sicher)` : r.method === 'computed' ? tl('Aus Kartendaten berechnet') : esc(r.src || '')}</span>
         ${r.evidence ? `<q>${esc(r.evidence)}</q>` : ''}</div>`).join('')}
       ${f.near_name ? `<p class="note">${tl('Der Name ist nur eine Orientierung: abgeleitet aus dem Park oder der nächsten Straße.')}</p>` : ''}<p class="note">${tl('Datensätze:')} ${p.srcs.map(i => esc(SOURCES[i]?.[1]) + ' (' + esc(SOURCES[i]?.[2]) + ')').join(' · ') || tl('von dir eingetragen')}</p></div></details>
     ${CONTACT.email ? `<button type="button" class="linkbtn" data-reportplace="${id}" style="margin-top:16px">${tl('Stimmt etwas nicht? Ort melden')}</button>` : ''}
     <p class="note" style="margin-top:12px">${tl('Was du hier einträgst, bleibt bisher auf diesem Gerät.')}</p>`;
 }
+// events, groups and courses at a place: what is over today is gone, one row per series (a cinema shows a film many times)
 function placeOffersHtml(id) {
-  const list = (offersByPlace.get(id) || []).map(o => [nextDate(o), o]).filter(([d]) => d).sort((a, b) => a[0] - b[0]);
+  const list = (offersByPlace.get(id) || []).map(o => [nextAfterNow(o), o]).filter(([d]) => d).sort(byDayTime);
   if (!list.length) return '';
-  const fitsFirst = list.sort((a, b) => (offerFits(b[1]) === true) - (offerFits(a[1]) === true) || a[0] - b[0]);
-  return `<div class="sec"><h4>${tl('Gruppen & Kurse')}</h4><ol class="list">${fitsFirst.slice(0, 8).map(([d, o]) => offerItem(o, d)).join('')}</ol>
-    ${list.length > 8 ? `<p class="note">${tl('und {n} weitere', { n: list.length - 8 })}</p>` : ''}<p class="note">${tl('Anmeldung und aktuelle Infos beim Anbieter.')}</p></div>`;
+  const by = new Map();
+  for (const x of list) { const k = crossKey(x[1]); (by.get(k) || by.set(k, []).get(k)).push(x); }
+  const groups = [...by.values()].sort((a, b) => (offerFits(b[0][1]) === true) - (offerFits(a[0][1]) === true) || a[0][0] - b[0][0]);
+  const kinds = new Set(list.map(([, o]) => o.kind === 'termin' ? 't' : 'k'));
+  const title = kinds.size > 1 ? tl('Termine, Gruppen & Kurse') : kinds.has('t') ? tl('Termine') : tl('Gruppen & Kurse');
+  return `<div class="sec"><h4>${title}</h4><ol class="list">${groups.slice(0, 8).map(g => offerItem(g[0][1], g[0][0], { more: g.length - 1 })).join('')}</ol>
+    ${groups.length > 8 ? `<p class="note">${tl('und {n} weitere', { n: groups.length - 8 })}</p>` : ''}<p class="note">${tl('Anmeldung und aktuelle Infos beim Anbieter.')}</p></div>`;
 }
 function bindDetail(id) { /* actions handled by the global click handler */ }
 
@@ -1189,7 +1330,7 @@ function bindRate(id) {
       catch (x) { err.textContent = tl('Das Foto konnte nicht gespeichert werden. Versuch es ohne Foto.'); err.hidden = false; return; }
     }
     store.reviews.push({ id: uid('r_'), placeId: id, stars, text: $('#revText').value.trim(), photoIds, at: Date.now() });
-    save(); toast('Bewertung gespeichert.'); back();
+    save(); toast(tl('Bewertung gespeichert.')); back();
   };
 }
 
@@ -1214,7 +1355,10 @@ function sendPlaceReport() {
 
 // filters
 const RARE_BELOW = 10;
-const CORE_FILTERS = new Set(['jetzt', 'sonntag', 'wickeltisch', 'stillen', 'hochstuhl', 'spielecke', 'kindermenue', 'kinderwagen', 'toilette', 'kleinkind', 'eingezaeunt', 'wasser', 'hund', 'age_fit', 'age_0', 'age_3', 'age_6']);
+// always in the main list (never under "Seltene Angaben"), also the live values with few hits (8 pharmacies on duty)
+const CORE_FILTERS = new Set(['jetzt', 'sonntag', 'wickeltisch', 'hochstuhl', 'spielecke', 'kindermenue', 'kinderwagen', 'toilette', 'kleinkind', 'eingezaeunt', 'wasser', 'hund', 'age_fit', 'age_0', 'age_3', 'age_6', 'notdienst', 'aufzug_ok', 'aufzug_kaputt']);
+// pool facts (Kinderbecken, Wasserrutsche, Babyschwimmen) only make sense once "Wasser & Schwimmen" or bathing places are chosen
+const poolChosen = () => state.tags.has('e_wasser') || state.tags.has('baden') || state.cats.has('baden');
 function filtersView() {
   return `${head(tl('Filter'), state.groups.size ? tl('für ') + [...state.groups].map(g => GROUP[g].label).join(', ') : tl('für alle Orte'))}
     ${filtersBody()}
@@ -1235,11 +1379,13 @@ function filtersBody() {
     if (sorted) main.sort((a, b) => (hasDog() ? (b.id === 'hund') - (a.id === 'hund') : 0) || CORE_FILTERS.has(b.id) - CORE_FILTERS.has(a.id) || count(b.id) - count(a.id));
     return main.length ? `<div class="sec"><h4>${title}</h4><div class="fgrid">${main.map(chipFor).join('')}</div></div>` : '';
   };
-  const timeBlock = block(tl('Öffnungszeiten'), TIME_FILTERS);
+  // stations and lifts have no opening hours of their own
+  const timeBlock = state.groups.size === 1 && state.groups.has('mobil') ? '' : block(tl('Öffnungszeiten'), TIME_FILTERS);
   if (!hasDog()) state.filters.delete('hund');
-  const attrBlock = block(tl('Ausstattung'), ATTRS.filter(a => fits(a) && (a.id !== 'hund' || hasDog())), true);
+  // hidden: facts without data yet (hide), duplicates or dead ones (nofilter), pool facts outside "Wasser & Schwimmen"
+  const attrBlock = block(tl('Ausstattung'), ATTRS.filter(a => fits(a) && !a.hide && !a.nofilter && (!a.pool || poolChosen() || state.filters.has(a.id)) && (a.id !== 'hund' || hasDog())), true);
   const ageBlock = !state.groups.size || ['spielen', 'entdecken', 'familie'].some(g => state.groups.has(g)) ? block(tl('Alter'), AGE_FILTERS.filter(a => !a.family || hasFamily())) : '';
-  const gearBlock = !state.groups.size || state.groups.has('spielen') ? block(tl('Spielgeräte'), GEAR, true) : '';
+  const gearBlock = !state.groups.size || state.groups.has('spielen') ? block(tl('Spielgeräte'), GEAR.filter(g => !g.hide), true) : '';
   return `<p class="muted text">${tl('Die Zahl zeigt, bei wie vielen Orten wir es sicher wissen. Es können mehr sein.')}</p>
     ${ioAllowed() ? `<div class="sec"><h4>${tl('Drinnen oder draußen')}</h4><div class="fgrid">${[['drinnen', 'house', tl('Drinnen')], ['draussen', 'tree', tl('Draußen')]].map(([id, ic, l]) => `<button type="button" class="chip${state.io === id ? ' on' : ''}" data-io="${id}">${svg(ic)}${l}</button>`).join('')}</div></div>` : ''}
     ${timeBlock}${attrBlock}${ageBlock}${gearBlock}
@@ -1293,7 +1439,7 @@ function bindAreaMini() {
 }
 function districtHtml() {
   const n = state.area.type === 'district' ? dNames(state.area) : [];
-  const label = n.length ? esc(n.slice(0, 2).join(', ')) + (n.length > 2 ? ` +${n.length - 2}` : '') : tl('Stadtteile wählen');
+  const label = n.length ? esc(n.slice(0, 2).map(dLabel).join(', ')) + (n.length > 2 ? ` +${n.length - 2}` : '') : tl('Stadtteile wählen');
   return `<div class="sec"><h4>${tl('Stadtteil')}</h4>
       <button type="button" class="ddsel${n.length ? ' has' : ''}" data-distopen="1" aria-expanded="${AREA_UI.distOpen}"><span id="distLabel">${label}</span>${svg('up')}</button>
       ${AREA_UI.distOpen ? `<div class="ddpanel"><div class="field" style="margin:0"><input id="distQ" type="search" value="${esc(AREA_UI.dq)}" placeholder="${tl('Suchen, z. B. Ottensen')}" autocomplete="off"></div>
@@ -1308,7 +1454,7 @@ function districtOpts() {
 function areaCountBtn() { const b = $('#panelBody .sticky-bar .primary'); if (b) b.textContent = `${nf.format(view().type === 'search' ? shownTotal() : last.match.length)} ${tl('Orte zeigen')}`; }
 function drawView() {
   const n = state.drawing.length;
-  return `<p class="text drawhint"><b>${tl('Tippe auf die Ecken des Gebiets.')}</b> ${n ? `${n} ${n === 1 ? tl('Ecke') : tl('Ecken')} gesetzt.` : ''}${n && n < 3 ? tl(' Mindestens 3 nötig.') : ''}</p>
+  return `<p class="text drawhint"><b>${tl('Tippe auf die Ecken des Gebiets.')}</b> ${n ? `${n} ${n === 1 ? tl('Ecke gesetzt.') : tl('Ecken gesetzt.')}` : ''}${n && n < 3 ? tl(' Mindestens 3 nötig.') : ''}</p>
     <div class="pinacts"><button type="button" class="btn" data-drawundo="1" ${n ? '' : 'disabled'}>${svg('undo')}${tl('Zurück')}</button>
       <button type="button" class="btn" data-drawcancel="1">${tl('Abbrechen')}</button>
       <button type="button" class="btn primary" data-drawdone="1" ${n >= 3 ? '' : 'disabled'}>${tl('Fertig')}</button></div>`;
@@ -1326,31 +1472,36 @@ const SYN = {
   windeln: ['drogerie', 'supermarkt', 'spaeti'], pampers: ['drogerie', 'supermarkt'], babynahrung: ['drogerie', 'supermarkt'], einkaufen: ['supermarkt', 'drogerie'], kiosk: ['spaeti'], spielsachen: ['spielzeug'], klamotten: ['kinderkleidung', 'secondhand'], kleidung: ['kinderkleidung'], schuhe: ['kinderkleidung'], buch: ['buecher', 'buecherhallen'],
   arzt: ['kinderarzt'], aerztin: ['kinderarzt'], doktor: ['kinderarzt'], kinderaerztin: ['kinderarzt'], krankenhaus: ['klinik'], notaufnahme: ['klinik'], notfall: ['klinik', 'apotheke'], fieber: ['kinderarzt', 'apotheke'], zahnaerztin: ['zahnarzt'], zaehne: ['zahnarzt'], frauenaerztin: ['frauenarzt'], gynaekologe: ['frauenarzt'], ohren: ['hno'], augen: ['augenarzt'], krankengymnastik: ['physiotherapie'], physio: ['physiotherapie'], logopaedie: ['logopaedie'], ergo: ['ergotherapie'], psychologe: ['kinderpsychologie'], geburt: ['geburtshaus', 'hebamme'],
   schwimmbad: ['baden', 'schwimmbad'], hallenbad: ['hallenbad', 'baden'], freibad: ['freibad', 'baden'], schwimmen: ['baden', 'schwimmbad'], planschen: ['wasserspiel', 'baden'], badestelle: ['baden'], strand: ['baden'], see: ['baden', 'natur'],
-  playground: ['spielplatz'], spielplaetze: ['spielplatz'], rutschen: ['rutsche'], schaukeln: ['schaukel'], sandkiste: ['sandkasten'], indoor: ['indoorspielplatz', 'drinnen'], indoorspielplatz: ['indoorspielplatz'], regen: ['indoorspielplatz', 'spielhaus', 'museen', 'drinnen'], toben: ['spielplatz', 'indoorspielplatz', 'trampolin'], kindergeburtstag: ['indoorspielplatz', 'trampolin', 'kindercafe'], bouldern: ['klettern'], fussball: ['bolzplatz'], bolzen: ['bolzplatz'], basketball: ['bolzplatz'], ping: ['tischtennis'], sport: ['sportanlagen', 'sportvereine'], turnen: ['sportvereine'], pferde: ['reiten'], ponyhof: ['reiten'], schlitten: ['rodeln'], rodelberg: ['rodeln'],
-  cafe: ['cafe'], kaffee: ['cafe'], kuchen: ['kuchen', 'cafe'], eisdiele: ['eis'], eiscafe: ['eis'], essen: ['restaurant', 'imbiss', 'cafe'], restaurants: ['restaurant'], fruehstuecken: ['fruehstueck'], brunch: ['fruehstueck'], pommes: ['imbiss'], doener: ['imbiss'], pizzeria: ['pizza'], spielcafe: ['kindercafe'], familiencafe: ['kindercafe'], vegetarier: ['vegetarisch'], terrasse: ['draussen'],
+  playground: ['spielplatz'], spielplaetze: ['spielplatz'], rutschen: ['rutsche'], schaukeln: ['schaukel'], sandkiste: ['sandkasten'], indoor: ['indoorspielplatz', 'drinnen'], indoorspielplatz: ['indoorspielplatz', 'indoor'], kinderbecken: ['kinderbecken', 'planschbecken'], spielecke: ['spielecke', 'kindercafe'], regen: ['indoorspielplatz', 'spielhaus', 'museen', 'drinnen'], toben: ['spielplatz', 'indoorspielplatz', 'trampolin'], kindergeburtstag: ['indoorspielplatz', 'trampolin', 'kindercafe'], bouldern: ['klettern'], fussball: ['bolzplatz'], bolzen: ['bolzplatz'], basketball: ['bolzplatz'], ping: ['tischtennis'], sport: ['sportanlagen', 'sportvereine'], turnen: ['sportvereine'], pferde: ['reiten'], ponyhof: ['reiten'], schlitten: ['rodeln'], rodelberg: ['rodeln'],
+  cafe: ['cafe'], kaffee: ['cafe'], kuchen: ['kuchen', 'cafe'], eisdiele: ['eis'], eiscafe: ['eis'], essen: ['restaurant', 'imbiss', 'cafe'], restaurants: ['restaurant'], fruehstuecken: ['fruehstueck'], brunch: ['fruehstueck'], pommes: ['imbiss'], doener: ['imbiss'], pizzeria: ['pizza'], spielcafe: ['kindercafe'], familiencafe: ['kindercafe'], vegetarier: ['vegetarisch'], terrasse: ['draussensitzen'], draussensitzen: ['draussensitzen'],
   kultur: ['museen', 'kultur'], ausstellung: ['museen', 'museum'], theater: ['theater'], kino: ['theater', 'kino'], bibliothek: ['buecherhallen', 'buecherhalle'], buecherei: ['buecherhallen', 'buecherhalle'], wald: ['natur', 'park'], wiese: ['park', 'natur'], natur: ['natur', 'park'], gruenanlage: ['park'], ausflug: ['ausflugsziele', 'tiere', 'museen'], faehre: ['faehren', 'faehranleger'], boot: ['bootsverleih'], grillen: ['picknick'],
-  hund: ['hunde', 'hundeauslauf'], hunde: ['hunde', 'hundeauslauf'], gassi: ['hundeauslauf'], kindergarten: ['kita'], kitas: ['kita'], grundschule: ['schule'], schulen: ['schule'], musikunterricht: ['musikschulen'], tanzen: ['tanzschulen'], ballett: ['tanzschulen'], beratungsstelle: ['beratung'], familienzentrum: ['familienzentren'], elternschule: ['elternschulen'],
+  hund: ['hunde', 'hundeauslauf'], hunde: ['hunde', 'hundeauslauf'], gassi: ['hundeauslauf'], kindergarten: ['kita'], kitas: ['kita'], krippe: ['kita'], treffpunkt: ['treffpunkte', 'familienzentren'], grundschule: ['schule'], schulen: ['schule'], musikunterricht: ['musikschulen'], tanzen: ['tanzschulen'], ballett: ['tanzschulen'], beratungsstelle: ['beratung'], familienzentrum: ['familienzentren'], elternschule: ['elternschulen'],
   krabbelgruppe: ['krabbel', 'spielgruppe'], babykurs: ['babymassage', 'pekip', 'krabbel'], kurs: ['kurs'], kurse: ['kurs'], babyschwimmen: ['babyschwimmen'], geburtsvorbereitung: ['geburtsvorbereitung'], flohmarkt: ['flohmarkt', 'basar'], basar: ['flohmarkt', 'basar'], laterne: ['laternenumzug'], vorlesen: ['vorlesen', 'bilderbuch'],
-  kinderwagen: ['kinderwagen'], fahrstuhl: ['aufzug'], lift: ['aufzug'], bus: ['haltestelle'], bahn: ['haltestelle', 'bahnhof'], ubahn: ['haltestelle', 'bahnhof'], sbahn: ['haltestelle', 'bahnhof'], station: ['haltestelle', 'bahnhof'],
+  kinderwagen: ['stufenlos'], barrierefrei: ['stufenlos'], notdienst: ['apotheke'], notapotheke: ['apotheke'], notdienstapotheke: ['apotheke'], fahrstuhl: ['aufzug'], lift: ['aufzug'], bus: ['haltestelle'], bahn: ['haltestelle', 'bahnhof'], ubahn: ['haltestelle', 'bahnhof'], sbahn: ['haltestelle', 'bahnhof'], station: ['haltestelle', 'bahnhof'],
 };
 const PHRASES = { 'u bahn': 'ubahn', 's bahn': 'sbahn', 'ice cream': 'eis', 'wc anlage': 'wc', 'spiel platz': 'spielplatz', 'kinder arzt': 'kinderarzt', 'kinder cafe': 'kindercafe' };
 // Places with this tag are what the word really means, not those that merely share a word with its synonyms.
 const INTENT = { zoo: 'tiere', tierpark: 'tiere', tiergarten: 'tiere', wildpark: 'tiere', streichelzoo: 'tiere', bauernhof: 'tiere', kinderbauernhof: 'tiere', aquarium: 'tiere', regen: 'drinnen', ubahn: 'bahnhof', sbahn: 'bahnhof', bahn: 'bahnhof' };
 const OPEN_WORDS = new Set(['offen', 'geoeffnet', 'jetzt']);
 const SUNDAY_WORDS = new Set(['sonntag', 'sonntags']);
+// emergency pharmacy: only the pharmacies on duty right now (data/live.json)
+const DUTY_WORDS = new Set(['notdienst', 'notapotheke', 'notdienstapotheke', 'apothekennotdienst']);
 // Places that are rarely what someone means by a word in their name.
 const LOW_RANK = new Set(['haltestelle', 'bahnhof', 'aufzug', 'spielstrasse', 'faehre']);
 let SI = null;
 function searchIndex() {
   if (SI) return SI;
   const name = new Map(), meta = new Map(), low = new Map();
-  const add = (m, text, i) => { for (const w of words(text)) { let l = m.get(w); if (!l) m.set(w, l = []); if (l[l.length - 1] !== i) l.push(i); } };
+  const put = (m, w, i) => { let l = m.get(w); if (!l) m.set(w, l = []); if (l[l.length - 1] !== i) l.push(i); };
+  const add = (m, text, i) => { for (const w of words(text)) put(m, w, i); };
+  // labels also as one word, so "indoorspielplatz" finds "Indoor-Spielplatz" and "draussensitzen" finds "Draußen sitzen"
+  const addLabel = (text, i) => { const ws = words(text); for (const w of ws) put(meta, w, i); if (ws.length > 1) put(meta, ws.join(''), i); };
   places.forEach((p, i) => {
     if (p.named) add(name, p.name, i);
-    if (p.cat !== 'windeln') add(meta, CAT_LABEL[p.cat], i); // its tags say which kind of shop it is
-    for (const t of p.tags) add(meta, TAG_LABEL[t], i);
-    if (p.gear) for (const g of GEAR) if (p.gear.has(g.id)) add(meta, g.label, i);
-    for (const a of ATTRS) if (!a.id.endsWith('_nahe') && attrVal(p, a.id).v === 'yes') add(meta, a.label, i);
+    if (p.cat !== 'windeln') addLabel(CAT_LABEL[p.cat], i); // its tags say which kind of shop it is
+    for (const t of p.tags) addLabel(TAG_LABEL[t], i);
+    if (p.gear) for (const g of GEAR) if (p.gear.has(g.id)) addLabel(g.label, i);
+    for (const a of ATTRS) if (!a.id.endsWith('_nahe') && !a.live && attrVal(p, a.id).v === 'yes') addLabel(a.label, i); // live values change during the day
     add(meta, cuisineText(p.f.cuisine?.[0]), i); add(meta, sportText(p.f.sport?.[0]), i);
     add(low, p.district, i); add(low, p.f.street?.[0], i); add(low, p.f.near_name?.[0], i);
   });
@@ -1376,9 +1527,10 @@ const typoMax = w => w.length >= 8 ? 2 : w.length >= 4 ? 1 : 0;
 function parseQuery(q) {
   let n = words(q).join(' ');
   for (const [k, v] of Object.entries(PHRASES)) n = n.replace(new RegExp(`\\b${k}\\b`, 'g'), v);
-  const all = n.split(' ').filter(Boolean), open = all.some(w => OPEN_WORDS.has(w)), sunday = all.some(w => SUNDAY_WORDS.has(w));
-  const tokens = all.filter(w => !STOP.has(w) && !OPEN_WORDS.has(w) && !SUNDAY_WORDS.has(w));
-  return { tokens, open, sunday };
+  const all = n.split(' ').filter(Boolean), open = all.some(w => OPEN_WORDS.has(w)), sunday = all.some(w => SUNDAY_WORDS.has(w)), duty = all.some(w => DUTY_WORDS.has(w));
+  const tokens = all.filter(w => !STOP.has(w) && !OPEN_WORDS.has(w) && !SUNDAY_WORDS.has(w) && !DUTY_WORDS.has(w));
+  if (duty && !tokens.some(t => t.startsWith('apothek'))) tokens.push('apotheke');
+  return { tokens, open, sunday, duty };
 }
 // Place index -> score for one search word. Exact word > start of word > part of word > similar spelling.
 function tokenHits(tok, state) {
@@ -1410,7 +1562,7 @@ function tokenHits(tok, state) {
 }
 // All matching places, best first: every search word must match.
 function searchPlaces(q, o = origin()) {
-  const { tokens, open, sunday } = parseQuery(q), st = { fuzzy: false };
+  const { tokens, open, sunday, duty } = parseQuery(q), st = { fuzzy: false };
   let scores = null;
   for (const t of tokens) {
     const h = tokenHits(t, st);
@@ -1427,8 +1579,9 @@ function searchPlaces(q, o = origin()) {
   const res = [];
   for (const [i, s0] of list) {
     const p = places[i];
-    if (open && isOpen(p.oh) !== true) continue;
+    if (open && openNow(p) !== true) continue;
     if (sunday && opensSunday(p.oh) !== true) continue;
+    if (duty && (p.cat !== 'apotheke' || (LIVE.ok && !dutyNow(p)))) continue;
     let s = s0 + (p.f.tipp ? 4 : 0) + (p.named ? 0 : -3);
     if (tokens.some(t => p.tags.has(INTENT[t]))) s += 25;
     if (tokens.some(t => [t, ...(SYN[t] || [])].some(w => words(CAT_LABEL[p.cat]).includes(w)))) s += 12;
@@ -1437,50 +1590,32 @@ function searchPlaces(q, o = origin()) {
     if (LOW_RANK.has(p.cat) && !tokens.some(t => t.includes(p.cat) || (SYN[t] || []).includes(p.cat))) s *= .4;
     res.push({ p, s, d: dist(o, [p.lat, p.lon]) });
   }
-  res.sort((a, b) => b.s - a.s || a.d - b.d);
+  res.sort(duty ? (a, b) => a.d - b.d : (a, b) => b.s - a.s || a.d - b.d); // on-duty pharmacies: the nearest first
   res.fuzzy = st.fuzzy;
   return res;
 }
+// courses and events for the search words (synonyms, close spellings, word stems: see queryTerms); what is over today is gone
 function searchOffers(q) {
-  const { tokens } = parseQuery(q);
-  if (!tokens.length) return [];
-  const idx = searchIndex();
-  if (!idx.offers) idx.offers = OFFERS.map(o => norm([o.title, titleOf(o), TOPIC_LABEL[o.topic], o.venue, o.provider].filter(Boolean).join(' ')));
-  const typoKeys = t => { const m = typoMax(t); return m && !SYN[t] ? Object.keys(SYN).filter(k => typoDist(t, k, m) <= m).flatMap(k => SYN[k]) : []; };
-  const terms = tokens.map(t => [t, ...(SYN[t] || []), ...typoKeys(t)]);
+  const terms = queryTerms(q);
+  if (!terms.length) return [];
   const out = [];
-  OFFERS.forEach((o, i) => {
-    if (terms.every(ts => ts.some(w => idx.offers[i].includes(w)))) { const d = nextDate(o); if (d) out.push([d, o]); }
-  });
-  return out.sort((a, b) => a[0] - b[0]);
+  for (const o of OFFERS) {
+    if (isHidden(o) || !terms.every(ts => ts.some(w => offerText(o).includes(w)))) continue;
+    const d = nextAfterNow(o); if (d) out.push([d, o]);
+  }
+  return out.sort(byDayTime);
 }
 // Category and tag shortcuts for the search words.
 function searchChips(tokens) {
   const terms = new Set(tokens.flatMap(t => [t, ...(SYN[t] || [])]));
   const hit = label => { const n = norm(label), ws = words(label); return [...terms].some(w => w.length > 3 ? n.includes(w) : ws.includes(w)); };
-  return { gs: GROUPS.filter(g => hit(g.label)), ts: Object.entries(TAGS).flatMap(([gid, list]) => list.filter(t => hit(t.label)).map(t => [gid, t])).slice(0, 8), fs: ATTRS.filter(a => a.q && hit(a.label)).slice(0, 4), ds: districtList().filter(d => tokens.some(t => t.length > 2 && norm(d).includes(t))).slice(0, 4) };
+  return { gs: GROUPS.filter(g => hit(g.label)), ts: Object.entries(TAGS).flatMap(([gid, list]) => list.filter(t => hit(t.label)).map(t => [gid, t])).slice(0, 8), fs: ATTRS.filter(a => a.q && !a.hide && !a.nofilter && hit(a.label)).slice(0, 4), ds: districtList().filter(d => tokens.some(t => t.length > 2 && norm(d).includes(t))).slice(0, 4) };
 }
 
 // (startVoice: the 'Ich höre zu' sheet, see voice.js)
 // Voice input with the browser's own speech service; the button only appears where the browser offers one.
 const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
 let rec = null;
-function toggleMic() {
-  if (rec) { rec.stop(); return; }
-  const r = new Speech();
-  r.lang = LOCALE; r.interimResults = true; r.maxAlternatives = 1; r.continuous = false;
-  const setBtn = on => { const b = $('#micBtn'); if (b) { b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); b.setAttribute('aria-label', on ? tl('Spracheingabe beenden') : tl('Spracheingabe starten')); } };
-  r.onresult = e => {
-    const el = $('#q'); if (!el) return;
-    el.value = [...e.results].map(x => x[0].transcript).join(' ').trim();
-    el.dispatchEvent(new Event('input', { bubbles: true }));
-  };
-  r.onerror = e => toast(e.error === 'not-allowed' || e.error === 'service-not-allowed' ? tl('Das Mikrofon ist nicht erlaubt. Bitte im Browser freigeben.') : e.error === 'no-speech' ? tl('Nichts gehört. Versuch es noch einmal.') : tl('Die Spracheingabe hat gerade nicht geklappt.'));
-  r.onend = () => { rec = null; setBtn(false); };
-  rec = r;
-  try { r.start(); setBtn(true); } catch (e) { rec = null; toast('Die Spracheingabe hat gerade nicht geklappt.'); }
-}
-
 function searchResults() {
   const q = state.sq.trim().toLowerCase();
   if (!q) return '';
@@ -1490,15 +1625,21 @@ function searchResults() {
   return `${gs.length || fs.length || ts.length || ds.length ? `<div class="fgrid" style="margin:12px 0 10px">${gs.map(g => `<button type="button" class="chip" data-group-only="${g.id}">${esc(g.label)}</button>`).join('')}${ts.map(([gid, t]) => `<button type="button" class="chip" data-gtag="${gid}|${t.id}">${esc(GROUP[gid].label)}: ${esc(t.label)}</button>`).join('')}${ds.map(d => `<button type="button" class="chip" data-sdistrict="${esc(d)}">${svg('pin')}${esc(d)}</button>`).join('')}${fs.map(a => `<button type="button" class="chip" data-filter-only="${a.id}">${esc(a.label)}</button>`).join('')}</div>` : ''}
     ${found.fuzzy && ps.length ? `<p class="note" style="margin:8px 0 0">${tl('Ähnliche Schreibweisen gezeigt.')}</p>` : ''}
     ${ps.length ? `<ol class="list">${ps.map(([d, p]) => itemHtml(p, d)).join('')}</ol>` : offers.length ? '' : `<div class="empty"><b>${tl('Keine Orte mit diesem Namen.')}</b>${tl('Versuch einen anderen Begriff.')}</div>`}
-    ${offers.length ? `<div class="sec"><h4>${tl('Kurse und Termine')}</h4><ol class="list">${offers.slice(0, 6).map(([d, o]) => offerItem(o, d)).join('')}</ol>${offers.length > 6 ? `<p class="note">${tl('und')} ${nf.format(offers.length - 6)} ${tl('weitere im Tab Termine')}</p>` : ''}</div>` : ''}`;
+    ${offersBlock(offers, state.sq)}`;
 }
+// matching courses and events under the places (text search and Frag Djuu)
+// "und 56 weitere im Tab Termine" opens Termine with the same search words
+const offersBlock = (offers, q = '') => offers.length ? `<div class="sec"><h4>${tl('Kurse und Termine')}</h4><ol class="list">${offers.slice(0, 6).map(([d, o]) => offerItem(o, d)).join('')}</ol>${offers.length > 6 ? `<button type="button" class="morelink" data-evsearch="${esc(q)}">${esc(tl('und {n} weitere im Tab Termine', { n: nf.format(offers.length - 6) }))} ${svg('back')}</button>` : ''}</div>` : '';
 
 // urgent
+// Nappies: a drugstore is the surest bet, then supermarket, petrol station, pharmacy; a kiosk only maybe (penalty in metres per step)
+const NAPPY_RANK = p => p.cat === 'apotheke' ? 3 : p.tags.has('drogerie') ? 0 : p.tags.has('supermarkt') ? 1 : p.tags.has('tankstelle') ? 2 : p.tags.has('spaeti') ? 4 : 2;
 const SOS = [
-  { id: 'wc', label: tl('Toilette'), title: tl('Nächste Toilette'), icon: 'toilet', color: '#0C8599', test: p => (p.cat === 'wc' || attrVal(p, 'toilette').v === 'yes') && isOpen(p.oh) !== false, hint: tl('öffentlich oder im Café') },
-  { id: 'wickeln', label: tl('Wickeltisch'), title: tl('Nächster Wickeltisch'), icon: 'baby', color: '#0CA678', test: p => attrVal(p, 'wickeltisch').v === 'yes' && isOpen(p.oh) !== false, hint: tl('sicher bekannte Plätze') },
-  { id: 'windeln', label: tl('Windeln'), title: tl('Windeln: nächster offener Laden'), icon: 'bag', color: '#1971C2', test: p => (p.cat === 'windeln' || p.cat === 'apotheke') && isOpen(p.oh) === true, hint: tl('jetzt geöffnet') },
-  { id: 'apotheke', label: tl('Apotheke'), title: tl('Nächste offene Apotheke'), icon: 'pill', color: '#E03131', test: p => p.cat === 'apotheke' && isOpen(p.oh) === true, hint: tl('jetzt geöffnet') },
+  { id: 'wc', label: tl('Toilette'), title: tl('Nächste Toilette'), icon: 'toilet', color: '#0C8599', test: p => (p.cat === 'wc' || attrVal(p, 'toilette').v === 'yes') && openNow(p) !== false, hint: tl('öffentlich oder im Café') },
+  { id: 'wickeln', label: tl('Wickeltisch'), title: tl('Nächster Wickeltisch'), icon: 'baby', color: '#0CA678', test: p => attrVal(p, 'wickeltisch').v === 'yes' && openNow(p) !== false, hint: tl('sicher bekannte Plätze') },
+  { id: 'windeln', label: tl('Windeln'), title: tl('Windeln: nächster offener Laden'), icon: 'bag', color: '#1971C2', test: p => (p.cat === 'windeln' || p.cat === 'apotheke') && openNow(p) === true, rank: NAPPY_RANK, hint: tl('jetzt geöffnet') },
+  // pharmacies: open now or on emergency duty, searched in the whole city (at night the nearest one on duty can be 5 to 8 km away)
+  { id: 'apotheke', label: tl('Apotheke'), title: tl('Nächste offene Apotheke'), icon: 'pill', color: '#E03131', test: p => p.cat === 'apotheke' && openNow(p) === true, all: true, hint: tl('offen oder Notdienst') },
 ];
 function sosView(kind) {
   const calls = `<div class="calls"><b style="font-family:var(--font-display)">${tl('Medizinischer Notfall')}</b>
@@ -1509,18 +1650,26 @@ function sosView(kind) {
   const s = SOS.find(x => x.id === kind), o = origin();
   const near = [];
   for (const p of places) {
-    if (Math.abs(p.lat - o[0]) > 0.03 || Math.abs(p.lon - o[1]) > 0.05) continue;
+    if (!s.all && (Math.abs(p.lat - o[0]) > 0.03 || Math.abs(p.lon - o[1]) > 0.05)) continue;
     if (s.test(p)) near.push([dist(o, [p.lat, p.lon]), p]);
   }
-  near.sort((a, b) => a[0] - b[0]);
+  // honest order: places we know are open first, then those without opening hours; within that by (weighted) distance
+  const key = ([d, p]) => (openNow(p) === true ? 0 : 1e7) + d + (s.rank ? s.rank(p) * 400 : 0);
+  near.sort((a, b) => key(a) - key(b));
   if (!near.length) return `${head(s.label)}<div class="empty"><b>${tl('Nichts in der Nähe bekannt.')}</b>${tl('Zoom raus oder versuch eine andere Kachel.')}</div>${calls}`;
-  const [d, p] = near[0];
+  const [d, p] = near[0], duty = dutyNow(p);
+  // further ones: the next known-open places, plus closer ones whose hours we do not know (marked as such), nearest first
+  const more = near.slice(1).filter(([, x]) => openNow(x) === true).slice(0, 3).concat(near.filter(([dd, x]) => openNow(x) !== true && dd < d).slice(0, 2)).sort((a, b) => a[0] - b[0]);
+  const ph = (p.f.phone?.[0] || '').split(/[;,]/)[0].trim(), tel = ph.replace(/[^+\d]/g, '');
+  const status = openText(p) || `<span class="muted">${tl('Öffnungszeiten unbekannt')}</span>`;
+  const maybe = kind === 'windeln' && NAPPY_RANK(p) === 4 ? `<span class="muted">${tl('Kiosk: Windeln gibt es dort nicht immer.')}</span>` : '';
   return `${head(s.title, state.me ? tl('Ab deinem Standort') : tl('Ab Kartenmitte'))}
     <div class="best"><span class="muted">${esc(CAT_LABEL[p.cat] || '')}</span><b style="font-size:18px">${esc(p.name)}</b>
-      <span class="mins">${walkMin(d)} ${tl('Min.')}</span><span class="muted">${fmtDist(d)} ${tl('zu Fuß')}${p.oh ? ' · ' : ''}${openText(p)}</span>
+      <span class="mins">${walkMin(d)} ${tl('Min.')}</span><span class="muted">${fmtDist(d)} ${tl('zu Fuß')} · ${status}</span>${maybe}
+      ${duty ? `<span class="muted">${tl('Notdienst laut aponet.de, bitte vorher anrufen.')}</span>` : ''}
       <a class="btn big primary" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lon}&travelmode=walking" target="_blank" rel="noopener">${svg('route')}${tl('Route starten')}</a>
-      <button type="button" class="btn" data-id="${p.id}">${tl('Details')}</button></div>
-    ${near.length > 1 ? `<div class="sec"><h4>${tl('Weitere in der Nähe')}</h4><ol class="list">${near.slice(1, 5).map(([dd, pp]) => itemHtml(pp, dd)).join('')}</ol></div>` : ''}${calls}`;
+      <div class="pinacts">${tel.length >= 5 ? `<a class="btn" href="tel:${esc(tel)}">${svg('phone')}${tl('Anrufen')}</a>` : ''}<button type="button" class="btn" data-id="${p.id}">${tl('Details')}</button></div></div>
+    ${more.length ? `<div class="sec"><h4>${tl('Weitere in der Nähe')}</h4><ol class="list">${more.map(([dd, pp]) => itemHtml(pp, dd, { hours: true })).join('')}</ol></div>` : ''}${calls}`;
 }
 
 // events
@@ -1531,13 +1680,20 @@ const EXAMPLE_EVENTS = [
   { d: nextDow(0), time: '11:00', title: tl('Familienkonzert: Klassik für Kleine'), where: tl('Konzertsaal'), kind: tl('Musik') },
   { d: nextDow(6, 1), time: '09:00–14:00', title: tl('Kinderkleiderbasar Herbst/Winter'), where: tl('Winterhude'), kind: tl('Flohmarkt') },
 ];
-// ---------- Termine: four pages (Alle, Gruppen, Kurse, Einmalig), search, one filter sheet (design: djuu-termine-filter PDF) ----------
-// Kept while the app is open, so a look at one offer does not reset the list.
-// Two pages: Einmalig (single events with a date, standard: the next 7 days) and Wiederkehrend (courses, groups and meetups).
-// fmt: Kurs / Gruppe / Treff; reg: only with registration; showMissing: offers where a filtered detail is not known.
-const EV = { page: 'einmalig', q: '', when: '7', from: '', to: '', days: new Set(), f: new Set(), topics: new Set(), fmt: new Set(), reg: false, showMissing: true, limit: 60 };
+// ---------- Termine: two pages (Einmalig, Wiederkehrend), two views (Für euch, Alle), search, one filter sheet ----------
+// Einmalig: single events with a date (standard: the next 7 days). Wiederkehrend: courses, groups and meetups.
+// "Für euch": the children's ages, the home area and what the family hid, ranked, one entry per series.
+// "Alle": every offer that passes the filter sheet, by time. EV is kept while the app is open (a look at one offer does
+// not reset the list); what is remembered lives in store.ev on this device and, with an account, in the account
+// (window.djuuSavePref / window.djuuPrefs, see sync.js). The home postcode of a guest never leaves the device.
+// fmt: Kurs / Gruppe / Treff; reg: '' | 'ohne' | 'mit'; open: folded sections that were opened; today: only today (map card).
+const EV = { page: 'einmalig', mode: '', q: '', when: '7', from: '', to: '', days: new Set(), f: new Set(), topics: new Set(), fmt: new Set(), reg: '', limit: 60, open: new Set(), today: false, menu: null };
 const EV_PAGES = [['einmalig', tl('Einmalig')], ['wiederkehrend', tl('Wiederkehrend')]];
 const EV_UNIT = { einmalig: [tl('Event'), tl('Events')], wiederkehrend: [tl('Angebot'), tl('Angebote')] };
+const EV_TIME_KEYS = ['vormittag', 'mittag', 'nachmittag', 'abend'];
+store.ev = Object.assign({ mode: '', place: null, placeSet: false, home: null, onlyFit: true, hide: {}, like: {}, days: [], time: [], at: 0 }, store.ev || {});
+store.ev.hide = Object.assign({ topics: [], providers: [], series: [] }, store.ev.hide || {});
+store.ev.like = Object.assign({ topics: [], providers: [] }, store.ev.like || {});
 // a meetup (Treff): an open group without registration, or a café-like meeting; every other group is a "Gruppe"
 const isTreff = o => o.kind === 'gruppe' && (o.registration === 'offen' || o.topic === 'eltern_cafe' || /treff|caf[eé]|frühstück/i.test(o.title || ''));
 const FORMATS = [['kurs', tl('Kurs'), o => o.kind === 'kurs'], ['gruppe', tl('Gruppe'), o => o.kind === 'gruppe' && !isTreff(o)], ['treff', tl('Treff'), isTreff]];
@@ -1558,9 +1714,15 @@ function rangeOf(id = EV.when) {
   if (id === 'woche') return [t, addDays(t, 6 - w)];
   if (id === '7') return [t, addDays(t, 6)];
   if (id === '30') return [t, addDays(t, 29)];
-  if (id === 'datum' && EV.from) { const a = new Date(EV.from + 'T00:00'), b = EV.to ? new Date(EV.to + 'T00:00') : a; return [a < t ? t : a, b < a ? a : b]; }
+  if (id === 'datum' && (EV.from || EV.to)) {
+    // "bis" alone counts from today; "bis" before "von" is one day
+    const a0 = EV.from ? new Date(EV.from + 'T00:00') : t, a = a0 < t ? t : a0;
+    const b0 = EV.to ? new Date(EV.to + 'T00:00') : a, b = b0 < a ? a : b0;
+    return [a, b];
+  }
   return null;
 }
+const rangeText = r => +r[0] === +r[1] ? fmtShort(r[0]) : `${fmtShort(r[0])} – ${fmtShort(r[1])}`;
 // first day in [a, b] the offer takes place
 function firstIn(o, a, b) {
   for (let d = new Date(a), i = 0; d <= b && i < 200; d.setDate(d.getDate() + 1), i++) if (occursOn(o, d)) return new Date(d);
@@ -1570,24 +1732,32 @@ function firstIn(o, a, b) {
 const isRecurring = o => o.kind !== 'termin' && o.weekday != null && !(o.start_date && o.start_date === o.end_date);
 const hourOf = o => o.time_from ? +o.time_from.slice(0, 2) : null;
 const ageIs = (x, y) => o => (o.age_min_m != null || o.age_max_m != null) && (o.age_min_m ?? 0) < y && (o.age_max_m ?? 999) > x;
-const fitNames = () => familyAges().filter(k => k.months >= 0).map(k => `${k.name} (${ageText(k).replace(' Jahre', ' J.').replace(' Monate', tl(' Mon.'))})`).join(', ');
+const fitNames = () => familyAges().filter(k => k.months >= 0).map(k => `${k.name} (${ageText(k).replace(' Jahre', ' J.').replace(' Jahr', ' J.').replace(' Monate', tl(' Mon.'))})`).join(', ');
+// a course that started before today (one usually cannot join it any more), a group one can just join
+const started = o => o.kind === 'kurs' && !!o.start_date && o.start_date < ymd(today0()) && (!o.end_date || o.end_date >= ymd(today0()));
+const rolling = o => o.kind === 'gruppe' && isRecurring(o) && o.registration === 'offen';
 // Filter sections: inside one section any choice may match, across sections all must. Order as in the sheet (Thema sits between Alter and Preis).
 const EV_SECTIONS = [
   { id: 'time', title: tl('Uhrzeit'), any: true, two: true, items: [['vormittag', tl('Vormittag'), o => hourOf(o) != null && hourOf(o) < 12], ['mittag', tl('Mittag'), o => hourOf(o) >= 12 && hourOf(o) < 15],
     ['nachmittag', tl('Nachmittag'), o => hourOf(o) >= 15 && hourOf(o) < 18], ['abend', tl('Abend'), o => hourOf(o) >= 18]] },
   { id: 'aud', title: tl('Für wen'), any: true, items: [['kinder', tl('Für Kinder'), o => o.audience === 'kinder'], ['erwachsene', tl('Für Erwachsene'), o => o.audience === 'erwachsene'],
     ['hund', tl('Mit Hund'), o => ['auch', 'ja', 'leine'].includes(offerDog(o)), () => hasDog()]] },
-  { id: 'age', title: tl('Alter'), any: true, two: true, show: () => EV.f.has('kinder'), note: tl('Nur Termine, bei denen der Anbieter ein Alter nennt.'),
+  { id: 'age', title: tl('Alter'), any: true, two: true, note: tl('Nur Termine, bei denen der Anbieter ein Alter nennt.'),
     items: [['fit', () => tl('Passt zu ') + fitNames(), o => offerFits(o) === true, () => hasFamily() && familyAges().some(k => k.months >= 0)],
       ['a0', tl('bis 1'), ageIs(0, 12)], ['a1', '1–2', ageIs(12, 36)], ['a3', '3–5', ageIs(36, 72)], ['a6', '6–9', ageIs(72, 120)], ['a10', '10+', ageIs(120, 216)]] },
-  { id: 'price', title: tl('Preis & Anmeldung'), items: [['frei', tl('kostenlos'), o => o.free === 1], ['offen', tl('ohne Anmeldung'), o => o.registration === 'offen']] },
+  { id: 'price', title: tl('Preis & Anmeldung'), items: [['frei', tl('kostenlos'), o => o.free === 1]] },
 ];
 // when a filter cannot be answered for an offer (detail not given): which heading it is listed under
 const NO_PRICE = tl('Preis nicht angegeben'), NO_REG = tl('Anmeldung nicht angegeben'), NO_AGE = tl('Alter nicht angegeben');
-const EV_UNKNOWN = { frei: [o => o.free == null, NO_PRICE], offen: [o => !o.registration, NO_REG], fit: [o => o.age_min_m == null && o.age_max_m == null, NO_AGE],
-  a0: [o => o.age_min_m == null && o.age_max_m == null, NO_AGE], a1: [o => o.age_min_m == null && o.age_max_m == null, NO_AGE], a3: [o => o.age_min_m == null && o.age_max_m == null, NO_AGE],
-  a6: [o => o.age_min_m == null && o.age_max_m == null, NO_AGE], a10: [o => o.age_min_m == null && o.age_max_m == null, NO_AGE] };
-// 1 = fits, 0 = does not, or the heading of the detail that is missing
+const noAge = o => o.age_min_m == null && o.age_max_m == null;
+const EV_UNKNOWN = { frei: [o => o.free == null, NO_PRICE], fit: [noAge, NO_AGE], a0: [noAge, NO_AGE], a1: [noAge, NO_AGE], a3: [noAge, NO_AGE], a6: [noAge, NO_AGE], a10: [noAge, NO_AGE] };
+// the folded line under the list: "18 weitere ohne Altersangabe"
+const FOLD_TEXT = { [NO_AGE]: n => tl('{n} weitere ohne Altersangabe', { n: nf.format(n) }), [NO_PRICE]: n => tl('{n} weitere ohne Preisangabe', { n: nf.format(n) }), [NO_REG]: n => tl('{n} weitere ohne Angabe zur Anmeldung', { n: nf.format(n) }) };
+// registration, one control with three states: Alle / ohne Anmeldung (drop in) / mit Anmeldung (nötig, Warteliste, Tickets)
+const REG_MODES = [['', tl('Alle')], ['ohne', tl('Ohne Anmeldung')], ['mit', tl('Mit Anmeldung')]];
+const regOk = o => EV.reg === 'ohne' ? o.registration === 'offen' : o.registration !== 'offen';
+const regHtml = () => `<div class="segs evreg" role="group" aria-label="${tl('Anmeldung')}">${REG_MODES.map(([id, l]) => `<button type="button" class="${EV.reg === id ? 'on' : ''}" data-evreg="${id || 'alle'}" aria-pressed="${EV.reg === id}">${l}</button>`).join('')}</div>`;
+// 1 = fits the filter sheet, 0 = does not, or the heading of the detail that is missing
 function evFit(o) {
   if (o.own) return 1;
   let missing = '';
@@ -1603,10 +1773,8 @@ function evFit(o) {
     return 0;
   }
   if (EV.topics.size && !EV.topics.has(o.topic)) return 0;
-  if (cardPage()) {
-    if (EV.fmt.size && !FORMATS.some(([id, , fn]) => EV.fmt.has(id) && fn(o))) return 0;
-    if (EV.reg) { if (!o.registration) missing = missing || NO_REG; else if (!['nötig', 'Warteliste'].includes(o.registration)) return 0; }
-  }
+  if (EV.reg) { if (!o.registration) missing = missing || NO_REG; else if (!regOk(o)) return 0; }
+  if (cardPage() && EV.fmt.size && !FORMATS.some(([id, , fn]) => EV.fmt.has(id) && fn(o))) return 0;
   return missing || 1;
 }
 const itemLabel = l => typeof l === 'function' ? l() : l;
@@ -1626,115 +1794,430 @@ function evPass(o, skip) {
     const on = sec.items.filter(it => EV.f.has(it[0]) && itemOn(it));
     if (on.length && !(sec.any ? on.some(it => it[2](o)) : on.every(it => it[2](o)))) return false;
   }
+  if (EV.reg && o.registration && !regOk(o)) return false;
   return skip === 'topic' || !EV.topics.size || EV.topics.has(o.topic);
 }
-// offers of the current page as [date, offer]: day pages one row per date in the range (or next 8 weeks), card pages one card per offer.
-// raw = without Wann/Wochentag, Ort and search (for which topics exist on this page at all)
-function evBase(raw = false, skipPlace = false) {
-  const t = today0(), r = raw ? null : rangeOf(), p = EV.page;
-  const own = p === 'einmalig' ? store.events.map(e => ({ title: e.title, kind: 'termin', start_date: e.date, time_from: e.time, lat: e.lat, lon: e.lon, venue: tl('von dir eingetragen'), topic: 'sonstiges', own: true, attrs: e.attrs })) : [];
-  let list = OFFERS.filter(o => p === 'einmalig' ? o.kind === 'termin' : o.kind === 'kurs' || o.kind === 'gruppe').concat(own)
-    .map(o => [r ? firstIn(o, r[0], r[1]) : nextDate(o), o]).filter(([d]) => d && (r || d - t < (cardPage() ? 120 : 56) * 864e5));
-  if (raw) return list;
-  if (cardPage() && EV.days.size) list = list.filter(([, o]) => EV.days.has(o.weekday));
-  if (!skipPlace) list = list.filter(([, o]) => evPlaceOk(o));
-  const q = words(EV.q).filter(w => !STOP.has(w));
-  if (q.length) list = list.filter(([, o]) => { const n = norm([o.title, titleOf(o), o.venue, o.provider, TOPIC_LABEL[o.topic]].filter(Boolean).join(' ')); return q.every(w => n.includes(w)); });
-  // what is over today is gone: end time passed, or one hour after the start when no end is known
-  const now = new Date(), nowMin = now.getHours() * 60 + now.getMinutes();
-  const endMin = o => o.time_to ? +o.time_to.slice(0, 2) * 60 + +o.time_to.slice(3, 5) : o.time_from ? timeKey(o) + 60 : 24 * 60;
-  return list.filter(([d, o]) => +d !== +t || endMin(o) > nowMin);
+// search words with synonyms, close spellings and compound stems ("schwimmkurs" finds "Schwimmen")
+function queryTerms(q) {
+  const { tokens } = parseQuery(q || '');
+  const typoKeys = t => { const m = typoMax(t); return m && !SYN[t] ? Object.keys(SYN).filter(k => typoDist(t, k, m) <= m).flatMap(k => SYN[k]) : []; };
+  const stem = t => { const m = t.match(/^(.{4,}?)(kurse?|gruppen?|treffs?|angebote?|termine?|stunden?)$/); return m ? [m[1]] : []; };
+  return tokens.map(t => [t, ...(SYN[t] || []), ...typoKeys(t), ...stem(t)]);
 }
-const evResults = () => evBase().filter(([, o]) => evFit(o) === 1);
+const offerText = o => o._t || (o._t = norm([o.title, titleOf(o), TOPIC_LABEL[o.topic], o.venue, o.provider].filter(Boolean).join(' ')));
+// offers of the current page as [date, offer]: day pages one row per date in the range (or next 8 weeks), card pages one card per offer.
+// raw = without Wann/Wochentag, Ort and search (for which topics exist on this page at all). Cached per minute and state.
+const EVB = new Map();
+function evBase(raw = false, skipPlace = false) {
+  const A = skipPlace || raw ? null : evArea();
+  const key = [raw, skipPlace, EV.page, raw ? '' : [EV.when, EV.from, EV.to, [...EV.days].join(), EV.q, EV.today].join('|'),
+    A ? [A.mode, A.km, A.c, A.d && [...A.d].join()].join('|') : '', Math.floor(Date.now() / 6e4), OFFERS.length, store.events.length].join('~');
+  if (EVB.has(key)) return EVB.get(key);
+  const t = today0(), r = raw ? null : rangeOf(), p = EV.page, card = cardPage(), tomorrow = addDays(t, 1), win = (card ? 120 : 56) * 864e5;
+  const own = p === 'einmalig' ? store.events.map(e => ({ title: e.title, kind: 'termin', start_date: e.date, time_from: e.time, lat: e.lat, lon: e.lon, venue: tl('von dir eingetragen'), topic: 'sonstiges', own: true, attrs: e.attrs })) : [];
+  const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+  let list = [];
+  for (const o of own.length ? OFFERS.concat(own) : OFFERS) {
+    if (p === 'einmalig' ? o.kind !== 'termin' : o.kind !== 'kurs' && o.kind !== 'gruppe') continue;
+    let d = r ? firstIn(o, r[0], r[1]) : nextDate(o);
+    // what is over today moves to its next date (a weekly group, a show that runs for weeks), a single event drops out
+    if (d && +d === +t && endMin(o) <= nowMin) d = r ? (r[1] >= tomorrow ? firstIn(o, tomorrow, r[1]) : null) : nextDate(o, tomorrow);
+    if (!d || (!r && d - t >= win)) continue;
+    list.push([d, o]);
+  }
+  if (!raw) {
+    if (card && EV.days.size) list = list.filter(([, o]) => EV.days.has(o.weekday));
+    if (card && EV.today) list = list.filter(([d]) => +d === +t);
+    if (A) list = list.filter(([, o]) => evPlaceOk(o, A));
+    const terms = queryTerms(EV.q);
+    if (terms.length) list = list.filter(([, o]) => { const n = offerText(o); return terms.every(ts => ts.some(w => n.includes(w))); });
+  }
+  if (EVB.size > 24) EVB.clear();
+  EVB.set(key, list);
+  return list;
+}
+// run with some EV fields changed (counts for other views), then put them back
+function evWith(patch, fn) { const old = {}; for (const k of Object.keys(patch)) { old[k] = EV[k]; EV[k] = patch[k]; } try { return fn(); } finally { Object.assign(EV, old); } }
+
+// ---------- Für euch: personal layer, ranking, series ----------
+const kidsKnown = () => familyAges().some(k => k.months >= 0);
+const canPersonal = () => hasFamily() || !!homeOf();
+const evMode = () => EV.mode || store.ev.mode || (canPersonal() ? 'fuer' : 'alle');
+const forYou = () => evMode() === 'fuer' && canPersonal();
+// series across venues: same provider and title (the export's `series` also holds the venue)
+const crossKey = o => o._ck || (o._ck = norm(o.provider || '') + '|' + norm(o.title || ''));
+const isHidden = o => { if (o.own) return false; const H = store.ev.hide; return H.topics.includes(o.topic) || H.providers.includes(o.provider) || H.series.some(x => x.k === crossKey(o)); };
+const babyOrExpecting = () => !!store.profile.expecting || familyAges().some(a => a.min < 3);
+// Für euch: 'in', 'unk' (the provider gives no age) or 'out' (fits none of the children, adults only, fully booked)
+function evPersonal(o) {
+  if (o.own) return 'in';
+  if (o.status === 'ausgebucht') return 'out';
+  if (!store.ev.onlyFit || !hasFamily()) return 'in';
+  if (o.audience === 'erwachsene') return o.for_parents && babyOrExpecting() ? 'in' : 'out';
+  const f = offerFits(o);
+  return f === true ? 'in' : f === false ? 'out' : 'unk';
+}
+// 1 = in the list, a heading = folded at the end (a detail is not given), 0 = out. What the family hid is out in both views.
+function evClass(o) {
+  if (o.status === 'abgesagt' || isHidden(o)) return 0;
+  const f = evFit(o);
+  if (f === 0) return 0;
+  if (forYou()) { const p = evPersonal(o); if (p === 'out') return 0; if (p === 'unk' && f === 1) return NO_AGE; }
+  return f;
+}
+const evResults = () => evBase().filter(([, o]) => evClass(o) === 1);
 // offers that fit except for a detail that is not given, by that detail
 function evMissing() {
   const out = new Map();
-  for (const x of evBase()) { const f = evFit(x[1]); if (typeof f === 'string') (out.get(f) || out.set(f, []).get(f)).push(x); }
+  for (const x of evBase()) { const f = evClass(x[1]); if (typeof f === 'string') (out.get(f) || out.set(f, []).get(f)).push(x); }
   return out;
 }
+// what a row's score depends on, worked out once per list
+function evCtx() {
+  const A = evArea(), savedProv = new Set();
+  for (const s of store.savedOffers) { const o = OFFER_BY_ID.get(s.id) || s.snap; if (o?.provider) savedProv.add(o.provider); }
+  for (const id of Object.keys(store.visits || {})) { const o = OFFER_BY_ID.get(id); if (o?.provider) savedProv.add(o.provider); }
+  return { kids: familyAges().filter(k => k.months >= 0), c: A.c || radiusOrigin() || state.me, savedProv, savedPlace: new Set(store.favorites),
+    likeT: new Set(store.ev.like.topics), likeP: new Set(store.ev.like.providers), t: today0() };
+}
+// how many dates a series has in the next 30 days (a weekly offer counts 4): the rarer, the higher
+let SERIES_N = null;
+function seriesN(o) {
+  if (!SERIES_N) {
+    SERIES_N = new Map();
+    const e = addDays(today0(), 29);
+    for (const x of OFFERS) { const d = nextDate(x); if (d && d <= e) SERIES_N.set(crossKey(x), (SERIES_N.get(crossKey(x)) || 0) + (x.kind === 'termin' ? 1 : 4)); }
+  }
+  return SERIES_N.get(crossKey(o)) || 1;
+}
+// 1 = an age band that fits, 0.6 = open "ab X" within 3 years, 0.4 = open and far, 0.3 = no age given, 0 = fits none
+function ageScore(o, kids) {
+  if (noAge(o)) return o.for_parents ? 0.6 : 0.3;
+  let best = 0;
+  for (const k of kids) {
+    const lo = o.age_min_m ?? 0, hi = o.age_max_m ?? 999;
+    if (!ageIn(k, lo, hi)) continue;
+    best = Math.max(best, o.age_max_m != null ? (hi - lo <= 72 ? 1 : 0.8) : (k.min - lo <= 36 ? 0.6 : 0.4));
+  }
+  return best;
+}
+// relevance: age fit, distance, known places and providers, Djuu-Tipp, rarity, new, "Mehr wie das"; minus courses already running
+function evScore(o, X) {
+  const why = [];
+  let s = 0;
+  if (X.kids.length) {
+    const a = ageScore(o, X.kids); s += 3 * a;
+    const k = a >= 0.6 && !noAge(o) && X.kids.find(k => ageIn(k, o.age_min_m ?? 0, o.age_max_m ?? 999));
+    if (k) why.push(tl('passt zu {name}', { name: k.name }));
+  } else s += 1.5;
+  const p = offerPos(o);
+  if (o.online) { s += 1; why.push(tl('online')); }
+  else if (p && X.c) { const m = dist(X.c, p); s += 2 * Math.exp(-m / 3000); why.push(fmtDist(m)); }
+  if (o.place_id && X.savedPlace.has(o.place_id)) { s += 1.5; why.push(tl('gemerkter Ort')); }
+  else if (o.provider && X.savedProv.has(o.provider)) { s += 1.5; why.push(tl('kennt ihr schon')); }
+  if (o.tip) { s += 1; why.push(tl('Djuu-Tipp')); }
+  const n = seriesN(o); s += 0.8 / n;
+  if (o.kind === 'termin' && n <= 2 && !o.own) why.push(tl('selten'));
+  if (o.first_seen && X.t - new Date(o.first_seen) < 7 * 864e5) { s += 0.5; why.push(tl('neu')); }
+  if (X.likeT.has(o.topic) || X.likeP.has(o.provider)) { s += 0.7; why.push(tl('mehr davon')); }
+  if (started(o)) s -= 2;
+  if (o.status === 'ausgebucht') s -= 3;
+  return { s, why: why.slice(0, 3) };
+}
+// one entry per series: the nearest venue's first date leads (several venues), else the first date
+function evGroups(list, X) {
+  const by = new Map();
+  for (const x of list) { const k = x[1].own ? 'own:' + x[1].title + ymd(x[0]) : crossKey(x[1]); (by.get(k) || by.set(k, []).get(k)).push(x); }
+  const out = [];
+  for (const items of by.values()) {
+    items.sort(byDayTime);
+    const sc = items.map(([d, o]) => [d, o, evScore(o, X)]);
+    const venues = new Set(items.map(([, o]) => o.venue || '')).size;
+    let lead = sc[0];
+    if (venues > 1 && X.c) { let best = Infinity; for (const x of sc) { const p = offerPos(x[1]), m = p ? dist(X.c, p) : 9e9; if (m < best - 1) { best = m; lead = x; } } }
+    // sooner is better: a block that starts in two months ranks below one that runs next week
+    const soon = d => Math.min(1.5, Math.max(0, (d - X.t) / 864e5 - 7) / 30);
+    out.push({ d: lead[0], o: lead[1], why: lead[2].why, sc: Math.max(...sc.map(x => x[2].s - soon(x[0]))), items, venues });
+  }
+  return out;
+}
+// the series line: "9 Termine: Sa 21.11. 12:15, 13:30 · So 22.11. 14:30 …", "22 Termine an 14 Orten", "auch Do 16:00"
+function seriesText(g) {
+  const items = g.items, n = items.length;
+  if (g.venues > 1) return tl('{n} Termine an {v} Orten', { n: nf.format(n), v: nf.format(g.venues) });
+  if (g.o.kind !== 'termin') {
+    const own = `${WD[g.o.weekday] ?? ''} ${g.o.time_from || ''}`.trim();
+    const more = [...new Set(items.map(([, o]) => `${WD[o.weekday] ?? ''} ${o.time_from || ''}`.trim()))].filter(x => x && x !== own);
+    return more.length ? tl('auch: {list}', { list: more.slice(0, 4).join(', ') + (more.length > 4 ? ' …' : '') }) : tl('{n} Gruppen', { n });
+  }
+  const parts = [];
+  for (const [d, o] of items.slice(0, 3)) { const l = fmtDay(d), last = parts[parts.length - 1]; if (last && last.l === l) last.t.push(o.time_from || ''); else parts.push({ l, t: [o.time_from || ''] }); }
+  return `${tl('{n} Termine', { n: nf.format(n) })}: ${parts.map(x => `${x.l} ${x.t.filter(Boolean).join(', ')}`.trim()).join(' · ')}${n > 3 ? ' …' : ''}`;
+}
+// Highlights der Woche: up to 5 of the next 7 days, Djuu-Tipps first, then rare, fitting, near and weekend ones
+function evHighlights(X) {
+  const rows = evWith({ when: '7', q: '' }, () => evResults());
+  const gs = evGroups(rows, X).map(g => ({ ...g, h: (g.o.tip ? 10 : 0) + 2.4 / seriesN(g.o) + g.sc + ([5, 6].includes(dayIdx(g.d)) ? 0.5 : 0) }));
+  return gs.sort((a, b) => b.h - a.h).slice(0, 5);
+}
+const hlHtml = gs => gs.length < 2 ? '' : `<div class="sec evhl"><h4>${svg('star')}${tl('Highlights der Woche')}</h4><div class="hlrow">${gs.map(g => `<button type="button" class="hlcard${g.o.tip ? ' tip' : ''}" ${g.items.length > 1 ? `data-evseries="${esc(crossKey(g.o))}"` : `data-offer="${esc(g.o.id)}"`}>
+    <b>${esc(titleOf(g.o))}</b><span>${esc(fmtDay(g.d))}${g.o.time_from ? ' · ' + esc(g.o.time_from) : ''}${g.items.length > 1 ? ' · ' + esc(tl('{n} Termine', { n: g.items.length })) : ''}</span><span class="v">${esc(g.o.venue || '')}</span>${g.o.tip ? `<span class="tipline">${svg('star', '')}${tl('Djuu-Tipp')}</span>` : ''}</button>`).join('')}</div></div>`;
+
+// ---------- remembered settings ----------
+EV.place = { mode: 'all', districts: new Set(), km: 5, gps: null, placeId: null };
+EV.placeTab = ''; // the tab of the Ort control that is open ('' = the one in use)
+EV.pending = new Set(); EV.dq = '';
+function evRestore() {
+  const s = store.ev, p = s.place;
+  if (p && typeof p === 'object') Object.assign(EV.place, { mode: ['all', 'districts', 'radius', 'online'].includes(p.mode) ? p.mode : 'all', km: Math.min(20, Math.max(1, +p.km || 5)), placeId: p.placeId || null, districts: new Set(Array.isArray(p.districts) ? p.districts : []) });
+  EV.days = new Set((s.days || []).filter(d => Number.isInteger(d) && d >= 0 && d <= 6));
+  for (const k of EV_TIME_KEYS) EV.f.delete(k);
+  for (const k of s.time || []) if (EV_TIME_KEYS.includes(k)) EV.f.add(k);
+}
+evRestore();
+// the copy for the account: everything but the guest's home postcode (that stays on this phone)
+const evPrefsOut = () => { const s = store.ev; return { mode: s.mode, place: s.place, placeSet: s.placeSet, onlyFit: s.onlyFit, hide: s.hide, like: s.like, days: s.days, time: s.time, at: s.at }; };
+function saveEv() {
+  const P = EV.place, s = store.ev;
+  s.place = { mode: P.mode, km: P.km, placeId: P.placeId || null, districts: [...P.districts].slice(0, 40) };
+  s.days = [...EV.days]; s.time = [...EV.f].filter(k => EV_TIME_KEYS.includes(k)); s.at = Date.now();
+  for (const k of ['topics', 'providers']) { s.hide[k] = s.hide[k].slice(-50); s.like[k] = s.like[k].slice(-50); }
+  s.hide.series = s.hide.series.slice(-200);
+  save();
+  try { window.djuuSavePref?.('ev', evPrefsOut()); } catch (e) { /* the copy on this device is enough */ }
+}
+// the account's copy wins when it is newer (the same person changed it on another phone)
+function adoptEvPrefs() {
+  const a = window.djuuPrefs?.ev;
+  if (!a || typeof a !== 'object' || !(+a.at > +store.ev.at)) return false;
+  const s = store.ev, strs = (x, n) => Array.isArray(x) ? x.filter(v => typeof v === 'string').slice(-n) : [];
+  if (['', 'fuer', 'alle'].includes(a.mode)) s.mode = a.mode;
+  if (a.place && typeof a.place === 'object') s.place = a.place;
+  s.placeSet = !!a.placeSet; s.onlyFit = a.onlyFit !== false;
+  s.hide = { topics: strs(a.hide?.topics, 50), providers: strs(a.hide?.providers, 50), series: Array.isArray(a.hide?.series) ? a.hide.series.filter(x => x && typeof x.k === 'string').map(x => ({ k: x.k, t: String(x.t || '').slice(0, 80) })).slice(-200) : [] };
+  s.like = { topics: strs(a.like?.topics, 50), providers: strs(a.like?.providers, 50) };
+  s.days = Array.isArray(a.days) ? a.days.filter(Number.isInteger) : []; s.time = strs(a.time, 4); s.at = +a.at;
+  save(); evRestore(); EVB.clear(); return true;
+}
+// after a change of settings: lists and counts follow
+function afterEvChange() { EVB.clear(); TODAY_C.key = ''; if (['events', 'evsettings', 'evseries', 'evfilters', 'evplace', 'offer'].includes(view().type)) renderPanel(); }
 function evActiveCount() {
-  let n = (cardPage() ? EV.days.size + EV.fmt.size + (EV.reg ? 1 : 0) : (EV.when && EV.when !== '7' ? 1 : 0)) + EV.topics.size + (EV.place.mode !== 'all' ? 1 : 0);
+  let n = (cardPage() ? EV.days.size + EV.fmt.size + (EV.today ? 1 : 0) : (EV.when && EV.when !== '7' ? 1 : 0)) + EV.topics.size + (EV.reg ? 1 : 0) + (EV.place.mode !== 'all' ? 1 : 0);
   for (const sec of EV_SECTIONS) if (sectionOn(sec)) n += sec.items.filter(it => EV.f.has(it[0]) && itemOn(it)).length;
   return n;
 }
 
 // ---------- the page ----------
+const WHEN_CHIPS = [['heute', tl('Heute')], ['morgen', tl('Morgen')], ['wochenende', tl('Wochenende')], ['7', tl('7 Tage')], ['30', tl('30 Tage')]];
 function eventsView() {
-  const nf_ = evActiveCount();
+  adoptEvPrefs();
+  const nf_ = evActiveCount(), mode = evMode(), r = rangeOf();
+  const dateChip = !cardPage() && EV.when === 'datum' && r ? `<button type="button" class="chip on" data-evwhen="datum" aria-pressed="true" aria-label="${tl('Zeitraum entfernen')}">${svg('cal')}${esc(rangeText(r))} ${svg('close')}</button>` : '';
   const quick = cardPage()
-    ? `<div class="row evquick">${FORMATS.map(([id, l]) => `<button type="button" class="chip${EV.fmt.has(id) ? ' on' : ''}" data-evfmt="${id}" aria-pressed="${EV.fmt.has(id)}">${EV.fmt.has(id) ? svg('check') : ''}${l}</button>`).join('')}</div>
-       <label class="tgl compact"><span><b>${tl('Mit Anmeldung')}</b></span><span class="tglr">${EV.reg ? `<small>${tl('Ein')}</small>` : ''}<input type="checkbox" role="switch" data-evreg="1"${EV.reg ? ' checked' : ''}></span></label>`
-    : `<div class="row evquick">${[['heute', tl('Heute')], ['wochenende', tl('Wochenende')], ['7', tl('7 Tage')], ['30', tl('30 Tage')]].map(([id, l]) => `<button type="button" class="chip${EV.when === id ? ' on' : ''}" data-evwhen="${id}" aria-pressed="${EV.when === id}">${EV.when === id ? svg('check') : ''}${l}</button>`).join('')}</div>`;
+    ? `<div class="row evquick">${EV.today ? `<button type="button" class="chip on" data-evtodayx="1" aria-label="${tl('Nur heute entfernen')}">${svg('check')}${tl('Nur heute')} ${svg('close')}</button>` : ''}${FORMATS.map(([id, l]) => `<button type="button" class="chip${EV.fmt.has(id) ? ' on' : ''}" data-evfmt="${id}" aria-pressed="${EV.fmt.has(id)}">${EV.fmt.has(id) ? svg('check') : ''}${l}</button>`).join('')}</div>${regHtml()}`
+    : `<div class="row evquick">${WHEN_CHIPS.map(([id, l]) => `<button type="button" class="chip${EV.when === id ? ' on' : ''}" data-evwhen="${id}" aria-pressed="${EV.when === id}">${EV.when === id ? svg('check') : ''}${l}</button>`).join('')}${dateChip}</div>`;
+  const modes = `<div class="segs evmode" role="tablist" aria-label="${tl('Ansicht')}">${[['fuer', tl('Für euch')], ['alle', tl('Alle')]].map(([id, l]) => `<button type="button" role="tab" aria-selected="${mode === id}" class="${mode === id ? 'on' : ''}" data-evmode="${id}">${l}</button>`).join('')}</div>`;
+  const where = mode === 'fuer' ? evStatusHtml() : `<button type="button" class="placechip" data-open="evplace">${svg('pin')}<span>${esc(evPlaceLabel())}</span><small>${tl('Ändern')}</small></button>`;
   return `<div class="ph"><h2>${tl('Termine')}<span class="sub">${cardPage() ? tl('Kurse, Gruppen und Treffs in Hamburg') : tl('Events mit Datum in Hamburg')}</span></h2>
-      ${cardPage() ? '' : `<button type="button" class="pillbtn" data-evmap="1">${svg('map')}${tl('Karte')}</button>`}</div>
+      <button type="button" class="pillbtn" data-evmap="1">${svg('map')}${tl('Karte')}</button></div>
     <div class="evtabs two" role="tablist">${EV_PAGES.map(([id, l]) => `<button type="button" role="tab" aria-selected="${EV.page === id}" class="${EV.page === id ? 'on' : ''}" data-evpage="${id}">${l}</button>`).join('')}</div>
+    ${modes}${where}
     <div class="evbar"><label class="evsearch">${svg('search')}<input id="evQ" type="search" placeholder="${tl('Suchen')}" value="${esc(EV.q)}" autocomplete="off" aria-label="${tl('Termine durchsuchen')}"></label>
       <button type="button" class="evfilterbtn${nf_ ? ' on' : ''}" data-open="evfilters">${svg('filter')}${tl('Filter')}${nf_ ? ` <span class="count">${nf_}</span>` : ''}</button></div>
     ${quick}
-    <button type="button" class="placechip" data-open="evplace">${svg('pin')}<span>${esc(evPlaceLabel())}</span><small>${tl('Ändern')}</small></button>
     <div id="evList">${evListHtml()}</div>
     <button type="button" class="btn" data-addevent="1" style="margin-top:14px">${svg('plus')}${tl('Veranstaltung eintragen')}</button>
     <p class="note">${tl('Quellen: Eltern-Kind-Zentren, Elternschulen, Familienbildung, Bücherhallen, Bäderland u. a. Anmeldung immer beim Anbieter.')}</p>`;
 }
-function evListHtml() {
-  const list = evResults(), o0 = origin(), t = today0();
-  const near = o => { const pl = o.place_id && byId.get(o.place_id); return pl ? dist(o0, [pl.lat, pl.lon]) : o.lat ? dist(o0, [o.lat, o.lon]) : 9e9; };
-  list.sort((a, b) => byDayTime(a, b) || near(a[1]) - near(b[1]));
-  const shown = list.slice(0, EV.limit), r = rangeOf();
-  return `<p class="evcount">${nf.format(list.length)} ${unitOf(list.length)}${DATA_AT.offers ? ` · <span class="freshinline">${svg('check')}${esc(tl('{when} aktualisiert', { when: freshText() }))}</span>` : ''}</p>
-    ${cardPage() ? '' : ferienCard(14, true)}
-    ${!cardPage() && schoolHoliday(r?.[0] || t) ? `<p class="note" style="margin:0 0 10px">${esc(schoolHoliday(r?.[0] || t))}${tl(': Viele Kurse pausieren, bitte beim Anbieter nachsehen.')}</p>` : ''}
-    ${list.length ? (cardPage() ? `<ol class="list evcards">${shown.map(([d, o]) => evCardHtml(o, d)).join('')}</ol>` : dayListHtml(shown))
-      + (list.length > EV.limit ? `<button type="button" class="more" data-emore="1">${tl('Mehr anzeigen')}</button>` : '')
-      : `<div class="empty"><b>${OFFERS.length ? tl('Nichts gefunden.') : tl('Noch keine Termine geladen.')}</b>${OFFERS.length ? tl('Probier eine andere Suche oder weniger Filter.') : ''}</div>`}
-    ${[...evMissing()].map(([label, items]) => `<div class="sec missing"><div class="sechead"><h4>${esc(label)} <small>(${nf.format(items.length)})</small></h4>
-        <label class="tglr"><small>${EV.showMissing ? tl('Ein') : tl('Aus')}</small><span class="tglbox"><input type="checkbox" role="switch" data-evmissing="1" aria-label="${esc(label)} ${tl('anzeigen')}"${EV.showMissing ? ' checked' : ''}></span></label></div>
-      ${EV.showMissing ? (cardPage() ? `<ol class="list evcards">${items.sort(byDayTime).slice(0, 40).map(([d, o]) => evCardHtml(o, d)).join('')}</ol>` : dayListHtml(items.sort(byDayTime).slice(0, 40))) : `<p class="note">${tl('Ausgeblendet. Diese Angebote passen sonst, der Anbieter nennt die Angabe nur nicht.')}</p>`}</div>`).join('')}`;
+// "Für Mia (2 J.) · bis 5 km von Zuhause · Ändern"
+function evStatusHtml() {
+  if (!canPersonal()) return `<button type="button" class="evstatus" data-evsettings="1">${svg('people')}<span>${tl('Für euch: Kinder im Wir oder ein Zuhause eintragen')}</span><small>${tl('Ändern')}</small></button>`;
+  const parts = [store.ev.onlyFit && kidsKnown() ? tl('Für {names}', { names: fitNames() }) : store.ev.onlyFit && store.profile.expecting ? tl('Für werdende Eltern') : tl('Für euch'), evAreaText()];
+  const H = store.ev.hide, nh = H.topics.length + H.providers.length + H.series.length;
+  if (nh) parts.push(tl('{n} ausgeblendet', { n: nh }));
+  return `<button type="button" class="evstatus" data-evsettings="1">${svg('people')}<span>${esc(parts.join(' · '))}</span><small>${tl('Ändern')}</small></button>`;
 }
-// the place setting in words: Ganz Hamburg, the Stadtteile, or the radius
+function evAreaText() {
+  const A = evArea();
+  if (A.mode === 'radius') return EV.place.mode === 'radius' && EV.place.gps ? tl('bis {km} vom Standort', { km: kmText(A.km) }) : tl('bis {km} von {place}', { km: kmText(A.km), place: homeOf()?.name || tl('Zuhause') });
+  if (A.mode === 'districts') return evPlaceLabel();
+  if (A.mode === 'online') return tl('Online');
+  return tl('ganz Hamburg');
+}
+function evListHtml() {
+  const fy = forYou(), list = evResults(), t = today0(), r = rangeOf();
+  const fresh = DATA_AT.offers ? ` · <span class="freshinline">${svg('check')}${esc(tl('{when} aktualisiert', { when: freshText() }))}</span>` : '';
+  const hol = schoolHoliday(r?.[0] || t);
+  let body;
+  if (fy) {
+    const X = evCtx(), gs = evGroups(list, X);
+    if (cardPage()) gs.sort((a, b) => b.sc - a.sc || a.d - b.d); else gs.sort((a, b) => a.d - b.d || b.sc - a.sc);
+    // highlights only when the list is long enough to need them (else they repeat it)
+    const shown = gs.slice(0, EV.limit), hl = !cardPage() && !EV.q && gs.length > 6 ? evHighlights(X) : [];
+    const alle = evWith({ mode: 'alle' }, () => evResults().length);
+    body = hlHtml(hl) + (gs.length ? (cardPage() ? `<ol class="list evcards">${shown.map(g => evCardHtml(g.o, g.d, g)).join('')}</ol>` : groupDayList(shown))
+      + (gs.length > EV.limit ? `<button type="button" class="more" data-emore="1">${tl('Mehr anzeigen')}</button>` : '')
+      : `<div class="empty"><b>${tl('Für euch ist hier gerade nichts dabei.')}</b>${tl('Probier eine längere Zeit, ein größeres Gebiet oder „Alle“.')}</div>`)
+      + (alle > list.length ? `<button type="button" class="btn wide evall" data-evmode="alle">${tl('Alle {n} {unit} zeigen', { n: nf.format(alle), unit: unitOf(alle) })}</button>` : '');
+  } else {
+    const o0 = origin();
+    const near = o => { const p = offerPos(o); return p ? dist(o0, p) : 9e9; };
+    list.sort((a, b) => byDayTime(a, b) || near(a[1]) - near(b[1]));
+    const shown = list.slice(0, EV.limit);
+    body = list.length ? (cardPage() ? `<ol class="list evcards">${shown.map(([d, o]) => evCardHtml(o, d)).join('')}</ol>` : dayListHtml(shown))
+      + (list.length > EV.limit ? `<button type="button" class="more" data-emore="1">${tl('Mehr anzeigen')}</button>` : '')
+      : `<div class="empty"><b>${OFFERS.length ? tl('Nichts gefunden.') : tl('Noch keine Termine geladen.')}</b>${OFFERS.length ? tl('Probier eine andere Suche oder weniger Filter.') : ''}</div>`;
+    const H = store.ev.hide, nh = H.topics.length + H.providers.length + H.series.length;
+    if (nh) body += `<p class="note">${esc(tl('{n} ausgeblendet', { n: nh }))} · <button type="button" class="linkbtn" data-evsettings="1">${tl('Verwalten')}</button></p>`;
+  }
+  // today's groups and courses on the Heute page (the map card counts the same)
+  const wkToday = !cardPage() && EV.when === 'heute' ? evWith({ page: 'wiederkehrend', today: true }, () => evResults().length) : 0;
+  return `<p class="evcount">${nf.format(list.length)} ${unitOf(list.length)}${fresh}</p>
+    ${cardPage() ? '' : ferienCard(14, true)}
+    ${hol ? `<p class="note" style="margin:0 0 10px">${esc(hol)}${tl(': Viele Kurse pausieren, bitte beim Anbieter nachsehen.')}</p>` : ''}
+    ${wkToday ? `<button type="button" class="foldrow" data-evtoday="1">${svg('repeat')}<span>${esc(tl('Heute außerdem: {n} Gruppen und Kurse', { n: nf.format(wkToday) }))}</span>${svg('next')}</button>` : ''}
+    ${body}
+    ${[...evMissing()].map(([label, items]) => { const open = EV.open.has(label); items.sort(byDayTime);
+      return `<div class="sec missing"><button type="button" class="foldrow" data-evfold="${esc(label)}" aria-expanded="${open}"><span>${esc((FOLD_TEXT[label] || (n => `${label} (${n})`))(items.length))}</span>${svg(open ? 'up' : 'next')}</button>
+      ${open ? (cardPage() ? `<ol class="list evcards">${items.slice(0, 60).map(([d, o]) => evCardHtml(o, d)).join('')}</ol>` : dayListHtml(items.slice(0, 60))) + (items.length > 60 ? `<p class="note">${tl('und {n} weitere', { n: nf.format(items.length - 60) })}</p>` : '') : ''}</div>`; }).join('')}`;
+}
+// Für euch on a day page: a heading per day, ranked inside the day
+function groupDayList(gs) {
+  let out = '', cur = null;
+  for (const g of gs) {
+    const k = ymd(g.d);
+    if (k !== cur) { out += `${cur ? '</ol>' : ''}<h4 class="dayhead">${esc(dayHead(g.d))}</h4><ol class="list">`; cur = k; }
+    out += evRowHtml(g.o, g.d, g);
+  }
+  return cur ? out + '</ol>' : '';
+}
+// the place setting in words: Ganz Hamburg, the Stadtteile, the radius or Online
 function evPlaceLabel() {
-  const P = EV.place;
-  if (P.mode === 'districts') { const d = [...P.districts].map(dLabel); return d.length > 2 ? `${d.slice(0, 2).join(', ')} +${d.length - 2}` : d.join(', '); }
-  if (P.mode === 'radius') return `${tl('Umkreis')} ${kmText(P.km)}`;
+  const P = EV.place, A = evArea();
+  if (A.mode === 'districts') { const d = [...P.districts].map(dLabel); return d.length > 2 ? `${d.slice(0, 2).join(', ')} +${d.length - 2}` : d.join(', '); }
+  if (A.mode === 'radius') return `${tl('Umkreis')} ${kmText(A.km)}`;
+  if (A.mode === 'online') return tl('Online');
   return tl('Ganz Hamburg');
 }
-// Ort as its own small page: Ganz Hamburg, Stadtteil or Umkreis, one tap to change
+// Ort as its own small page: Ganz Hamburg, Stadtteil, Umkreis or Online, one tap to change
 function evPlaceView() {
   return `<div class="ph sheethead"><h2>${tl('Ort')}</h2><button type="button" class="round" data-back="1" aria-label="${tl('Schließen')}">${svg('close')}</button></div>${evPlaceHtml(false)}${evSheetFoot()}`;
 }
-// tags under a title: age, recurring, registration, price
-function evTags(o, withRecurring) {
+// tags under a title: age, recurring, registration, price, status
+function evTags(o, withRecurring, noFit) {
   const kids = o.audience === 'erwachsene' ? tl('für Erwachsene') : ageLabel(o.age_min_m, o.age_max_m);
-  const fits = offerFits(o) === true;
+  const fits = !noFit && offerFits(o) === true; // in Für euch the reason line says it
   return [fits && `<span class="fitchip">${tl('passt zu euch')}</span>`,
+    o.status === 'ausgebucht' && `<span class="tag reg">${tl('Ausgebucht')}</span>`,
     kids && `<span>${esc(kids)}</span>`,
     withRecurring && isRecurring(o) && `<span class="tag rec">${svg('repeat')}${o.kind === 'kurs' ? tl('Kurs') : tl('Gruppe')} · ${tl('jeden {day}', { day: WD_LONG[o.weekday] })}</span>`,
+    started(o) && `<span class="tag">${esc(tl('läuft seit {date}', { date: fmtD(new Date(o.start_date + 'T00:00')) }))}</span>`,
+    rolling(o) ? `<span class="tag ok">${svg('check')}${tl('Einstieg jederzeit')}</span>` : o.registration === 'offen' && `<span class="tag ok">${svg('check')}${tl('ohne Anmeldung')}</span>`,
     o.registration === 'nötig' && `<span class="tag reg">${svg('edit')}${tl('Anmeldung nötig')}</span>`,
-    o.registration === 'offen' && `<span class="tag ok">${svg('check')}${tl('ohne Anmeldung')}</span>`,
     o.registration === 'Warteliste' && `<span class="tag reg">${tl('Warteliste')}</span>`,
+    o.registration === 'Tickets' && `<span>${tl('Tickets')}</span>`,
+    o.online && `<span class="tag ok">${tl('Online')}</span>`,
     o.free === 1 && `<span>${tl('kostenlos')}</span>`, dogChip(offerDog(o))].filter(Boolean).join('');
 }
 const timeRange = o => o.time_from ? `${o.time_from}${o.time_to ? '–' + o.time_to : ''}` : '';
-// one row in a day list (Alle, Einmalig, Gemerkt)
-function evRowHtml(o, d) {
-  const fam = topicFam(o.topic), tags = evTags(o, true);
+const evMenuBtn = o => o.id ? `<button type="button" class="evmenubtn" data-evmenu="${esc(o.id)}" aria-label="${tl('Mehr Möglichkeiten')}">${svg('more')}</button>` : '';
+// one row in a day list (Einmalig, Gemerkt); g = its series in Für euch (reason line, other dates)
+function evRowHtml(o, d, g, opts = {}) {
+  const fam = topicFam(o.topic), tags = evTags(o, true, !!g?.why?.length), multi = g && g.items.length > 1;
+  const dx = opts.from && offerPos(o) ? ' · ' + fmtDist(dist(opts.from, offerPos(o))) : g ? '' : evDistText(o);
   const inner = `<span class="evtime">${o.time_from ? esc(o.time_from) : `<small>${tl('ganztags')}</small>`}</span>
-    <span><h3>${esc(titleOf(o))}</h3><span class="meta"><span class="ticon" style="--c:${fam[2]}">${svg(fam[1])}</span>${esc(TOPIC_LABEL[o.topic] || tl('Angebot'))}${o.venue ? ' · ' + esc(o.venue) : ''}${evDistText(o)}</span>
+    <span><h3>${esc(titleOf(o))}</h3><span class="meta"><span class="ticon" style="--c:${fam[2]}">${svg(fam[1])}</span>${esc(TOPIC_LABEL[o.topic] || tl('Angebot'))}${o.venue ? ' · ' + esc(o.venue) : ''}${dx}</span>
+    ${g?.why?.length ? `<span class="why">${esc(g.why.join(' · '))}</span>` : ''}${multi ? `<span class="serline">${svg('repeat')}${esc(seriesText(g))}</span>` : ''}
     ${tags ? `<span class="mini">${tags}</span>` : ''}</span>`;
-  return o.id ? `<li class="offrow"><button type="button" class="item evrow" data-offer="${o.id}">${inner}</button>${saveBtn(o)}</li>` : `<li><div class="item evrow">${inner}</div></li>`;
+  const act = multi ? `data-evseries="${esc(crossKey(o))}"` : `data-offer="${esc(o.id)}"`;
+  return o.id ? `<li class="offrow hasmenu"><button type="button" class="item evrow" ${act}>${inner}</button>${saveBtn(o)}${evMenuBtn(o)}</li>` : `<li><div class="item evrow">${inner}</div></li>`;
 }
-// one card on the Gruppen and Kurse pages
-function evCardHtml(o, nd) {
-  const fam = topicFam(o.topic), time = timeRange(o);
+// one card on the Wiederkehrend page
+function evCardHtml(o, nd, g) {
+  const fam = topicFam(o.topic), time = timeRange(o), multi = g && g.items.length > 1;
   const rec = isRecurring(o) ? `${tl('Jeden')} ${WD_LONG[o.weekday]}${time ? ' · ' + time : ''}`
-    : o.start_date && o.end_date && o.start_date !== o.end_date ? `${fmtShort(new Date(o.start_date + 'T00:00'))} bis ${fmtShort(new Date(o.end_date + 'T00:00'))}${time ? ' · ' + time : ''}`
+    : o.start_date && o.end_date && o.start_date !== o.end_date ? `${fmtShort(new Date(o.start_date + 'T00:00'))} ${tl('bis')} ${fmtShort(new Date(o.end_date + 'T00:00'))}${time ? ' · ' + time : ''}`
     : `${tl('Einmal')}${time ? ' · ' + time : ''}`;
-  return `<li class="offrow"><button type="button" class="evcard" data-offer="${o.id}">
+  const act = multi ? `data-evseries="${esc(crossKey(o))}"` : `data-offer="${esc(o.id)}"`;
+  return `<li class="offrow hasmenu"><button type="button" class="evcard" ${act}>
       <span class="evicon" style="--c:${fam[2]}">${svg(fam[1])}</span>
-      <span class="evcbody"><h3>${esc(titleOf(o))}</h3><span class="meta">${esc(TOPIC_LABEL[o.topic] || tl('Angebot'))}${o.venue ? ' · ' + esc(o.venue) : ''}${evDistText(o)}</span>
+      <span class="evcbody"><h3>${esc(titleOf(o))}</h3><span class="meta">${esc(TOPIC_LABEL[o.topic] || tl('Angebot'))}${o.venue ? ' · ' + esc(o.venue) : ''}${g ? '' : evDistText(o)}</span>
+        ${g?.why?.length ? `<span class="why">${esc(g.why.join(' · '))}</span>` : ''}
         <span class="rec">${svg('repeat')}${esc(rec)}</span>
+        ${multi ? `<span class="serline">${esc(seriesText(g))}</span>` : ''}
         <span class="next">${tl('Nächster Termin:')} ${esc(fmtShort(nd))}${o.sessions ? ` · ${o.sessions} ${tl('Termine')}` : ''}</span>
-        <span class="mini">${evTags(o, false)}</span></span></button>${saveBtn(o)}</li>`;
+        <span class="mini">${evTags(o, false, !!g?.why?.length)}</span></span></button>${saveBtn(o)}${evMenuBtn(o)}</li>`;
+}
+// all dates of one series (same provider and title), nearest venue first in its day
+function evSeriesView(key) {
+  const X = evCtx(), list = OFFERS.filter(o => crossKey(o) === key).map(o => [nextAfterNow(o), o]).filter(([d]) => d).sort(byDayTime);
+  const o = list[0]?.[1];
+  if (!o) return `${head(tl('Termine'))}<div class="empty"><b>${tl('Diesen Termin finden wir nicht mehr.')}</b>${tl('Vielleicht ist er vorbei oder wurde abgesagt.')}</div>`;
+  const venues = new Set(list.map(([, x]) => x.venue)).size;
+  return `${head(esc(titleOf(o)), esc([o.provider, venues > 1 ? tl('an {v} Orten', { v: venues }) : o.venue].filter(Boolean).join(' · ')))}
+    <div class="acts"><button type="button" class="act" data-evmenu="${esc(o.id)}">${svg('more')}${tl('Mehr Möglichkeiten')}</button></div>
+    ${o.kind === 'termin' ? (() => { let out = '', cur = null; for (const [d, x] of list.slice(0, 120)) { const k = ymd(d); if (k !== cur) { out += `${cur ? '</ol>' : ''}<h4 class="dayhead">${esc(dayHead(d))}</h4><ol class="list">`; cur = k; } out += evRowHtml(x, d, null, { from: X.c }); } return cur ? out + '</ol>' : ''; })()
+      : `<ol class="list evcards">${list.slice(0, 120).map(([d, x]) => evCardHtml(x, d)).join('')}</ol>`}`;
+}
+
+// ---------- the "…" menu: Merken, Mehr wie das, hide a series, a provider or a topic ----------
+function evMenuOpen(id) {
+  const o = OFFER_BY_ID.get(id); if (!o) return;
+  closeEvMenu(); EV.menu = id;
+  const topic = o.topic && o.topic !== 'sonstiges' ? TOPIC_LABEL[o.topic] : '';
+  const el = document.createElement('div');
+  el.id = 'evmenu'; el.className = 'lockwrap';
+  el.innerHTML = `<div class="lockbg" data-evmenuclose="1"></div><div class="locksheet evmenu" role="dialog" aria-modal="true" aria-labelledby="evmT"><i class="lockgrip"></i>
+    <h3 id="evmT">${esc(titleOf(o))}</h3>${o.provider ? `<p class="muted">${esc(o.provider)}</p>` : ''}
+    <button type="button" class="menurow" data-saveoffer="${esc(o.id)}">${svg('heart')}<span>${isSaved(o.id) ? tl('Nicht mehr merken') : tl('Merken')}</span></button>
+    <button type="button" class="menurow" data-evlike="1">${svg('star')}<span>${tl('Mehr wie das')}</span></button>
+    <button type="button" class="menurow" data-evhide="series">${svg('eye')}<span>${tl('Diese Reihe ausblenden')}</span></button>
+    ${o.provider ? `<button type="button" class="menurow" data-evhide="provider">${svg('eye')}<span>${esc(tl('{name} ausblenden', { name: o.provider }))}</span></button>` : ''}
+    ${topic ? `<button type="button" class="menurow" data-evhide="topic">${svg('eye')}<span>${esc(tl('Thema „{name}“ ausblenden', { name: topic }))}</span></button>` : ''}
+    <button type="button" class="menurow" data-evsettings="1">${svg('gear')}<span>${tl('Termine-Einstellungen')}</span></button>
+    <button type="button" class="linkbtn center" data-evmenuclose="1">${tl('Abbrechen')}</button></div>`;
+  document.body.appendChild(el);
+  el.querySelector('.menurow')?.focus();
+}
+function closeEvMenu() { document.getElementById('evmenu')?.remove(); }
+const undoToast = (msg, undo) => typeof toastAction === 'function' ? toastAction(msg, tl('Rückgängig'), () => { undo(); saveEv(); afterEvChange(); }) : toast(msg);
+function evHide(kind) {
+  const o = OFFER_BY_ID.get(EV.menu); closeEvMenu(); if (!o) return;
+  const H = store.ev.hide;
+  let msg, undo;
+  if (kind === 'series') { const k = crossKey(o); if (!H.series.some(x => x.k === k)) H.series.push({ k, t: String(o.title || '').slice(0, 80) }); msg = tl('„{name}“ ausgeblendet.', { name: o.title }); undo = () => { H.series = H.series.filter(x => x.k !== k); }; }
+  else if (kind === 'provider') { if (!H.providers.includes(o.provider)) H.providers.push(o.provider); msg = tl('{name} ausgeblendet.', { name: o.provider }); undo = () => { H.providers = H.providers.filter(x => x !== o.provider); }; }
+  else { if (!H.topics.includes(o.topic)) H.topics.push(o.topic); msg = tl('Thema „{name}“ ausgeblendet.', { name: TOPIC_LABEL[o.topic] || o.topic }); undo = () => { H.topics = H.topics.filter(x => x !== o.topic); }; }
+  saveEv(); afterEvChange(); undoToast(msg, undo);
+}
+function evLike() {
+  const o = OFFER_BY_ID.get(EV.menu); closeEvMenu(); if (!o) return;
+  const L = store.ev.like, t = o.topic !== 'sonstiges' && !L.topics.includes(o.topic) ? o.topic : null, p = o.provider && !L.providers.includes(o.provider) ? o.provider : null;
+  if (t) L.topics.push(t);
+  if (p) L.providers.push(p);
+  saveEv(); afterEvChange();
+  undoToast(tl('Mehr davon: {name}', { name: [t && TOPIC_LABEL[t], p].filter(Boolean).join(', ') || o.title }), () => { L.topics = L.topics.filter(x => x !== t); L.providers = L.providers.filter(x => x !== p); });
+}
+
+// ---------- Termine-Einstellungen: Standard-Ansicht, Gebiet, Alter, Ausgeblendet, Mehr wie das ----------
+function evSettingsView() {
+  const s = store.ev, H = s.hide, L = s.like, mode = s.mode || (canPersonal() ? 'fuer' : 'alle'), kids = familyAges().filter(k => k.months >= 0);
+  const guest = typeof auth === 'undefined' || !auth?.family;
+  const chips = (list, kind, label = x => x) => list.map((x, i) => `<button type="button" class="chip on" data-evunhide="${kind}|${i}" aria-label="${esc(label(x))} ${tl('entfernen')}">${esc(label(x))} ${svg('close')}</button>`).join('');
+  const group = (title, html) => html ? `<p class="muted small">${title}</p><div class="fgrid">${html}</div>` : '';
+  const hidden = group(tl('Themen'), chips(H.topics, 'topics', t => TOPIC_LABEL[t] || t)) + group(tl('Anbieter'), chips(H.providers, 'providers')) + group(tl('Reihen'), chips(H.series, 'series', x => x.t));
+  const liked = group(tl('Themen'), chips(L.topics, 'ltopics', t => TOPIC_LABEL[t] || t)) + group(tl('Anbieter'), chips(L.providers, 'lproviders'));
+  return `${head(tl('Termine-Einstellungen'), tl('Für die Ansicht „Für euch“'))}
+    <div class="sec"><h4>${tl('Standard-Ansicht')}</h4><div class="segs">${[['fuer', tl('Für euch')], ['alle', tl('Alle')]].map(([id, l]) => `<button type="button" class="${mode === id ? 'on' : ''}" data-evdefmode="${id}" aria-pressed="${mode === id}">${l}</button>`).join('')}</div></div>
+    <div class="sec"><h4>${tl('Gebiet')}</h4>${evPlaceHtml(false)}
+      ${guest && s.home ? `<p class="text">${esc(tl('Zuhause: {name}', { name: s.home.label }))} <button type="button" class="linkbtn" data-evhomex="1">${tl('Entfernen')}</button></p><p class="note">${tl('Nur auf diesem Gerät gespeichert.')}</p>` : ''}</div>
+    <div class="sec"><h4>${tl('Alter')}</h4><p class="text">${kids.length ? esc(kids.map(k => `${k.name}, ${ageText(k)}`).join(' · ')) : store.profile.expecting ? tl('Ihr erwartet ein Kind.') : tl('Noch keine Kinder eingetragen.')}</p>
+      <label class="tgl"><span><b>${tl('Nur passende Termine')}</b><small>${tl('Ohne Altersangabe: eingeklappt am Ende der Liste')}</small></span><input type="checkbox" role="switch" data-evonlyfit="1"${s.onlyFit ? ' checked' : ''}></label>
+      <button type="button" class="linkbtn" data-tab="me" style="margin-top:8px">${tl('Kinder im Wir eintragen oder ändern')}</button></div>
+    <div class="sec"><h4>${tl('Ausgeblendet')}</h4>${hidden || `<p class="muted text">${tl('Nichts ausgeblendet. Über „…“ bei einem Termin kannst du Reihen, Anbieter oder Themen ausblenden.')}</p>`}</div>
+    <div class="sec"><h4>${tl('Mehr wie das')}</h4>${liked || `<p class="muted text">${tl('Noch nichts gewählt.')}</p>`}</div>
+    <button type="button" class="btn" data-evprefsreset="1" style="margin-top:12px">${tl('Alles zurücksetzen')}</button>
+    <p class="note">${guest ? tl('Gespeichert auf diesem Gerät. Niemand sonst sieht das.') : tl('Gespeichert auf diesem Gerät und in deinem Konto. Niemand sonst sieht das.')}</p>`;
 }
 
 // ---------- the filter sheet ----------
@@ -1754,28 +2237,28 @@ function evTopicCounts() {
 function evFiltersView() {
   const base = evBase().filter(([, o]) => !o.own);
   const count = (sec, fn) => base.filter(([, o]) => evPass(o, sec.id) && fn(o)).length;
-  const section = sec => {
+  const section = (sec, extra = '') => {
     if (!sectionOn(sec)) return '';
     const chip = it => { const on = EV.f.has(it[0]), n = count(sec, it[2]); return `<button type="button" class="${chipCls(on, n)}" data-evf="${it[0]}" aria-pressed="${on}"${!on && n === 0 ? ' disabled' : ''}>${chipInner(on, itemLabel(it[1]), n)}</button>`; };
     const items = sec.items.filter(itemOn), wide = items.filter(it => it[0] === 'fit'), row = items.filter(it => it[0] !== 'fit');
     // time and age: one row of equal boxes as in the design; "Passt zu Mia" gets its own line
     return `<div class="sec"><h4>${sec.title}</h4>${wide.length ? `<div class="fgrid" style="margin-bottom:8px">${wide.map(chip).join('')}</div>` : ''}
-      <div class="fgrid${sec.two ? ' two' : ''}"${sec.two ? ` style="grid-template-columns:repeat(${row.length},1fr)"` : ''}>${row.map(chip).join('')}</div>${sec.note ? `<p class="note">${sec.note}</p>` : ''}</div>`;
+      <div class="fgrid${sec.two ? ' two' : ''}"${sec.two ? ` style="grid-template-columns:repeat(${row.length},1fr)"` : ''}>${row.map(chip).join('')}</div>${extra}${sec.note ? `<p class="note">${sec.note}</p>` : ''}</div>`;
   };
   const when = cardPage()
-    ? `<div class="sec"><h4>${tl('Wochentag')}</h4><div class="fgrid days">${WD.map((l, i) => `<button type="button" class="chip round${EV.days.has(i) ? ' on' : ''}" data-evday="${i}" aria-pressed="${EV.days.has(i)}" aria-label="${WD_LONG[i]}">${EV.days.has(i) ? svg('check') : ''}${l}</button>`).join('')}</div></div>`
-    : `<div class="sec"><h4>${tl('Wann')}</h4><div class="fgrid when">${[['heute', tl('Heute')], ['wochenende', tl('Wochenende')], ['7', tl('7 Tage')], ['30', tl('30 Tage')]].map(([id, l]) => `<button type="button" class="chip${EV.when === id ? ' on' : ''}" data-evwhen="${id}" aria-pressed="${EV.when === id}">${chipInner(EV.when === id, l)}</button>`).join('')}
+    ? `<div class="sec"><h4>${tl('Wochentag')}</h4><div class="fgrid days">${WD.map((l, i) => `<button type="button" class="chip round${EV.days.has(i) ? ' on' : ''}" data-evday="${i}" aria-pressed="${EV.days.has(i)}" aria-label="${WD_LONG[i]}">${EV.days.has(i) ? svg('check') : ''}${l}</button>`).join('')}</div><p class="note">${tl('Wochentage und Uhrzeit merkt sich Djuu für das nächste Mal.')}</p></div>`
+    : `<div class="sec"><h4>${tl('Wann')}</h4><div class="fgrid when">${WHEN_CHIPS.map(([id, l]) => `<button type="button" class="chip${EV.when === id ? ' on' : ''}" data-evwhen="${id}" aria-pressed="${EV.when === id}">${chipInner(EV.when === id, l)}</button>`).join('')}
         <button type="button" class="chip round${EV.when === 'datum' ? ' on' : ''}" data-evwhen="datum" aria-pressed="${EV.when === 'datum'}" aria-label="${tl('Zeitraum wählen')}">${svg('cal')}</button></div>
-        ${EV.when === 'datum' ? `<div class="evrange"><label>von <input id="evFrom" type="date" value="${esc(EV.from)}" min="${ymd(today0())}"></label><label>bis <input id="evTo" type="date" value="${esc(EV.to)}" min="${esc(EV.from || ymd(today0()))}"></label></div>` : ''}</div>`;
+        ${EV.when === 'datum' ? `<div class="evrange"><label>${tl('von')} <input id="evFrom" type="date" value="${esc(EV.from)}" min="${ymd(today0())}"></label><label>${tl('bis')} <input id="evTo" type="date" value="${esc(EV.to)}" min="${esc(EV.from || ymd(today0()))}"></label></div>` : ''}</div>`;
   const { page, live } = evTopicCounts(), all = Object.keys(page);
   const top = all.sort((a, b) => page[b] - page[a]).slice(0, 4);
   for (const t of EV.topics) if (page[t] && !top.includes(t)) top.push(t);
   const topic = all.length ? `<div class="sec"><div class="sechead"><h4>${tl('Thema')}</h4><span>${EV.topics.size ? `${EV.topics.size} ${tl('gewählt')}` : tl('Mehrere möglich')}</span></div>
       <div class="fgrid">${top.map(t => topicChip(t, live[t] || 0)).join('')}</div>
       ${all.length > top.length ? `<button type="button" class="morelink" data-open="evtopics">${tl('Alle')} ${all.length} ${tl('Themen')} ${svg('back')}</button>` : ''}</div>` : '';
-  const place = evPlaceHtml();
   return `<div class="ph sheethead"><h2>${tl('Filter')}</h2><button type="button" class="round" data-back="1" aria-label="${tl('Schließen')}">${svg('close')}</button></div>
-    ${when}${section(EV_SECTIONS[0])}${section(EV_SECTIONS[1])}${section(EV_SECTIONS[2])}${topic}${section(EV_SECTIONS[3])}${place}
+    ${forYou() ? `<p class="note">${tl('„Für euch“ gilt dazu: Alter, Gebiet und Ausgeblendetes aus den Termine-Einstellungen.')}</p>` : ''}
+    ${when}${section(EV_SECTIONS[0])}${section(EV_SECTIONS[1])}${section(EV_SECTIONS[2])}${topic}${section(EV_SECTIONS[3], regHtml())}${evPlaceHtml()}
     ${evSheetFoot()}`;
 }
 const topicChip = (t, n) => { const on = EV.topics.has(t); return `<button type="button" class="${chipCls(on, n)}" data-evtopic="${t}" aria-pressed="${on}"${!on && n === 0 ? ' disabled' : ''}>${chipInner(on, TOPIC_LABEL[t], n)}</button>`; };
@@ -1788,8 +2271,9 @@ function evTopicsView() {
     ${evSheetFoot()}`;
 }
 // ---------- Ort for the Termine filter: own setting, independent of the map ----------
-// Ganz Hamburg, several Stadtteile (by the coordinates of the offer), or a radius around home (or, for one search, the current position).
-// Home is kept on this phone only, as the centre of a postcode or Stadtteil, and never goes to the server or the family.
+// Ganz Hamburg, several Stadtteile (by the coordinates of the offer), a radius around home (or, for one search, the current
+// position), or Online. Online offers count in every Ort. Home is a saved place (Meine Orte) with an account, else a
+// postcode kept on this phone only.
 let GEO = { stadtteile: [], plz: [] };
 const GEO_BEZ = {}, GEO_POS = {};
 async function loadGeo() {
@@ -1800,23 +2284,30 @@ const BEZIRKE = ['Hamburg-Mitte', 'Altona', 'Eimsbüttel', 'Hamburg-Nord', 'Wand
 const DISTRICT_ALIAS = { Altstadt: 'Hamburg-Altstadt', Stove: 'Kirchwerder' }; // OSM names on places -> official names
 const offerPos = o => { const pl = o.place_id && byId.get(o.place_id); return pl ? [pl.lat, pl.lon] : o.lat ? [o.lat, o.lon] : null; };
 const offerDistrict = o => { if (o.district) return o.district; const pl = o.place_id && byId.get(o.place_id); return pl?.district ? DISTRICT_ALIAS[pl.district] || pl.district : null; };
-EV.place = { mode: 'all', districts: new Set(), km: 5, gps: null };
-EV.placeTab = 'stadtteil';
-EV.pending = new Set(); EV.dq = '';
 const KMS = [1, 2, 5, 10, 20];
 // the place the radius is measured from: chosen in the filter, else the one marked "Standard für Suchen", else the first
 const searchPlace = () => { if (typeof auth === 'undefined' || !auth?.family) return null; const ps = (store.places || []).filter(p => p.lat); return ps.find(p => p.id === EV.place.placeId) || ps.find(p => p.def) || ps[0] || null; };
-const homeOf = () => { const p = searchPlace(); return p ? { label: `${tl(p.name)} (${p.plz})`, lat: p.lat, lon: p.lon } : null; };
+const homeOf = () => { const p = searchPlace(); if (p) return { name: tl(p.name), label: `${tl(p.name)}${p.plz ? ` (${p.plz})` : ''}`, lat: p.lat, lon: p.lon }; const h = store.ev.home; return h && h.lat ? { name: tl('Zuhause'), label: h.label, lat: h.lat, lon: h.lon, device: true } : null; };
 const radiusOrigin = () => EV.place.gps || (homeOf() ? [homeOf().lat, homeOf().lon] : null);
-function evPlaceOk(o) {
+// the area in use: the chosen one; in "Für euch" without an own choice 5 km around home
+function evArea() {
   const P = EV.place;
-  if (P.mode === 'districts') return P.districts.has(offerDistrict(o));
-  if (P.mode === 'radius') { const c = radiusOrigin(), p = offerPos(o); return !!(c && p && dist(c, p) <= P.km * 1000); }
+  if (P.mode === 'radius') { const c = radiusOrigin(); if (c) return { mode: 'radius', km: P.km, c }; }
+  else if (P.mode === 'districts' && P.districts.size) return { mode: 'districts', d: P.districts };
+  else if (P.mode === 'online') return { mode: 'online' };
+  else if (!store.ev.placeSet && forYou()) { const c = radiusOrigin(); if (c) return { mode: 'radius', km: 5, c, auto: true }; }
+  return { mode: 'all' };
+}
+function evPlaceOk(o, A = evArea()) {
+  if (o.online) return true; // online offers fit every Ort
+  if (A.mode === 'online') return false;
+  if (A.mode === 'districts') return A.d.has(offerDistrict(o));
+  if (A.mode === 'radius') { const p = offerPos(o); return !!p && dist(A.c, p) <= A.km * 1000; }
   return offerDistrict(o) !== UMLAND;
 }
 const kmText = km => String(km).replace('.', ',') + ' km';
 // distance shown in lists and cards while the radius is on
-const evDistText = o => { if (EV.place.mode !== 'radius') return ''; const c = radiusOrigin(), p = offerPos(o); return c && p ? ' · ' + fmtDist(dist(c, p)) : ''; };
+const evDistText = o => { const A = evArea(); if (A.mode !== 'radius') return ''; const p = offerPos(o); return p ? ' · ' + fmtDist(dist(A.c, p)) : ''; };
 
 // "20535", "Hamm" or an address with a postcode in it -> the centre of that postcode or Stadtteil
 function parseHome(text) {
@@ -1828,43 +2319,53 @@ function parseHome(text) {
   return s ? { label: s[0], lat: s[2], lon: s[3] } : null;
 }
 function homeFieldHtml(id) {
-  const h = homeOf();
+  const h = homeOf(), guest = typeof auth === 'undefined' || !auth?.family;
   return `<div class="field"><label for="${id}">${tl('Zuhause')}</label>
     <input id="${id}" data-home="1" list="homeList" autocomplete="off" placeholder="${tl('PLZ oder Stadtteil, z. B. 20535')}" value="${esc(h?.label || '')}">
     <datalist id="homeList">${GEO.plz.map(p => `<option value="${p[0]} (${esc(p[3])})"></option>`).join('')}${GEO.stadtteile.map(s => `<option value="${esc(s[0])}"></option>`).join('')}</datalist>
-    <p class="note">${tl('PLZ oder Stadtteil reicht. Wird als „Zuhause“ unter Wir › Meine Orte gespeichert.')}</p></div>`;
+    <p class="note">${guest ? tl('PLZ oder Stadtteil reicht. Bleibt nur auf diesem Gerät.') : tl('PLZ oder Stadtteil reicht. Wird als „Zuhause“ unter Wir › Meine Orte gespeichert.')}</p></div>`;
 }
 function setHome(value) {
   if (!String(value || '').trim()) return;
   const h = parseHome(value);
-  if (!h) return toast('Nicht gefunden. Bitte eine Hamburger PLZ oder einen Stadtteil eingeben.');
-  // becomes "Zuhause" in Meine Orte (postcode only; a Stadtteil gets its nearest postcode)
+  if (!h) return toast(tl('Nicht gefunden. Bitte eine Hamburger PLZ oder einen Stadtteil eingeben.'));
+  // a postcode (a Stadtteil gets its nearest postcode)
   const plz = (h.label.match(/\b\d{5}\b/) || [])[0] || GEO.plz.map(x => [dist([h.lat, h.lon], [x[1], x[2]]), x[0]]).sort((a, b) => a[0] - b[0])[0]?.[1] || '';
   const g = GEO.plz.find(x => x[0] === plz) || [plz, h.lat, h.lon];
-  store.places.push({ id: pbId(), name: tl('Zuhause'), plz, address: '', lat: g[1], lon: g[2], shared: false, def: !store.places.some(p => p.def), mine: true });
-  save();
+  if (typeof auth !== 'undefined' && auth?.family) {
+    // with an account it becomes "Zuhause" in Meine Orte
+    store.places = store.places || [];
+    store.places.push({ id: pbId(), name: tl('Zuhause'), plz, address: '', lat: g[1], lon: g[2], shared: false, def: !store.places.some(p => p.def), mine: true });
+  } else store.ev.home = { label: h.label, plz, lat: g[1], lon: g[2] }; // guests: only on this phone
+  if (EV.placeTab === 'umkreis' || EV.place.mode === 'radius') { setKm(EV.place.km); store.ev.placeSet = true; }
+  saveEv(); EVB.clear();
   toast(`${tl('Zuhause:')} ${h.label}`);
   renderPanel();
 }
 
-// the Ort section of the filter sheet
+// the Ort section of the filter sheet (and of the Ort page and the Termine-Einstellungen)
 function evPlaceHtml(titled = true) {
-  const P = EV.place, origin = radiusOrigin(), mode = EV.placeTab === 'umkreis' ? 'radius' : EV.placeTab === 'stadtteil' ? 'districts' : P.mode;
-  const seg = `<div class="segs" role="tablist" aria-label="${tl('Ort wählen über')}">${[['all', tl('Ganz Hamburg')], ['districts', tl('Stadtteil')], ['radius', tl('Umkreis')]].map(([id, l]) =>
+  const P = EV.place, origin = radiusOrigin(), A = evArea();
+  const mode = EV.placeTab === 'umkreis' ? 'radius' : EV.placeTab === 'stadtteil' ? 'districts' : EV.placeTab === 'online' ? 'online' : A.mode === 'radius' && A.auto ? 'radius' : P.mode;
+  const seg = `<div class="segs four" role="tablist" aria-label="${tl('Ort wählen über')}">${[['all', tl('Ganz Hamburg')], ['districts', tl('Stadtteil')], ['radius', tl('Umkreis')], ['online', tl('Online')]].map(([id, l]) =>
     `<button type="button" role="tab" aria-selected="${mode === id}" class="${mode === id ? 'on' : ''}" data-evplacemode="${id}">${l}</button>`).join('')}</div>`;
   let body = '';
   if (mode === 'districts') {
     body = `<div class="fgrid">${[...P.districts].map(d => `<button type="button" class="chip on" data-evdistrictx="${esc(d)}" aria-label="${esc(dLabel(d))} ${tl('entfernen')}">${svg('check')}${esc(dLabel(d))} ${svg('close')}</button>`).join('')}
       <button type="button" class="chip" data-open="evdistricts">${svg('pin')}${P.districts.size ? tl('Weitere wählen') : tl('Stadtteil wählen')}</button></div>`;
+  } else if (mode === 'online') {
+    body = `<p class="note">${tl('Nur Angebote, die online stattfinden. Online-Angebote sind auch bei jedem anderen Ort dabei.')}</p>`;
   } else if (mode === 'radius' && !origin) {
-    body = `${typeof auth !== 'undefined' && auth?.family ? homeFieldHtml('evHome') : `<p class="note">${tl('Mit Konto misst Djuu auch von deinen Orten aus, zum Beispiel Zuhause oder Kita.')}</p>`}
+    body = `${homeFieldHtml('evHome')}
       <button type="button" class="btn" data-evgps="1">${svg('locate')}${tl('Aktuellen Standort verwenden')}</button>
       <p class="note">${tl('Der aktuelle Standort gilt nur für diese Suche und wird nicht gespeichert.')}</p>`;
   } else if (mode === 'radius') {
-    body = `<div class="kmrow"><input id="evKmRange" type="range" min="1" max="20" step="1" value="${Math.min(20, Math.max(1, Math.round(P.km)))}" aria-label="${tl('Umkreis in Kilometern,')} ${kmText(P.km)}"><b>${kmText(P.km)}</b></div>
+    const km = A.mode === 'radius' ? A.km : P.km;
+    body = `<div class="kmrow"><input id="evKmRange" type="range" min="1" max="20" step="1" value="${Math.min(20, Math.max(1, Math.round(km)))}" aria-label="${tl('Umkreis in Kilometern,')} ${kmText(km)}"><b>${kmText(km)}</b></div>
       ${!P.gps && (store.places || []).filter(x => x.lat).length > 1 && typeof auth !== 'undefined' && auth?.family ? `<div class="fgrid fromrow"><span class="muted">${tl('Von:')}</span>${store.places.filter(x => x.lat).map(x => `<button type="button" class="chip${searchPlace() === x ? ' on' : ''}" data-evorigin="${x.id}">${searchPlace() === x ? svg('check') : svg('pin')}${esc(tl(x.name))}</button>`).join('')}</div>` : ''}
       <p class="note">${tl('Luftlinie,')} ${P.gps ? tl('vom aktuellen Standort') : `${tl('von')} ${esc(homeOf().label)}`}.
-        ${P.gps ? (homeOf() ? ` <button type="button" class="linkbtn" data-evgpsoff="1">${tl('Zuhause verwenden')}</button>` : '') : ` <button type="button" class="linkbtn" data-evgps="1">${tl('Aktuellen Standort verwenden')}</button>`}</p>`;
+        ${P.gps ? (homeOf() ? ` <button type="button" class="linkbtn" data-evgpsoff="1">${tl('Zuhause verwenden')}</button>` : '') : ` <button type="button" class="linkbtn" data-evgps="1">${tl('Aktuellen Standort verwenden')}</button>`}</p>
+      ${A.auto ? `<p class="note">${tl('„Für euch“ nimmt ohne eigene Wahl 5 km um Zuhause.')}</p>` : ''}`;
   }
   return `<div class="sec">${titled ? `<h4>${tl('Ort')}</h4>` : ''}${seg}${body}</div>`;
 }
@@ -1874,7 +2375,7 @@ function setKm(v) {
   EV.place.km = km; EV.place.mode = 'radius'; EV.place.districts.clear();
 }
 
-// the Stadtteil page: every Stadtteil with results on this page, by Bezirk, several at once
+// the Stadtteil page: every Stadtteil with results on this page, by Bezirk, several at once (a 0 never blocks the choice)
 function evDistrictCounts() {
   const page = {}, live = {};
   for (const [, o] of evBase(true)) { const d = offerDistrict(o); if (d) page[d] = (page[d] || 0) + 1; }
@@ -1885,13 +2386,13 @@ function districtListHtml() {
   const { page, live } = evDistrictCounts(), q = norm(EV.dq.trim());
   const regions = BEZIRKE.map(bz => [bz, GEO.stadtteile.filter(s => s[1] === bz).map(s => s[0])]).concat([[UMLAND, [UMLAND]]]);
   const out = regions.map(([bz, all]) => {
-    const names = all.filter(n => page[n] && (!q || norm(n).includes(q)));
+    const names = all.filter(n => page[n] && (!q || norm(n).includes(q) || norm(bz).includes(q)));
     if (!names.length) return '';
-    const selectable = names.filter(n => live[n] || EV.pending.has(n)), allOn = selectable.length && selectable.every(n => EV.pending.has(n));
+    const allOn = names.every(n => EV.pending.has(n));
     return `<fieldset class="bezirk"><legend>${esc(dLabel(bz))}</legend>
-      ${bz === UMLAND ? '' : `<label class="drow all${allOn ? ' on' : ''}"><input type="checkbox" data-dall="${esc(bz)}"${allOn ? ' checked' : ''}${selectable.length ? '' : ' disabled'}><span class="dname">${tl('Alle in')} ${esc(bz)}</span></label>`}
-      ${names.map(n => { const on = EV.pending.has(n), c = live[n] || 0, off = !on && !c;
-        return `<label class="drow${on ? ' on' : ''}${off ? ' zero' : ''}"><input type="checkbox" data-dname="${esc(n)}"${on ? ' checked' : ''}${off ? ' disabled' : ''}><span class="dname">${esc(dLabel(n))}</span><span class="n" aria-label="${c} Ergebnisse">${nf.format(c)}</span></label>`; }).join('')}
+      ${bz === UMLAND ? '' : `<label class="drow all${allOn ? ' on' : ''}"><input type="checkbox" data-dall="${esc(bz)}"${allOn ? ' checked' : ''}><span class="dname">${tl('Alle in')} ${esc(bz)}</span></label>`}
+      ${names.map(n => { const on = EV.pending.has(n), c = live[n] || 0;
+        return `<label class="drow${on ? ' on' : ''}${!on && !c ? ' zero' : ''}"><input type="checkbox" data-dname="${esc(n)}"${on ? ' checked' : ''}><span class="dname">${esc(dLabel(n))}</span><span class="n" aria-label="${c} ${tl('Ergebnisse')}">${nf.format(c)}</span></label>`; }).join('')}
     </fieldset>`;
   }).join('');
   return out || `<div class="empty"><b>${tl('Kein Stadtteil gefunden.')}</b>${tl('Versuch einen anderen Namen.')}</div>`;
@@ -1906,7 +2407,18 @@ function evDistrictsView() {
 function refreshDistrictList() { const l = $('#dlist'); if (l) l.innerHTML = districtListHtml(); const b = $('[data-evdapply]'); if (b) b.textContent = districtApplyText(); }
 
 function evShow() { while (stack.length > 1 && !['events'].includes(view().type)) stack.pop(); EV.limit = 60; renderPanel(); setSize('full'); }
-function evReset() { EV.when = '7'; EV.from = ''; EV.to = ''; EV.days.clear(); EV.f.clear(); EV.topics.clear(); EV.fmt.clear(); EV.reg = false; Object.assign(EV.place, { mode: 'all', gps: null }); EV.place.districts.clear(); renderPanel(); }
+function evReset() {
+  EV.when = '7'; EV.from = ''; EV.to = ''; EV.days.clear(); EV.f.clear(); EV.topics.clear(); EV.fmt.clear(); EV.reg = ''; EV.today = false;
+  Object.assign(EV.place, { mode: 'all', gps: null }); EV.place.districts.clear(); store.ev.placeSet = false;
+  saveEv(); EVB.clear(); renderPanel();
+}
+// the map list's card: today's events and groups for the family, counted exactly as Termine › Für euch › Heute shows them
+const TODAY_C = { key: '', ev: 0, wk: 0 };
+function todayCounts() {
+  const key = [Math.floor(Date.now() / 6e4), OFFERS.length, JSON.stringify(store.profile.kids), store.profile.expecting, store.ev.at, (homeOf() || {}).lat, EV.f.size, EV.topics.size, EV.reg, EV.days.size].join('~');
+  if (TODAY_C.key !== key) Object.assign(TODAY_C, { key, ev: evWith({ mode: 'fuer', page: 'einmalig', when: 'heute', q: '', today: false }, () => evResults().length), wk: evWith({ mode: 'fuer', page: 'wiederkehrend', q: '', today: true }, () => evResults().length) });
+  return TODAY_C;
+}
 
 // Merken and "waren wir schon" for offers; a snapshot keeps a saved offer readable after it leaves the data.
 const isSaved = id => store.savedOffers.some(x => x.id === id);
@@ -1919,11 +2431,13 @@ function toggleSaved(id) {
 }
 // all dates in the next months, for the offer page
 function upcoming(o, max = 6) {
-  const out = [], t = today0();
+  const out = [], t = nextAfterNow(o) || today0(); // a session that is over today is not listed
   for (let d = new Date(t), i = 0; i < 200 && out.length < max; d.setDate(d.getDate() + 1), i++) if (occursOn(o, d)) out.push(new Date(d));
   return out;
 }
-const REG_TEXT = { 'nötig': tl('Anmeldung nötig'), offen: tl('Ohne Anmeldung'), Warteliste: tl('Warteliste'), geschlossen: tl('Anmeldung geschlossen') };
+const REG_TEXT = { 'nötig': tl('Anmeldung nötig'), offen: tl('Ohne Anmeldung'), Warteliste: tl('Warteliste'), Tickets: tl('Tickets'), geschlossen: tl('Anmeldung geschlossen') };
+// the provider's own wording next to ours, when it says more ("nötig (über den Stadtbereich)")
+const regText = o => o.registration ? (REG_TEXT[o.registration] || o.registration) + (o.registration_text && o.registration_text !== o.registration ? ` (${o.registration_text})` : '') : '';
 function offerView(id) {
   const o = OFFER_BY_ID.get(id);
   if (!o) {
@@ -1945,17 +2459,20 @@ function offerView(id) {
       <button type="button" class="act${saved ? ' on' : ''}" data-saveoffer="${id}">${svg('heart')}${saved ? tl('Gemerkt') : tl('Merken')}</button>
       <button type="button" class="act${v.cal ? ' on' : ''}" data-calmenu="1">${svg('cal')}${tl('Kalender')}</button>
       <button type="button" class="act" data-shareoffer="${id}">${svg('share')}${tl('Teilen')}</button>
+      <button type="button" class="act" data-evmenu="${esc(id)}" aria-label="${tl('Mehr Möglichkeiten')}">${svg('more')}${tl('Mehr')}</button>
     </div>
-    ${v.cal ? `<div class="calmenu"><button type="button" class="btn" data-ics="${id}">${svg('cal')}${tl('Kalender-Datei (iPhone, Outlook, Android)')}</button>
+    ${o.status === 'ausgebucht' ? `<p class="note">${tl('Laut Anbieter ausgebucht. Manchmal gibt es eine Warteliste.')}</p>` : ''}
+    ${started(o) ? `<p class="note">${esc(tl('Der Kurs läuft seit {date}. Ob ein Einstieg noch geht, weiß der Anbieter.', { date: fmtD(new Date(o.start_date + 'T00:00')) }))}</p>` : ''}
+    ${v.cal ? `<div class="calmenu">${typeof calEdit === 'function' && calSee() && calEdit() ? `<button type="button" class="btn primary" data-calfromoffer="${esc(id)}">${svg('cal')}${tl('In unseren Familienkalender')}</button>` : ''}<button type="button" class="btn" data-ics="${id}">${svg('cal')}${tl('Kalender-Datei (iPhone, Outlook, Android)')}</button>
       <a class="btn" href="${esc(gcalUrl(o))}" target="_blank" rel="noopener">${svg('cal')}${tl('Google Kalender')}</a>
       <p class="note">${tl('Tipp: Lege in deinem Kalender einen Kalender „Familie“ an und wähle ihn beim Eintragen aus. Djuu speichert dabei nichts.')}</p></div>` : ''}
     <div class="sec"><h4>${tl('Wann')}</h4><p class="text"><b>${esc(time)}</b>${o.kind === 'gruppe' ? (isRecurring(o) ? tl(' · regelmäßige Gruppe') : tl(' · offenes Treffen')) : o.kind === 'kurs' ? ` ${tl('· Kurs')}${o.sessions ? ', ' + o.sessions + tl(' Termine') : ''}` : ''}</p>
       ${dates.length ? `<p class="text">${dates.map(x => esc(fmtLong(x))).join('<br>')}${o.kind !== 'termin' && dates.length === 6 ? `<br>${tl('und weitere')}` : ''}</p>` : `<p class="muted text">${tl('Keine weiteren Termine bekannt.')}</p>`}
       ${o.schedule ? `<p class="note">${tl('Laut Anbieter:')} ${esc(o.schedule)}</p>` : ''}</div>
-    <div class="sec"><h4>${tl('Wo')}</h4><p class="text">${esc(o.venue || '')}${o.address ? `<br>${esc(o.address)}` : ''}${d != null ? `<br><span class="muted">${fmtDist(d)} ${tl('von dir')}</span>` : ''}</p>
+    <div class="sec"><h4>${tl('Wo')}</h4><p class="text">${o.online ? `<b>${tl('Online')}</b><br>` : ''}${esc(o.venue || '')}${o.address ? `<br>${esc(o.address)}` : ''}${d != null ? `<br><span class="muted">${fmtDist(d)} ${tl('von dir')}</span>` : ''}</p>
       ${place ? `<button type="button" class="btn" data-onlyplace="${place.id}">${svg('pin')}${tl('Auf der Karte')}</button>` : ''}</div>
     <div class="sec"><h4>${tl('Für wen')}</h4><p class="text">${esc(who)}${fits === true ? ` · <b class="yes">${tl('passt zu euch')}</b>` : ''}</p>${dogChip(offerDog(o)) ? `<div class="facts">${dogChip(offerDog(o))}</div>` : ''}</div>
-    <div class="sec"><h4>${tl('Kosten und Anmeldung')}</h4><p class="text">${o.free ? tl('Kostenlos') : o.price ? esc(o.price) : tl('Preis beim Anbieter')}${o.registration ? ' · ' + esc(REG_TEXT[o.registration] || o.registration) : ''}</p></div>
+    <div class="sec"><h4>${tl('Kosten und Anmeldung')}</h4><p class="text">${o.free ? tl('Kostenlos') : o.price ? esc(o.price) : tl('Preis beim Anbieter')}${o.registration ? ' · ' + esc(regText(o)) : ''}</p></div>
     <a class="btn big primary" href="${esc(o.url)}" target="_blank" rel="noopener" style="margin-top:16px">${tl('Zum Anbieter')}${o.registration === 'nötig' ? tl(' und anmelden') : ''}</a>
     <p class="note">${tl('Angaben vom Anbieter, ohne Gewähr. Änderungen und Absagen erfährst du dort.')}</p>`;
 }
@@ -1965,14 +2482,14 @@ const BYDAY = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'];
 const icsText = s => String(s || '').replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/([,;])/g, '\\$1');
 const compact = d => ymd(d).replace(/-/g, '');
 function calParts(o) {
-  const day = nextDate(o) || today0(), hm = s => s.replace(':', '') + '00';
+  const day = nextAfterNow(o) || today0(), hm = s => s.replace(':', '') + '00';
   const end = o.time_to && o.time_to > (o.time_from || '') ? o.time_to : o.time_from ? `${String(Math.min(23, +o.time_from.slice(0, 2) + 1)).padStart(2, '0')}${o.time_from.slice(2)}` : null;
   let rrule = null;
   if (isRecurring(o)) {
     const cap = addDays(day, 7 * 11), until = o.end_date && new Date(o.end_date + 'T00:00') < cap ? new Date(o.end_date + 'T00:00') : cap;
     rrule = `FREQ=WEEKLY;BYDAY=${BYDAY[o.weekday]};UNTIL=${compact(until)}${o.time_from ? 'T225959Z' : ''}`;
   }
-  const desc = [o.provider, o.free ? 'Kostenlos' : o.price, REG_TEXT[o.registration], o.url, rrule && !o.end_date ? 'Wiederholung von Djuu auf 12 Wochen begrenzt.' : '', 'Ohne Gewähr, bitte beim Anbieter prüfen.'].filter(Boolean).join('\n');
+  const desc = [o.provider, o.free ? tl('Kostenlos') : o.price, regText(o), o.url, rrule && !o.end_date ? tl('Wiederholung von Djuu auf 12 Wochen begrenzt.') : '', tl('Ohne Gewähr, bitte beim Anbieter prüfen.')].filter(Boolean).join('\n');
   return { day, start: o.time_from ? `${compact(day)}T${hm(o.time_from)}` : compact(day), end: end ? `${compact(day)}T${hm(end)}` : compact(addDays(day, 1)), timed: !!o.time_from, rrule, desc, where: [o.venue, o.address].filter(Boolean).join(', ') };
 }
 function gcalUrl(o) {
@@ -1983,7 +2500,9 @@ function gcalUrl(o) {
 }
 function icsFile(list, alarm) {
   const stamp = new Date().toISOString().replace(/[-:]/g, '').slice(0, 15) + 'Z';
-  const fold = l => { const out = []; while (l.length > 60) { out.push(l.slice(0, 60)); l = ' ' + l.slice(60); } out.push(l); return out.join('\r\n'); };
+  // lines of at most 75 octets (RFC 5545), never inside a character; a continuation line starts with a space
+  const enc = new TextEncoder();
+  const fold = l => { const out = []; let cur = '', n = 0; for (const ch of l) { const b = enc.encode(ch).length; if (n + b > 75) { out.push(cur); cur = ' '; n = 1; } cur += ch; n += b; } out.push(cur); return out.join('\r\n'); };
   const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Djuu//Termine//DE', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
     'BEGIN:VTIMEZONE', 'TZID:Europe/Berlin', 'BEGIN:DAYLIGHT', 'TZOFFSETFROM:+0100', 'TZOFFSETTO:+0200', 'TZNAME:CEST', 'DTSTART:19700329T020000', 'RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU', 'END:DAYLIGHT',
     'BEGIN:STANDARD', 'TZOFFSETFROM:+0200', 'TZOFFSETTO:+0100', 'TZNAME:CET', 'DTSTART:19701025T030000', 'RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU', 'END:STANDARD', 'END:VTIMEZONE'];
@@ -2002,13 +2521,13 @@ function downloadIcs(list, name, alarm) {
   const url = URL.createObjectURL(new Blob([icsFile(list, alarm)], { type: 'text/calendar;charset=utf-8' }));
   const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 5000);
-  toast('Kalender-Datei erstellt. Öffne sie, um die Termine einzutragen.');
+  toast(tl('Kalender-Datei erstellt. Öffne sie, um die Termine einzutragen.'));
 }
 function shareOffer(id) {
-  const o = OFFER_BY_ID.get(id), d = nextDate(o), url = location.origin + location.pathname + '#o=' + id;
+  const o = OFFER_BY_ID.get(id), d = nextAfterNow(o), url = location.origin + location.pathname + '#o=' + id;
   const text = `${titleOf(o)}${d ? ', ' + fmtDay(d) : ''}${o.time_from ? ' ' + o.time_from + tl(' Uhr') : ''}${o.venue ? ', ' + o.venue : ''}`;
   if (navigator.share) navigator.share({ title: titleOf(o), text, url }).catch(() => {});
-  else navigator.clipboard?.writeText(text + ' ' + url).then(() => toast('Link kopiert.'), () => toast(url));
+  else navigator.clipboard?.writeText(text + ' ' + url).then(() => toast(tl('Link kopiert.')), () => toast(url));
 }
 // does the offer take place on this day? (single date, weekly group within its run, or course period)
 function occursOn(o, day) {
@@ -2142,7 +2661,7 @@ function renderWizard() {
       ${d.type === 'event' ? `<div class="row2"><div class="field"><label for="wizDate">${tl('Datum')}</label><input id="wizDate" type="date" value="${esc(d.eventDate)}"></div>
         <div class="field"><label for="wizTime">${tl('Uhrzeit')}</label><input id="wizTime" type="time" value="${esc(d.eventTime)}"></div></div>` : ''}
       <div class="field"><label for="wizPhoto">${tl('Foto (optional)')}</label><input id="wizPhoto" type="file" accept="image/*" capture="environment">
-        ${d.photo ? '<img class="preview" src="' + d.photo + '" alt="Vorschau">' : ''}<p class="hint-kids">${tl('Bitte keine Gesichter von Kindern zeigen.')}</p></div>`;
+        ${d.photo ? `<img class="preview" src="${d.photo}" alt="${tl('Vorschau')}">` : ''}<p class="hint-kids">${tl('Bitte keine Gesichter von Kindern zeigen.')}</p></div>`;
   } else if (wiz.step === 2) {
     const own = type?.attrs || [];
     html = `${head(tl('Was gibt es hier?'), tl('Nur antippen, was du sicher weißt'))}${wizHeader()}
@@ -2196,7 +2715,7 @@ function bindWizard() {
         const p = byId.get(b.dataset.sug);
         Object.assign(d, { placeId: p.id, isNew: false, name: p.name, lat: p.lat, lon: p.lon });
         d.type = d.type || WIZ_TYPES.find(w => w.group === groupOf(p).id)?.id || 'service';
-        toast('Den Ort gibt es schon. Du ergänzt jetzt seine Infos.');
+        toast(tl('Den Ort gibt es schon. Du ergänzt jetzt seine Infos.'));
         renderWizard();
       });
     };
@@ -2233,7 +2752,7 @@ function wizNext() {
       if (new Date(d.eventDate) < new Date(new Date().toDateString())) return wizError(tl('Das Datum liegt in der Vergangenheit.'));
     }
   }
-  if (wiz.step === 3 && d.hours.trim() && !parseOH(d.hours.trim())) return wizError('Die Öffnungszeiten verstehe ich nicht. Zum Beispiel: Mo-Fr 09:00-18:00; Sa 10:00-16:00');
+  if (wiz.step === 3 && d.hours.trim() && !parseOH(d.hours.trim())) return wizError(tl('Die Öffnungszeiten verstehe ich nicht. Zum Beispiel: Mo-Fr 09:00-18:00; Sa 10:00-16:00'));
   if (wiz.step < 4) { wiz.step++; return renderWizard(); }
   saveWizard();
 }
@@ -2241,7 +2760,7 @@ async function saveWizard() {
   const d = wiz.data, type = WIZ_TYPES.find(t => t.id === d.type);
   for (const a of (type?.attrs || []).concat(COMMON_ATTRS)) if (!d.attrs[a]) d.attrs[a] = 'unknown'; // "Weiß nicht" stored explicitly
   const photoIds = [];
-  if (d.photo) { try { const id = uid('ph_'); await photoDB.put(id, d.photo); photoIds.push(id); } catch (e) { toast('Foto konnte nicht gespeichert werden.'); } }
+  if (d.photo) { try { const id = uid('ph_'); await photoDB.put(id, d.photo); photoIds.push(id); } catch (e) { toast(tl('Foto konnte nicht gespeichert werden.')); } }
   if (d.type === 'event') {
     store.events.push({ id: uid('e_'), title: d.name.trim(), date: d.eventDate, time: d.eventTime, lat: d.lat, lon: d.lon, attrs: d.attrs, ages: d.ages, comment: d.comment.trim(), photoIds, createdAt: Date.now() });
   } else {
@@ -2256,7 +2775,7 @@ async function saveWizard() {
   refresh();
   stack = [{ type: 'list' }];
   go({ type: 'thanks', html: `<div class="thanks">${BALLS_THANKS}<svg viewBox="0 0 24 24" width="64" height="64" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="#0E8F84"/><path d="M7 12.5l3.2 3L17 9" stroke="#FFFFFF" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    <h2>${tl('Gespeichert')}</h2><p>${tl('Dein Eintrag')}${area ? ' in ' + esc(area) : ''} ${tl('ist auf diesem Gerät gespeichert. Andere sehen ihn noch nicht.')}</p>
+    <h2>${tl('Gespeichert')}</h2><p>${tl('Dein Eintrag')}${area ? ' ' + tl('in {area}', { area: esc(dLabel(area)) }) : ''} ${tl('ist auf diesem Gerät gespeichert. Andere sehen ihn noch nicht.')}</p>
     <div style="display:flex;gap:8px;margin-top:10px">${p ? `<button type="button" class="btn primary" data-id="${p.id}">${tl('Ort ansehen')}</button>` : ''}<button type="button" class="btn" data-home="peek">${tl('Fertig')}</button></div></div>` }, desktop() ? 'full' : 'half');
 }
 function nearestDistrict(la, lo) {
@@ -2281,71 +2800,123 @@ function setTab(id) {
 
 // ---------- Global interaction ----------
 function toggle(set, v) { set.has(v) ? set.delete(v) : set.add(v); }
+// leave the drawing mode: the pins come back
+function endDrawing() { state.drawing = null; $('#app').classList.remove('drawing'); map.doubleClickZoom.enable(); drawArea(); map.addLayer(cluster); if (onlyMarker) onlyMarker.addTo(map); renderTop(); }
+// a quick question: its groups, sub-categories and filters on the map; "Krabbelgruppen & Kurse" opens Termine › Wiederkehrend instead
+function applyPreset(id) {
+  const p = PRESETS.find(x => x.id === id); if (!p) return;
+  if (p.termine) {
+    EV.page = p.termine.page; EV.topics = new Set([p.termine.topic]); EV.limit = 60;
+    stack = [{ type: 'list' }]; go({ type: 'events' }, 'full'); setTab('events'); return;
+  }
+  state.evIds = null; state.preset = p.id; state.groups = new Set(p.groups); state.cats = new Set(p.cats || []); state.tags = new Set(p.tags || []); state.io = p.io || null; state.filters = new Set(p.filters);
+  if (p.groups[0]) state.mode = GROUP[p.groups[0]].mode;
+  state.level = 2; state.q = ''; state.sq = ''; state.listLimit = 40; state.onlyPlace = null; refresh(); home(desktop() ? 'full' : 'peek');
+}
 document.addEventListener('click', async e => {
   const t = e.target.closest('button'); if (!t) return;
   const ds = t.dataset;
   if (ds.mode) { state.mode = ds.mode; state.level = 1; renderTop(); }
   else if (ds.level) { state.level = +ds.level; renderTop(); }
-  else if (ds.groupAll) { state.groups.clear(); state.cats.clear(); state.tags.clear(); state.preset = null; state.level = 0; refresh(); home('peek'); }
-  else if (ds.group) { const same = state.groups.size === 1 && state.groups.has(ds.group); if (!same) { state.groups = new Set([ds.group]); state.cats.clear(); state.tags.clear(); state.preset = null; if (!IO_GROUPS.includes(ds.group)) state.io = null; state.listLimit = 40; } state.mode = GROUP[ds.group].mode; state.level = TAGS[ds.group] ? 2 : 1; refresh(); if (view().type !== 'list') home('peek'); }
+  else if (ds.groupAll) { state.evIds = null; state.groups.clear(); state.cats.clear(); state.tags.clear(); state.preset = null; state.level = 0; refresh(); home('peek'); }
+  else if (ds.group) { state.evIds = null; const same = state.groups.size === 1 && state.groups.has(ds.group); if (!same) { state.groups = new Set([ds.group]); state.cats.clear(); state.tags.clear(); state.preset = null; if (!IO_GROUPS.includes(ds.group)) state.io = null; state.listLimit = 40; } state.mode = GROUP[ds.group].mode; state.level = TAGS[ds.group] ? 2 : 1; refresh(); if (view().type !== 'list') home('peek'); }
   else if (ds.tag) { toggle(state.tags, ds.tag); state.preset = null; state.listLimit = 40; refresh(); if (view().type !== 'list') home('peek'); }
   else if (ds.io) { state.io = state.io === ds.io ? null : ds.io; state.preset = null; refresh(); }
   else if (ds.detail) go({ type: 'detail', id: ds.detail }, 'full');
   else if (ds.sdistrict) { state.sq = ''; setArea({ type: 'district', names: [ds.sdistrict] }); home('peek'); }
-  else if (ds.gtag) { const [gid, tg] = ds.gtag.split('|'); state.groups = new Set([gid]); state.tags = new Set([tg]); state.cats.clear(); state.mode = GROUP[gid].mode; state.level = 2; state.q = ''; state.sq = ''; refresh(); home('peek'); }
-  else if (ds.groupOnly) { state.groups = new Set([ds.groupOnly]); state.tags.clear(); state.cats.clear(); state.mode = GROUP[ds.groupOnly].mode; state.level = 2; state.q = ''; state.sq = ''; refresh(); home('peek'); }
+  else if (ds.gtag) { state.evIds = null; const [gid, tg] = ds.gtag.split('|'); state.groups = new Set([gid]); state.tags = new Set([tg]); state.cats.clear(); state.mode = GROUP[gid].mode; state.level = 2; state.q = ''; state.sq = ''; refresh(); home('peek'); }
+  else if (ds.groupOnly) { state.evIds = null; state.groups = new Set([ds.groupOnly]); state.tags.clear(); state.cats.clear(); state.mode = GROUP[ds.groupOnly].mode; state.level = 2; state.q = ''; state.sq = ''; refresh(); home('peek'); }
   else if (ds.filterOnly) { state.filters.add(ds.filterOnly); state.q = ''; state.sq = ''; refresh(); home('peek'); }
   else if (ds.filter) { toggle(state.filters, ds.filter); state.preset = null; refresh(); }
-  else if (ds.preset) { const p = PRESETS.find(x => x.id === ds.preset); state.preset = p.id; state.groups = new Set(p.groups); state.cats = new Set(p.cats || []); state.tags = new Set(p.tags || []); state.io = p.io || null; state.filters = new Set(p.filters); if (p.groups[0]) state.mode = GROUP[p.groups[0]].mode; state.level = 2; state.q = ''; state.sq = ''; refresh(); home('peek'); }
+  else if (ds.preset) applyPreset(ds.preset);
   else if (ds.open === 'filters') go({ type: 'filters' });
   else if (ds.open === 'area') go({ type: 'area' });
-  else if (ds.open === 'evfilters') go({ type: 'evfilters' });
+  else if (ds.open === 'evfilters') { EV.placeTab = ''; go({ type: 'evfilters' }); }
   else if (ds.open === 'evtopics') go({ type: 'evtopics' });
   else if (ds.open === 'evplace') { EV.placeTab = ''; go({ type: 'evplace' }); }
   else if (ds.open === 'evdistricts') { EV.pending = new Set(EV.place.districts); EV.dq = ''; go({ type: 'evdistricts' }); }
   else if (ds.open === 'ferien') go({ type: 'ferien' });
   else if (ds.area === 'all') { setArea({ type: 'all' }, false); renderPanel(); }
   else if (ds.radius) { const a = state.area; setArea({ type: 'radius', r: +ds.radius, center: a.type === 'radius' ? a.center : state.me ? 'me' : [map.getCenter().lat, map.getCenter().lng] }); renderPanel(); }
-  else if (ds.center === 'me') { locate(false); setArea({ type: 'radius', r: state.area.r || 2000, center: 'me' }); renderPanel(); if (!state.me) toast('Wir suchen deinen Standort …'); }
+  else if (ds.center === 'me') { locate(false); setArea({ type: 'radius', r: state.area.r || 2000, center: 'me' }); renderPanel(); if (!state.me) toast(tl('Wir suchen deinen Standort …')); }
   else if (ds.center?.startsWith('place:')) { setArea({ type: 'radius', r: state.area.r || 2000, center: ds.center }); renderPanel(); }
-  else if (ds.center === 'pick') { state.picking = true; setSize('peek'); toast('Tippe auf die Karte, um den Mittelpunkt zu setzen.'); }
+  else if (ds.center === 'pick') { state.picking = true; setSize('peek'); toast(tl('Tippe auf die Karte, um den Mittelpunkt zu setzen.')); }
   else if (ds.district) { setArea({ type: 'district', names: [ds.district] }); renderPanel(); }
   else if (ds.distopen) { AREA_UI.distOpen = !AREA_UI.distOpen; renderPanel(); if (AREA_UI.distOpen) setTimeout(() => $('#distQ')?.focus(), 50); }
-  else if (ds.draw) { state.drawing = []; drawArea(); go({ type: 'draw' }, 'card'); }
-  else if (ds.drawundo) { state.drawing.pop(); drawArea(); renderPanel(); }
-  else if (ds.drawcancel) { state.drawing = null; drawArea(); back(); }
-  else if (ds.drawdone) { const pts = state.drawing; state.drawing = null; setArea({ type: 'poly', pts }); stack = [{ type: 'list' }]; renderPanel(); setSize(desktop() ? 'full' : 'half'); }
-  else if (ds.evpage) { EV.page = ds.evpage; EV.limit = 60; renderPanel(); $('#panelBody').scrollTop = 0; }
-  else if (ds.evwhen) { EV.when = EV.when === ds.evwhen ? (ds.evwhen === '7' ? '7' : '7') : ds.evwhen; if (EV.when === 'datum' && !EV.from) EV.from = ymd(today0()); EV.limit = 60; renderPanel(); }
-  else if (ds.evday) { toggle(EV.days, +ds.evday); renderPanel(); }
-  else if (ds.evf) { toggle(EV.f, ds.evf); EV.limit = 60; renderPanel(); }
+  else if (ds.draw) { state.drawing = []; $('#app').classList.add('drawing'); map.doubleClickZoom.disable(); map.removeLayer(cluster); if (onlyMarker) map.removeLayer(onlyMarker); drawArea(); renderTop(); go({ type: 'draw' }, 'card'); }
+  else if (ds.drawundo) { state.drawing.pop(); drawArea(); renderPanel(); renderTop(); }
+  else if (ds.drawcancel) { endDrawing(); if (view().type === 'draw') back(); }
+  else if (ds.drawdone) { const pts = state.drawing; if (!pts || pts.length < 3) return; endDrawing(); setArea({ type: 'poly', pts }); stack = [{ type: 'list' }]; renderPanel(); setSize(desktop() ? 'full' : 'half'); }
+  else if (ds.evpage) { EV.page = ds.evpage; EV.limit = 60; EV.today = false; renderPanel(); $('#panelBody').scrollTop = 0; }
+  else if (ds.evmode) { EV.mode = ds.evmode; EV.limit = 60; if (ds.evmode === 'fuer' && !canPersonal()) { EV.placeTab = 'umkreis'; go({ type: 'evsettings' }); } else { renderPanel(); $('#panelBody').scrollTop = 0; } }
+  else if (ds.evdefmode) { store.ev.mode = ds.evdefmode; EV.mode = ds.evdefmode; saveEv(); afterEvChange(); }
+  else if (ds.evsettings) { closeEvMenu(); EV.placeTab = ''; go({ type: 'evsettings' }); }
+  else if (ds.evmenu) evMenuOpen(ds.evmenu);
+  else if (ds.evmenuclose) { closeEvMenu(); EV.menu = null; }
+  else if (ds.evhide) evHide(ds.evhide);
+  else if (ds.evlike) evLike();
+  else if (ds.evunhide) {
+    const [kind, i] = ds.evunhide.split('|'), list = { topics: store.ev.hide.topics, providers: store.ev.hide.providers, series: store.ev.hide.series, ltopics: store.ev.like.topics, lproviders: store.ev.like.providers }[kind];
+    if (list) { list.splice(+i, 1); saveEv(); afterEvChange(); }
+  }
+  else if (ds.evprefsreset) {
+    const before = JSON.parse(JSON.stringify(store.ev));
+    Object.assign(store.ev, { mode: '', placeSet: false, onlyFit: true, hide: { topics: [], providers: [], series: [] }, like: { topics: [], providers: [] }, days: [], time: [] });
+    EV.mode = ''; Object.assign(EV.place, { mode: 'all', gps: null, km: 5 }); EV.place.districts.clear(); EV.days.clear(); for (const k of EV_TIME_KEYS) EV.f.delete(k);
+    saveEv(); afterEvChange();
+    undoToast(tl('Termine-Einstellungen zurückgesetzt.'), () => { Object.assign(store.ev, before); evRestore(); });
+  }
+  else if (ds.evhomex) { store.ev.home = null; saveEv(); afterEvChange(); }
+  else if (ds.evseries != null) go({ type: 'evseries', key: ds.evseries }, 'full');
+  else if (ds.evfold) { toggle(EV.open, ds.evfold); const l = $('#evList'); if (l) l.innerHTML = evListHtml(); }
+  else if (ds.evtoday) { EV.page = 'wiederkehrend'; EV.today = true; EV.limit = 60; renderPanel(); $('#panelBody').scrollTop = 0; }
+  else if (ds.evtodayx) { EV.today = false; renderPanel(); }
+  else if (ds.evtodaycard) {
+    // the map card: the same view it counted (today, Für euch)
+    const c = todayCounts();
+    Object.assign(EV, c.ev ? { mode: 'fuer', page: 'einmalig', when: 'heute', q: '', today: false } : { mode: 'fuer', page: 'wiederkehrend', q: '', today: true });
+    EV.limit = 60; stack = [{ type: 'list' }]; go({ type: 'events' }, 'full'); setTab('events');
+  }
+  else if (ds.evsearch != null) {
+    // from Suchen: the same words in Termine, on the page with more hits, every offer (not only "Für euch")
+    const q = ds.evsearch, found = searchOffers(q), nT = found.filter(([, o]) => o.kind === 'termin').length;
+    Object.assign(EV, { q, page: nT * 2 >= found.length ? 'einmalig' : 'wiederkehrend', mode: 'alle', when: '30', today: false, limit: 60 });
+    stack = [{ type: 'list' }]; go({ type: 'events' }, 'full'); setTab('events');
+  }
+  else if (ds.evwhen) { EV.when = EV.when === ds.evwhen ? '7' : ds.evwhen; if (EV.when === 'datum' && !EV.from) EV.from = ymd(today0()); EV.limit = 60; renderPanel(); }
+  else if (ds.evday) { toggle(EV.days, +ds.evday); saveEv(); renderPanel(); }
+  else if (ds.evf) { toggle(EV.f, ds.evf); EV.limit = 60; if (EV_TIME_KEYS.includes(ds.evf)) saveEv(); renderPanel(); }
   else if (ds.evtopic) { toggle(EV.topics, ds.evtopic); EV.limit = 60; renderPanel(); }
+  else if (ds.evreg) { EV.reg = ds.evreg === 'alle' ? '' : ds.evreg; EV.limit = 60; renderPanel(); }
   else if (ds.evplacetab) { EV.placeTab = ds.evplacetab; renderPanel(); }
   else if (ds.evplacemode) {
     const m = ds.evplacemode;
-    if (m === 'all') { Object.assign(EV.place, { mode: 'all', gps: null }); EV.place.districts.clear(); EV.placeTab = ''; }
-    else if (m === 'districts') { EV.placeTab = 'stadtteil'; if (EV.place.districts.size) EV.place.mode = 'districts'; }
-    else { EV.placeTab = 'umkreis'; if (radiusOrigin()) setKm(EV.place.km); }
+    if (m === 'all') { Object.assign(EV.place, { mode: 'all', gps: null }); EV.place.districts.clear(); EV.placeTab = ''; store.ev.placeSet = true; saveEv(); }
+    else if (m === 'districts') { EV.placeTab = 'stadtteil'; if (EV.place.districts.size) { EV.place.mode = 'districts'; store.ev.placeSet = true; saveEv(); } }
+    else if (m === 'online') { EV.placeTab = 'online'; Object.assign(EV.place, { mode: 'online', gps: null }); store.ev.placeSet = true; saveEv(); }
+    else { EV.placeTab = 'umkreis'; if (radiusOrigin()) { setKm(EV.place.km); store.ev.placeSet = true; saveEv(); } }
     renderPanel();
   }
   else if (ds.evfmt) { toggle(EV.fmt, ds.evfmt); EV.limit = 60; renderPanel(); }
   else if (ds.evmap) {
-    // the events of the chosen time on the map, each pin with its date
-    state.groups = new Set(['events']); state.tags.clear(); state.cats.clear(); state.preset = null; state.q = ''; state.evRange = rangeOf(); state.onlyPlace = null;
+    // the Termine list on the map: exactly its offers (Für euch or Alle, all filters), events with their date on the pin
+    const g = cardPage() ? 'kurse' : 'events';
+    state.evIds = { g, ids: new Set(evResults().map(([, o]) => o.id).filter(Boolean)) };
+    state.groups = new Set([g]); state.tags.clear(); state.cats.clear(); state.preset = null; state.q = ''; state.evRange = cardPage() ? null : rangeOf(); state.onlyPlace = null;
     stack = [{ type: 'list' }]; setTab('map'); refresh(); renderPanel(); setSize('half');
   }
-  else if (ds.evplace) { Object.assign(EV.place, { mode: 'all', gps: null }); EV.place.districts.clear(); renderPanel(); }
-  else if (ds.evdistrictx) { EV.place.districts.delete(ds.evdistrictx); if (!EV.place.districts.size) EV.place.mode = 'all'; renderPanel(); }
-  else if (ds.evkm) { setKm(ds.evkm); renderPanel(); }
+  else if (ds.evplace) { Object.assign(EV.place, { mode: 'all', gps: null }); EV.place.districts.clear(); saveEv(); renderPanel(); }
+  else if (ds.evdistrictx) { EV.place.districts.delete(ds.evdistrictx); if (!EV.place.districts.size) EV.place.mode = 'all'; saveEv(); renderPanel(); }
+  else if (ds.evkm) { setKm(ds.evkm); store.ev.placeSet = true; saveEv(); renderPanel(); }
   else if (ds.evgps) {
-    if (!navigator.geolocation) toast('Dieses Gerät kann den Standort nicht bestimmen.');
-    else navigator.geolocation.getCurrentPosition(p => { EV.place.gps = [p.coords.latitude, p.coords.longitude]; EV.placeTab = 'umkreis'; setKm(EV.place.km); renderPanel(); },
-      () => toast('Standort nicht verfügbar. Bitte im Browser erlauben.'), { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 });
+    if (!navigator.geolocation) toast(tl('Dieses Gerät kann den Standort nicht bestimmen.'));
+    else navigator.geolocation.getCurrentPosition(p => { EV.place.gps = [p.coords.latitude, p.coords.longitude]; EV.placeTab = 'umkreis'; setKm(EV.place.km); store.ev.placeSet = true; saveEv(); renderPanel(); },
+      () => toast(tl('Standort nicht verfügbar. Bitte im Browser erlauben.')), { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 });
   }
   else if (ds.evgpsoff) { EV.place.gps = null; renderPanel(); }
-  else if (ds.evorigin) { EV.place.placeId = ds.evorigin; EV.place.gps = null; renderPanel(); }
+  else if (ds.evorigin) { EV.place.placeId = ds.evorigin; EV.place.gps = null; saveEv(); renderPanel(); }
   else if (ds.evdreset) { EV.pending.clear(); refreshDistrictList(); }
-  else if (ds.evdapply) { EV.place.districts = new Set(EV.pending); EV.place.mode = EV.pending.size ? 'districts' : 'all'; if (EV.pending.size) EV.place.gps = null; back(); }
+  else if (ds.evdapply) { EV.place.districts = new Set(EV.pending); EV.place.mode = EV.pending.size ? 'districts' : 'all'; if (EV.pending.size) EV.place.gps = null; store.ev.placeSet = true; saveEv(); back(); }
   else if (ds.evreset) evReset();
   else if (ds.evshow) evShow();
   else if (ds.offer) go({ type: 'offer', id: ds.offer }, 'full');
@@ -2354,13 +2925,14 @@ document.addEventListener('click', async e => {
     if (ds.inline) { const on = isSaved(ds.saveoffer); document.querySelectorAll(`.savebtn[data-saveoffer="${ds.saveoffer}"]`).forEach(b => { b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); b.setAttribute('aria-label', on ? tl('Nicht mehr merken') : tl('Merken')); }); }
     else renderPanel();
   }
-  else if (ds.visit) { const k = ymd(today0()), l = store.visits[ds.visit] || (store.visits[ds.visit] = []); if (l[l.length - 1] !== k) l.push(k); save(); toast('Eingetragen: ihr wart dabei.'); renderPanel(); }
+  else if (ds.visit) { const k = ymd(today0()), l = store.visits[ds.visit] || (store.visits[ds.visit] = []); if (l[l.length - 1] !== k) l.push(k); save(); toast(tl('Eingetragen: ihr wart dabei.')); renderPanel(); }
   else if (ds.unvisit) { const l = store.visits[ds.unvisit] || []; l.pop(); if (!l.length) delete store.visits[ds.unvisit]; save(); renderPanel(); }
   else if (ds.calmenu) { view().cal = !view().cal; renderPanel(); }
+  else if (ds.calfromoffer) { const o = OFFER_BY_ID.get(ds.calfromoffer), nd = o && nextDate(o); calAddFromOffer(ds.calfromoffer, nd ? `${nd.getFullYear()}-${String(nd.getMonth() + 1).padStart(2, '0')}-${String(nd.getDate()).padStart(2, '0')}` : ''); }
   else if (ds.ics) { const list = ds.ics === 'saved' ? store.savedOffers.map(s => OFFER_BY_ID.get(s.id)).filter(o => o && nextDate(o)) : [OFFER_BY_ID.get(ds.ics)]; downloadIcs(list, ds.ics === 'saved' ? 'djuu-gemerkte-termine.ics' : 'djuu-termin.ics'); }
   else if (ds.shareoffer) shareOffer(ds.shareoffer);
   else if (ds.clearq) { state.q = ''; state.sq = ''; refresh(); }
-  else if (ds.clearsel) { state.evRange = null; state.groups.clear(); state.cats.clear(); state.tags.clear(); state.preset = null; state.q = ''; state.sq = ''; state.io = null; state.level = 0; state.listLimit = 40; refresh(); }
+  else if (ds.clearsel) { state.evRange = null; state.evIds = null; state.groups.clear(); state.cats.clear(); state.tags.clear(); state.preset = null; state.q = ''; state.sq = ''; state.io = null; state.level = 0; state.listLimit = 40; refresh(); }
   else if (ds.clearonly) { state.onlyPlace = null; refresh(); }
   else if (ds.tagx) { state.tags.delete(ds.tagx); state.preset = null; state.listLimit = 40; refresh(); if (view().type === 'list') renderPanel(); }
   else if (ds.opencat) { ASK.open = ds.opencat; ASK.u = null; state.sq = ''; stack = [{ type: 'list' }]; go({ type: 'search' }, 'full'); setTab('search'); setTimeout(() => document.querySelector('.subcard')?.scrollIntoView({ block: 'center' }), 60); }
@@ -2381,7 +2953,7 @@ document.addEventListener('click', async e => {
   else if (ds.share) {
     const p = byId.get(ds.share), url = location.origin + location.pathname + '#' + p.id;
     if (navigator.share) navigator.share({ title: p.name, text: p.name + tl(' auf Djuu'), url }).catch(() => {});
-    else navigator.clipboard?.writeText(url).then(() => toast('Link kopiert.'), () => toast(url));
+    else navigator.clipboard?.writeText(url).then(() => toast(tl('Link kopiert.')), () => toast(url));
   }
   else if (ds.addinfo) startWizard({ place: byId.get(ds.addinfo) });
   else if (ds.addevent) startWizard({ type: 'event' });
@@ -2392,12 +2964,15 @@ document.addEventListener('click', async e => {
   else if (ds.emore) { EV.limit += 60; $('#evList') ? ($('#evList').innerHTML = evListHtml()) : renderPanel(); }
   else if (ds.offerurl) window.open(ds.offerurl, '_blank', 'noopener');
   else if (ds.mapstyle) { setMapStyle(ds.mapstyle); state.styleOpen = false; renderPanel(); toast(`${tl('Kartenstil:')} ${mapStyle().label}`); }
-  else if (ds.wx) { if (ds.wx === 'rain') { state.io = state.io === 'drinnen' ? null : 'drinnen'; state.preset = null; refresh(); } else { const pr = PRESETS.find(x => x.id === 'hitze'); state.preset = pr.id; state.groups = new Set(pr.groups); state.tags = new Set(pr.tags); state.cats.clear(); state.level = 1; refresh(); home(desktop() ? 'full' : 'peek'); } }
+  else if (ds.wx) { if (ds.wx === 'rain') { if (state.preset === 'regen') { state.preset = null; state.groups.clear(); state.cats.clear(); state.tags.clear(); state.io = null; refresh(); } else applyPreset('regen'); } else applyPreset('hitze'); }
   else if (ds.addkid) { store.profile.kids.push({ id: pbId(), name: '', ym: '' }); save(); renderPanel(); setTimeout(() => $('#kidYm' + (store.profile.kids.length - 1))?.focus(), 50); }
   else if (ds.delkid) { store.profile.kids.splice(+ds.delkid, 1); save(); renderPanel(); }
-  else if (ds.report) { store.reports.push({ targetType: 'review', targetId: ds.report, at: Date.now() }); save(); toast('Auf diesem Gerät ausgeblendet.'); renderPanel(); }
+  else if (ds.report) { store.reports.push({ targetType: 'review', targetId: ds.report, at: Date.now() }); save(); toast(tl('Auf diesem Gerät ausgeblendet.')); renderPanel(); }
   else if (ds.sos) go({ type: 'sos', kind: ds.sos });
 });
+document.addEventListener('click', e => { if (e.target.closest('#evmenu [data-saveoffer]')) setTimeout(closeEvMenu); }, true);
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.getElementById('evmenu')) closeEvMenu(); });
+document.addEventListener('click', e => { if (e.target.matches?.('#evmenu .lockbg')) closeEvMenu(); }); // a tap beside the sheet
 document.addEventListener('input', e => {
   if (e.target.id === 'dq') { EV.dq = e.target.value; refreshDistrictList(); return; }
   if (e.target.id === 'evKmRange') { const l = e.target.previousElementSibling, b = e.target.nextElementSibling; if (l) l.value = String(e.target.value); if (b) b.textContent = kmText(+e.target.value); e.target.setAttribute('aria-label', `${tl('Umkreis in Kilometern,')} ${kmText(+e.target.value)}`); return; }
@@ -2415,8 +2990,8 @@ document.addEventListener('change', e => {
   if (e.target.id === 'fedState') { store.profile.state = e.target.value; save(); loadBreaks().then(renderPanel); }
   if (e.target.id === 'langSel') { store.lang = e.target.value; save(); location.reload(); }
   if (e.target.dataset.home) setHome(e.target.value);
-  if (e.target.id === 'evKm' && e.target.value) { setKm(e.target.value); renderPanel(); }
-  if (e.target.id === 'evKmRange') { setKm(e.target.value); renderPanel(); }
+  if (e.target.id === 'evKm' && e.target.value) { setKm(e.target.value); store.ev.placeSet = true; saveEv(); renderPanel(); }
+  if (e.target.id === 'evKmRange') { setKm(e.target.value); store.ev.placeSet = true; saveEv(); renderPanel(); }
   if (e.target.id === 'radRange') {
     const was = state.area.type === 'radius', r = posToR(+e.target.value);
     setArea({ type: 'radius', r, center: was ? state.area.center : defaultCenter() });
@@ -2427,22 +3002,22 @@ document.addEventListener('change', e => {
     const names = e.target.checked ? cur.concat(cur.includes(d) ? [] : [d]) : cur.filter(x => x !== d);
     if (names.length) setArea({ type: 'district', names }); else setArea({ type: 'all' }, false);
     const n = names, l = $('#distLabel');
-    if (l) l.textContent = n.length ? n.slice(0, 2).join(', ') + (n.length > 2 ? ` +${n.length - 2}` : '') : tl('Stadtteile wählen');
+    if (l) l.textContent = n.length ? n.slice(0, 2).map(dLabel).join(', ') + (n.length > 2 ? ` +${n.length - 2}` : '') : tl('Stadtteile wählen');
     $('.ddsel')?.classList.toggle('has', !!n.length);
     areaCountBtn();
     if (cur.length === 0 || names.length === 0) { const sc = $('#panelBody').scrollTop; renderPanel(); $('#panelBody').scrollTop = sc; } // radius chips switch off/on
   }
   if (e.target.dataset.dname) { e.target.checked ? EV.pending.add(e.target.dataset.dname) : EV.pending.delete(e.target.dataset.dname); refreshDistrictList(); }
   if (e.target.dataset.dall) {
-    const { live } = evDistrictCounts(), q = norm(EV.dq.trim());
-    const names = GEO.stadtteile.filter(s => s[1] === e.target.dataset.dall && (live[s[0]] || EV.pending.has(s[0])) && (!q || norm(s[0]).includes(q))).map(s => s[0]);
+    const { page } = evDistrictCounts(), q = norm(EV.dq.trim()), bz = e.target.dataset.dall;
+    const names = GEO.stadtteile.filter(s => s[1] === bz && page[s[0]] && (!q || norm(s[0]).includes(q) || norm(bz).includes(q))).map(s => s[0]);
     for (const n of names) e.target.checked ? EV.pending.add(n) : EV.pending.delete(n);
     refreshDistrictList();
   }
-  if (e.target.dataset.evreg) { EV.reg = e.target.checked; EV.limit = 60; renderPanel(); }
-  if (e.target.dataset.evmissing) { EV.showMissing = e.target.checked; renderPanel(); }
-  if (e.target.id === 'evFrom') { EV.from = e.target.value; if (EV.to && EV.to < EV.from) EV.to = ''; renderPanel(); }
-  if (e.target.id === 'evTo') { EV.to = e.target.value; renderPanel(); }
+  if (e.target.dataset.evonlyfit) { store.ev.onlyFit = e.target.checked; saveEv(); afterEvChange(); }
+  // "bis" before "von" becomes the same day, so the field always shows what the list uses
+  if (e.target.id === 'evFrom') { EV.from = e.target.value; if (EV.to && EV.from && EV.to < EV.from) EV.to = EV.from; renderPanel(); }
+  if (e.target.id === 'evTo') { EV.to = e.target.value; if (EV.to && EV.from && EV.to < EV.from) EV.to = EV.from; renderPanel(); }
 });
 $('#sos').innerHTML = `${svg('bolt')}<span>${tl('Dringend')}</span>`;
 $('#sos').onclick = () => { stack = [{ type: 'list' }]; go({ type: 'sos' }, 'full'); locate(false); };
@@ -2476,7 +3051,7 @@ document.addEventListener('input', e => {
 })();
 
 function locate(center) {
-  if (!navigator.geolocation) { if (center) toast('Standort wird von diesem Gerät nicht unterstützt.'); return; }
+  if (!navigator.geolocation) { if (center) toast(tl('Standort wird von diesem Gerät nicht unterstützt.')); return; }
   if (locate.watching) { if (center && state.me) map.setView(state.me, 16); return; }
   let first = true;
   navigator.geolocation.watchPosition(pos => {
@@ -2489,9 +3064,9 @@ function locate(center) {
     if (state.area.type === 'radius' && state.area.center === 'me') { drawArea(); refresh(); }
     if (first || ['list', 'sos'].includes(view().type)) renderPanel();
     first = false;
-  }, () => { if (center) toast('Standort nicht verfügbar. Bitte im Browser erlauben.'); }, { enableHighAccuracy: true, maximumAge: 30000 });
+  }, () => { if (center) toast(tl('Standort nicht verfügbar. Bitte im Browser erlauben.')); }, { enableHighAccuracy: true, maximumAge: 30000 });
 }
-setInterval(() => { if (state.filters.has('jetzt')) refresh(); }, 60000);
+setInterval(() => { if ([...state.filters].some(f => f === 'jetzt' || ATTR[f]?.live)) refresh(); }, 60000); // opening hours and duty windows move on
 new ResizeObserver(() => document.documentElement.style.setProperty('--top-h', $('#topbar').offsetHeight + 'px')).observe($('#topbar'));
 window.addEventListener('resize', () => setSize($('#panel').dataset.size));
 
@@ -2506,45 +3081,80 @@ setSize(desktop() ? 'full' : 'peek');
 loadWeather();
 // ---------- Live values (elevators, emergency pharmacies) from the server, refreshed during the day ----------
 const fmtStamp = s => { const d = new Date(s); return isNaN(d) ? s : d.toLocaleString(LOCALE, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); };
-async function loadLive() {
-  let live;
-  try { const r = await fetch((window.DJUU_API || '') + '/data/live.json?t=' + Math.floor(Date.now() / 600000)); if (!r.ok) return; live = await r.json(); } catch (e) { return; }
-  const nowMs = Date.now();
+// fetch with a time limit, so a slow server never holds up the map
+const fetchJson = (url, ms = 8000) => { const c = new AbortController(), t = setTimeout(() => c.abort(), ms); return fetch(url, { signal: c.signal }).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }).finally(() => clearTimeout(t)); };
+const LIVE = { ok: false, at: null }; // ok: live.json was read (then a pharmacy without a duty window is "not on duty")
+const liveUrl = () => (window.DJUU_API || '') + '/data/live.json?t=' + Math.floor(Date.now() / 600000);
+function applyLive(live) {
+  const nowMs = Date.now(), at = live.generated && Date.parse(live.generated);
+  // a file older than three days says nothing rather than something wrong
+  if (at && nowMs - at > 3 * 864e5) { LIVE.ok = false; return; }
+  for (const p of places) if (p.lift || p.duty || p.liftSum) { delete p.lift; delete p.duty; delete p.liftSum; delete p.f.elevator_status; }
   for (const [id, v] of Object.entries(live.aufzug || {})) {
     const p = byId.get(id); if (!p) continue;
-    if (v[1] && nowMs - new Date(v[1]) > 3 * 864e5) continue; // older than three days: say nothing rather than something wrong
+    if (v[1] && nowMs - Date.parse(v[1]) > 7 * 864e5) continue; // hvv's own time stamp: only bumped when a status changes
     p.lift = v; p.f.elevator_status = [v[0], -1, 'live'];
   }
   for (const [id, ws] of Object.entries(live.notdienst || {})) {
     const p = byId.get(id); if (!p) continue;
-    p.duty = ws.filter(([, b]) => new Date(b) > nowMs);
-    if (p.duty.some(([a, b]) => new Date(a) <= nowMs && nowMs < new Date(b))) p.f.notdienst_now = ['yes', -1, 'live'];
+    p.duty = ws.filter(([, b]) => Date.parse(b) > nowMs);
   }
+  // stations: [in Betrieb, außer Betrieb, unbekannt, smallest cabin width cm, smallest door cm, [lift ids]]
+  for (const [id, v] of Object.entries(live.stationen || {})) { const p = byId.get(id); if (p && Array.isArray(v)) p.liftSum = v; }
+  LIVE.ok = true; LIVE.at = live.generated || null;
+  for (const k of Object.keys(iconCache)) delete iconCache[k]; // pins show the live state
 }
+async function loadLive(pending) {
+  try { applyLive(await (pending || fetchJson(liveUrl()))); return true; } catch (e) { return false; }
+}
+// live values change during the day: read them again every 10 minutes and when the app comes back to the screen
+let liveAt = 0;
+async function reloadLive() {
+  if (Date.now() - liveAt < 60000 || !places.length) return;
+  liveAt = Date.now();
+  if (!await loadLive()) return;
+  const live = [...state.filters].some(f => ATTR[f]?.live) || ['gesundheit', 'mobil'].some(g => state.groups.has(g));
+  if (live) refresh(); else { for (const p of last.match) if (p.marker && (p.lift || p.duty)) markerFor(p, false, offerGroup()); }
+  if (['detail', 'sos', 'card'].includes(view().type)) renderPanel();
+}
+setInterval(reloadLive, 600000);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reloadLive(); });
+window.addEventListener('online', () => { reloadLive(); if (view().type === 'list') renderPanel(); });
+window.addEventListener('offline', () => { if (view().type === 'list') renderPanel(); });
 loadBreaks().then(() => { if (['list', 'me', 'events'].includes(view().type)) renderPanel(); });
 renderTop();
 $('#panelBody').innerHTML = `<div class="ph"><h2>${tl('Lade Orte …')}</h2></div>`;
 (async () => {
   try {
+    // events and live values come from the Djuu server; they load next to the places and never hold up the map
+    const offersP = (window.DJUU_API ? fetchJson(window.DJUU_API + '/data/offers.json') : Promise.reject()).catch(() => fetchJson('data/offers.json'));
+    const liveP = fetchJson(liveUrl());
+    liveP.catch(() => {});
     const res = await fetch('data/places.json');
     if (!res.ok) throw new Error('places.json ' + res.status);
     const data = await res.json();
     SOURCES = data.sources;
     for (const row of data.places) { const p = buildPlace(row); places.push(p); byId.set(p.id, p); }
+    nameLifts();
     addUserPlaces();
     if (store.area && store.area.type) { state.area = store.area; drawArea(); if (state.area.center === 'me') locate(false); }
-    // events are refreshed every night on the Djuu server; the copy shipped with the app is the fallback
-    const getOffers = async url => { const r = await fetch(url); if (!r.ok) throw new Error(r.status); return r.json(); };
-    try { const od = await getOffers(window.DJUU_API ? window.DJUU_API + '/data/offers.json' : 'data/offers.json').catch(() => getOffers('data/offers.json')); DATA_AT.offers = od.generated; loadOffers(od); } catch (e) { /* offers optional */ }
-    await loadLive();
     refresh();
     renderPanel();
+    hideSplash();
     loadGeo();
     (window.requestIdleCallback || setTimeout)(searchIndex); // first search answers at once
     const hash = location.hash.slice(1);
     if (byId.has(hash)) { const p = byId.get(hash); map.setView([p.lat, p.lon], 17); showPlace(hash); }
-    else if (hash.startsWith('o=')) { setTab('events'); stack = [{ type: 'list' }, { type: 'events' }]; go({ type: 'offer', id: hash.slice(2) }, 'full'); }
-    hideSplash();
+    liveAt = Date.now();
+    loadLive(liveP).then(ok => { if (!ok) return; refresh(); if (['detail', 'sos', 'card'].includes(view().type)) renderPanel(); });
+    // the shipped copy of the events is the fallback when the server is slow or away
+    offersP.then(od => {
+      DATA_AT.offers = od.generated; loadOffers(od); if (SI) SI.offers = null;
+      adoptEvPrefs();
+      refresh();
+      if (['detail', 'events', 'search', 'favs'].includes(view().type)) renderPanel();
+      if (hash.startsWith('o=')) { setTab('events'); stack = [{ type: 'list' }, { type: 'events' }]; go({ type: 'offer', id: hash.slice(2) }, 'full'); }
+    }).catch(() => { /* offers optional */ });
   } catch (err) {
     hideSplash();
     $('#panelBody').innerHTML = `<div class="empty"><b>${tl('Daten konnten nicht geladen werden.')}</b>${tl('Bitte Seite neu laden.')}</div>`;

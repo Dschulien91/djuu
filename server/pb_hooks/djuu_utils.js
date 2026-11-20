@@ -1,5 +1,23 @@
 // Shared helpers for djuu.pb.js (loaded with require inside each handler).
 
+// ---------- route errors ----------
+// Every route error carries the German message (older app versions show it) and a stable code the app can translate.
+function fail(status, code, message) { const err = new Error(message); err.djuuFail = { status, code, message }; return err; }
+// runs a route body; a fail() thrown anywhere in it becomes { status, code, message, data } with that status
+function handle(e, fn) {
+  try { return fn(); } catch (x) {
+    const f = x && x.djuuFail;
+    if (f) return e.json(f.status, { status: f.status, code: f.code, message: f.message, data: {} });
+    throw x;
+  }
+}
+// a transaction whose fail() survives the rollback (an error thrown inside comes back from Go as a plain error)
+function inTx(app, fn) {
+  let failure = null;
+  try { app.runInTransaction((tx) => { try { fn(tx); } catch (x) { if (x && x.djuuFail) failure = x; throw x; } }); }
+  catch (x) { throw failure || x; }
+}
+
 // the member record of a user, or null
 function memberOf(app, userId) {
   try { return app.findFirstRecordByFilter("members", "user = {:u}", { u: userId }); } catch (e) { return null; }
@@ -7,7 +25,7 @@ function memberOf(app, userId) {
 
 // ---------- iCalendar ----------
 const BYDAY = ["MO", "TU", "WE", "TH", "FR", "SA", "SU"];
-const esc = (s) => String(s || "").replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/([,;])/g, "\\$1");
+const esc = (s) => String(s || "").replace(/\\/g, "\\\\").replace(/\r\n|\r|\n/g, "\\n").replace(/([,;])/g, "\\$1");
 const compact = (ymd) => String(ymd).replace(/-/g, "");
 const pad = (n) => String(n).padStart(2, "0");
 function ymdOf(d) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
@@ -41,7 +59,7 @@ function ics(name, items) {
       `DTEND${tz}:${timed ? compact(day) + "T" + hm(end) : compact(addDays(day, 1))}`,
       `SUMMARY:${esc(s.title)}`, `LOCATION:${esc([s.venue, s.address].filter(Boolean).join(", "))}`,
       `DESCRIPTION:${esc([s.provider, s.url, "Ohne Gewähr, bitte beim Anbieter prüfen."].filter(Boolean).join("\n"))}`);
-    if (s.url && /^https?:\/\//.test(s.url)) L.push(`URL:${s.url}`);
+    if (s.url && /^https?:\/\/\S+$/.test(s.url)) L.push(`URL:${s.url}`); // no line breaks in a raw property
     const recurring = s.kind !== "termin" && s.weekday != null && !(s.start_date && s.start_date === s.end_date);
     if (recurring) {
       const cap = addDays(day, 7 * 11), until = s.end_date && s.end_date < cap ? s.end_date : cap;
@@ -70,16 +88,32 @@ function makeAccount(m, { grp, role, admin, perms, email }) {
   m.set("grp", grp); m.set("role", String(role || "").slice(0, 30)); m.set("is_admin", !!admin); m.set("email", String(email || "").slice(0, 120));
   for (const k of PERMS) m.set(k, perms[k]);
 }
-function linkUser(tx, userId, memberId) { const usr = tx.findRecordById("users", userId); usr.set("member", memberId); tx.save(usr); }
+// the account points at its person record; a stored invite (join_token, kept for the confirm flow) is used up with it
+function linkUser(tx, userId, memberId) { const usr = tx.findRecordById("users", userId); usr.set("member", memberId); usr.set("join_token", ""); tx.save(usr); }
+function expired(m) { return !!m.getString("access_until") && m.getDateTime("access_until").before(new DateTime()); }
+// A person leaves their Wir (inside a transaction): the account stays without a Wir, own places are no longer shared,
+// what they saved stays for the others (saved_by is emptied), and the old family-wide calendar address stops working.
+function leaveWir(tx, m) {
+  if (m.getString("user")) {
+    try { const usr = tx.findRecordById("users", m.getString("user")); usr.set("member", ""); tx.save(usr); } catch (e) { /* gone */ }
+    for (const pl of tx.findRecordsByFilter("places", "owner = {:o} && family != ''", "", 0, 0, { o: m.getString("user") })) { pl.set("family", ""); pl.set("shared", false); tx.save(pl); }
+  }
+  tx.delete(m);
+  retireFamilyCalendar(tx, m.getString("family"));
+}
 function canSee(m, perm) {
-  if (m.getString("access_until") && m.getDateTime("access_until").before(new DateTime())) return false;
+  if (expired(m)) return false;
   const v = m.getString(perm);
   return v === "view" || v === "edit";
+}
+// the old family-wide calendar address (from before per-person addresses) stops working when someone leaves or their access changes
+function retireFamilyCalendar(app, familyId) {
+  try { const fam = app.findRecordById("families", familyId); if (fam.getString("cal_token")) { fam.set("cal_token", ""); app.save(fam); } } catch (e) { /* gone */ }
 }
 // "2026-11-30" -> the end of that day in Hamburg (stored in UTC; 23:59 winter time)
 function endOfDay(ymd) {
   const s = String(ymd).slice(0, 10);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) throw new BadRequestError("Ungültiges Datum.");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) throw fail(400, "invalid_date", "Ungültiges Datum.");
   return new DateTime(s + " 22:59:59.000Z");
 }
 
@@ -94,5 +128,5 @@ function ageRange(ym, day) {
   return { min: months, max: months };
 }
 
-module.exports = { memberOf, ics, parseJson, PERMS, FULL, cleanPerms, makeAccount, linkUser, canSee, endOfDay, ageRange };
+module.exports = { fail, handle, inTx, memberOf, ics, parseJson, PERMS, FULL, cleanPerms, makeAccount, linkUser, canSee, expired, leaveWir, retireFamilyCalendar, endOfDay, ageRange };
 
