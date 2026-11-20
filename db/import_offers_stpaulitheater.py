@@ -25,8 +25,9 @@ TEXT_DATE = re.compile(r'(\d{1,2})\.\s*(' + '|'.join(MONTHS) + r')\s+(\d{4}),?\s
 
 
 def sheet_dates(pdf_bytes, first):
-    from pypdf import PdfReader
-    text = ' '.join(p.extract_text() or '' for p in PdfReader(io.BytesIO(pdf_bytes)).pages)
+    import pdfplumber  # installed in the server image (pypdf is not)
+    with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+        text = ' '.join(p.extract_text() or '' for p in pdf.pages)
     out = []
     for _, dd, mm, times in SHEET_ROW.findall(text):
         year = first.year + (1 if int(mm) < first.month - 6 else 0)
