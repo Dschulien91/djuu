@@ -15,7 +15,10 @@ ROOT = Path(__file__).resolve().parent.parent
 DB = ROOT / 'db'
 DATA = ROOT / 'data'
 LOG = DATA / 'refresh.log'
-SKIP = {'import_offers_elbphilharmonie.py'}  # its site excludes our kind of bot
+SKIP = set()  # importers to leave out of the nightly run
+# place importers whose records keep their links to places between runs (replace_records keeps them by ref), so they can be
+# refreshed without merge.py (which needs the OSM extract and runs locally only); new places still come in through a local merge
+PLACE_IMPORTERS = ['import_baederland.py']
 TIMEOUT = 3600
 OUTPUTS = ['places.json', 'offers.json', 'sources.json']
 
@@ -50,6 +53,15 @@ def main():
         except subprocess.TimeoutExpired:
             failed.append(script.name)
             log(f'TIMEOUT {script.name}')
+    for name in PLACE_IMPORTERS:
+        try:
+            r = run([sys.executable, name], DB)
+            if r.returncode:
+                failed.append(name)
+                log(f'FAILED {name}: {r.stderr.strip()[-300:]}')
+        except subprocess.TimeoutExpired:
+            failed.append(name)
+            log(f'TIMEOUT {name}')
     keep = DATA / 'backups' / 'before-refresh'
     keep.mkdir(parents=True, exist_ok=True)
     for name in OUTPUTS:

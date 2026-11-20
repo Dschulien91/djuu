@@ -7,5 +7,5 @@ Wants=network-online.target
 Type=oneshot
 ExecStart=/opt/djuu/refresh.sh
 # never let a hanging provider block the next night
-TimeoutStartSec=3h
+TimeoutStartSec=4h
 Nice=10

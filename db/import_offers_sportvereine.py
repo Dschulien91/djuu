@@ -15,8 +15,10 @@ facility records (matched by street) or from OSM names; nothing is geocoded onli
   robots.txt only blocks CMS internals such as /ajax-cms, /view-file).
 - ht16_kinderturnen: Hamburger Turnerschaft von 1816, table on
   https://www.ht16.de/sport/kinderturnen/trainingszeiten-orte/ (robots.txt only blocks WooCommerce/wp-admin paths).
-  HT16 course bookings (Kurssuche, swimming courses, holiday camps) run on ht16.kurabu.com, whose robots.txt says
-  'Disallow: /' -> not used.
+  HT16's member platform ht16.kurabu.com (allowed since the provider agreed; kurabu.com is in PERMITTED_HOSTS) was
+  checked: its team pages (e.g. 'Anfänger Spiele bis Freischwimmer') publish no times or dates, and its public calendar
+  (/api/de/member/event_occurrences, visibility Public) holds no children's courses, so nothing is added from it.
+  The same holds for tsg-bergedorf.kurabu.com (public calendar: adult yoga, sauna, club parties only).
 - tsv_sasel_turnen: TSV Sasel, Turnen subpages under https://tsv-sasel.de/turnen/ (robots.txt only blocks wp-admin).
 """
 import json

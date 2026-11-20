@@ -7,7 +7,7 @@
    User input is stored on this device only until the server exists (server-ready shape, see STORE). */
 'use strict'; // i18n-skip
 
-const VERSION = '0.59';
+const VERSION = '0.60';
 const CONTACT = window.DJUU_CONTACT || {}; // config.js: reports and feedback stay hidden until an address is set
 // Logo on light backgrounds, as specified in the design PDF.
 const LOGO = `<span class="logo" role="img" aria-label="djuu"><span style="color:#6B4EE6">d</span><span style="color:#0E8F84">j</span><span style="color:#D6336C">u</span><span style="color:#CC6A00">u</span>
@@ -175,6 +175,9 @@ const ATTRS = [
   { id: 'trinkwasser', label: tl('Trinkwasser'), keys: ['drinking_water'], groups: ['spielen', 'entdecken', 'gastro', 'sanitaer'] },
   { id: 'babyccino', label: tl('Babyccino'), keys: ['babyccino'], groups: ['gastro'] },
   { id: 'kinder_wc', label: tl('Kindertoilette'), keys: ['toilets_children'], groups: INDOOR },
+  { id: 'kinderbecken', label: tl('Kinderbecken'), keys: ['kids_pool'], groups: ['entdecken'], q: tl('Gibt es ein Kinder- oder Babybecken?') },
+  { id: 'wasserrutsche', label: tl('Wasserrutsche'), keys: ['water_slide'], groups: ['entdecken'] },
+  { id: 'babyschwimmen', label: tl('Babyschwimmen'), keys: ['baby_swimming'], groups: ['entdecken'] },
   { id: 'kostenlos', label: tl('Kostenlos'), keys: ['fee'], invert: true, groups: ['spielen', 'entdecken', 'sanitaer', 'familie'], q: tl('Ist es kostenlos?') },
 ];
 const ATTR = Object.fromEntries(ATTRS.map(a => [a.id, a]));
@@ -696,6 +699,8 @@ map.on('moveend', () => { if (view().type === 'list') renderPanel(); });
 
 // ---------- Filtering ----------
 // ---------- Area (Gebiet): all Hamburg, district, radius around me or a point, drawn polygon ----------
+// places outside Hamburg's border carry the district 'Umland' (set by db/export.py): their own region, not part of 'Ganz Hamburg'
+const UMLAND = 'Umland', dLabel = d => d === UMLAND ? tl(UMLAND) : d;
 // a radius can sit around me, a point, or one of the family's saved places (Zuhause, Arbeit …): center 'place:<id>'
 const savedPlaces = () => (store.places || []).filter(p => p.lat && p.lon);
 const areaPlace = a => typeof a.center === 'string' && a.center.startsWith('place:') ? savedPlaces().find(p => p.id === a.center.slice(6)) : null;
@@ -713,7 +718,7 @@ function areaOk(p) {
   if (a.type === 'district') return dNames(a).includes(p.district);
   if (a.type === 'radius') { const c = areaCenter(a); return Math.abs(p.lat - c[0]) < a.r / 1e5 && dist(c, [p.lat, p.lon]) <= a.r; }
   if (a.type === 'poly') return inPoly([p.lat, p.lon], a.pts);
-  return true;
+  return p.district !== UMLAND; // 'Ganz Hamburg': the Umland is its own region
 }
 const fmtR = r => r < 1000 ? r + ' m' : nf.format(r / 1000) + ' km';
 const dNames = a => a.names || (a.name ? [a.name] : []);
@@ -725,7 +730,7 @@ const rToPos = m => Math.round(Math.sqrt(Math.max(0, Math.min(1, (m - R_MIN) / (
 const defaultCenter = () => { const d = savedPlaces().find(p => p.def) || savedPlaces()[0]; return d ? 'place:' + d.id : state.me ? 'me' : [map.getCenter().lat, map.getCenter().lng]; };
 const AREA_UI = { distOpen: false, dq: '' };
 function areaLabel(a = state.area) {
-  if (a.type === 'district') { const n = dNames(a); return n.slice(0, 2).join(', ') + (n.length > 2 ? ` +${n.length - 2}` : ''); }
+  if (a.type === 'district') { const n = dNames(a).map(dLabel); return n.slice(0, 2).join(', ') + (n.length > 2 ? ` +${n.length - 2}` : ''); }
   if (a.type === 'radius') { const pl = areaPlace(a); return `${fmtR(a.r)} ${tl('um')} ${a.center === 'me' ? tl('dich') : pl ? tl(pl.name) : tl('Punkt')}`; }
   if (a.type === 'poly') return tl('Eigenes Gebiet');
   return tl('Ganz Hamburg');
@@ -750,7 +755,7 @@ function setArea(a, fit = true) {
 }
 let DISTRICTS = [];
 function districtList() {
-  if (!DISTRICTS.length) { const n = {}; for (const p of places) if (p.district) n[p.district] = (n[p.district] || 0) + 1; DISTRICTS = Object.keys(n).sort((a, b) => a.localeCompare(b, 'de')); }
+  if (!DISTRICTS.length) { const n = {}; for (const p of places) if (p.district) n[p.district] = (n[p.district] || 0) + 1; DISTRICTS = Object.keys(n).sort((a, b) => (a === UMLAND) - (b === UMLAND) || a.localeCompare(b, 'de')); }
   return DISTRICTS;
 }
 
@@ -1100,7 +1105,7 @@ async function detailView(id) {
       <button type="button" class="round" data-home="1" aria-label="${tl('Schließen')}">${svg('close')}</button></div>
     <div class="hero">${badge(p)}<div style="min-width:0">
       <h2 style="margin:0;font:800 23px/1.15 var(--font-display);letter-spacing:-.02em;text-wrap:balance">${esc(p.name)}</h2>
-      <div class="status-line"><span>${esc(CAT_LABEL[p.cat] || '')}${p.district ? ' · ' + esc(p.district) : ''}</span></div>
+      <div class="status-line"><span>${esc(CAT_LABEL[p.cat] || '')}${p.district ? ' · ' + esc(dLabel(p.district)) : ''}</span></div>
       <div class="status-line">${openText(p)}${distLine(d)}${avg ? `<span class="stars-read">★ ${avg}</span>` : ''}</div>
     </div></div>
     <div class="acts">
@@ -1291,7 +1296,7 @@ function districtOpts() {
   const q = norm(AREA_UI.dq.trim()), sel = state.area.type === 'district' ? dNames(state.area) : [];
   const list = districtList().filter(d => !q || norm(d).includes(q));
   const ordered = q ? list : sel.filter(d => list.includes(d)).concat(list.filter(d => !sel.includes(d)));
-  return ordered.slice(0, q ? 60 : 300).map(d => `<label class="ddopt"><input type="checkbox" data-dsel="${esc(d)}"${sel.includes(d) ? ' checked' : ''}><span>${esc(d)}</span></label>`).join('') || `<p class="muted text">${tl('Kein Stadtteil gefunden.')}</p>`;
+  return ordered.slice(0, q ? 60 : 300).map(d => `<label class="ddopt"><input type="checkbox" data-dsel="${esc(d)}"${sel.includes(d) ? ' checked' : ''}><span>${esc(dLabel(d))}</span></label>`).join('') || `<p class="muted text">${tl('Kein Stadtteil gefunden.')}</p>`;
 }
 function areaCountBtn() { const b = $('#panelBody .sticky-bar .primary'); if (b) b.textContent = `${nf.format(view().type === 'search' ? shownTotal() : last.match.length)} ${tl('Orte zeigen')}`; }
 function drawView() {
@@ -1682,7 +1687,7 @@ function evListHtml() {
 // the place setting in words: Ganz Hamburg, the Stadtteile, or the radius
 function evPlaceLabel() {
   const P = EV.place;
-  if (P.mode === 'districts') { const d = [...P.districts]; return d.length > 2 ? `${d.slice(0, 2).join(', ')} +${d.length - 2}` : d.join(', '); }
+  if (P.mode === 'districts') { const d = [...P.districts].map(dLabel); return d.length > 2 ? `${d.slice(0, 2).join(', ')} +${d.length - 2}` : d.join(', '); }
   if (P.mode === 'radius') return `${tl('Umkreis')} ${kmText(P.km)}`;
   return tl('Ganz Hamburg');
 }
@@ -1800,7 +1805,7 @@ function evPlaceOk(o) {
   const P = EV.place;
   if (P.mode === 'districts') return P.districts.has(offerDistrict(o));
   if (P.mode === 'radius') { const c = radiusOrigin(), p = offerPos(o); return !!(c && p && dist(c, p) <= P.km * 1000); }
-  return true;
+  return offerDistrict(o) !== UMLAND;
 }
 const kmText = km => String(km).replace('.', ',') + ' km';
 // distance shown in lists and cards while the radius is on
@@ -1842,7 +1847,7 @@ function evPlaceHtml(titled = true) {
     `<button type="button" role="tab" aria-selected="${mode === id}" class="${mode === id ? 'on' : ''}" data-evplacemode="${id}">${l}</button>`).join('')}</div>`;
   let body = '';
   if (mode === 'districts') {
-    body = `<div class="fgrid">${[...P.districts].map(d => `<button type="button" class="chip on" data-evdistrictx="${esc(d)}" aria-label="${esc(d)} ${tl('entfernen')}">${svg('check')}${esc(d)} ${svg('close')}</button>`).join('')}
+    body = `<div class="fgrid">${[...P.districts].map(d => `<button type="button" class="chip on" data-evdistrictx="${esc(d)}" aria-label="${esc(dLabel(d))} ${tl('entfernen')}">${svg('check')}${esc(dLabel(d))} ${svg('close')}</button>`).join('')}
       <button type="button" class="chip" data-open="evdistricts">${svg('pin')}${P.districts.size ? tl('Weitere wählen') : tl('Stadtteil wählen')}</button></div>`;
   } else if (mode === 'radius' && !origin) {
     body = `${typeof auth !== 'undefined' && auth?.family ? homeFieldHtml('evHome') : `<p class="note">${tl('Mit Konto misst Djuu auch von deinen Orten aus, zum Beispiel Zuhause oder Kita.')}</p>`}
@@ -1871,14 +1876,15 @@ function evDistrictCounts() {
 }
 function districtListHtml() {
   const { page, live } = evDistrictCounts(), q = norm(EV.dq.trim());
-  const out = BEZIRKE.map(bz => {
-    const names = GEO.stadtteile.filter(s => s[1] === bz && page[s[0]] && (!q || norm(s[0]).includes(q))).map(s => s[0]);
+  const regions = BEZIRKE.map(bz => [bz, GEO.stadtteile.filter(s => s[1] === bz).map(s => s[0])]).concat([[UMLAND, [UMLAND]]]);
+  const out = regions.map(([bz, all]) => {
+    const names = all.filter(n => page[n] && (!q || norm(n).includes(q)));
     if (!names.length) return '';
     const selectable = names.filter(n => live[n] || EV.pending.has(n)), allOn = selectable.length && selectable.every(n => EV.pending.has(n));
-    return `<fieldset class="bezirk"><legend>${esc(bz)}</legend>
-      <label class="drow all${allOn ? ' on' : ''}"><input type="checkbox" data-dall="${esc(bz)}"${allOn ? ' checked' : ''}${selectable.length ? '' : ' disabled'}><span class="dname">${tl('Alle in')} ${esc(bz)}</span></label>
+    return `<fieldset class="bezirk"><legend>${esc(dLabel(bz))}</legend>
+      ${bz === UMLAND ? '' : `<label class="drow all${allOn ? ' on' : ''}"><input type="checkbox" data-dall="${esc(bz)}"${allOn ? ' checked' : ''}${selectable.length ? '' : ' disabled'}><span class="dname">${tl('Alle in')} ${esc(bz)}</span></label>`}
       ${names.map(n => { const on = EV.pending.has(n), c = live[n] || 0, off = !on && !c;
-        return `<label class="drow${on ? ' on' : ''}${off ? ' zero' : ''}"><input type="checkbox" data-dname="${esc(n)}"${on ? ' checked' : ''}${off ? ' disabled' : ''}><span class="dname">${esc(n)}</span><span class="n" aria-label="${c} Ergebnisse">${nf.format(c)}</span></label>`; }).join('')}
+        return `<label class="drow${on ? ' on' : ''}${off ? ' zero' : ''}"><input type="checkbox" data-dname="${esc(n)}"${on ? ' checked' : ''}${off ? ' disabled' : ''}><span class="dname">${esc(dLabel(n))}</span><span class="n" aria-label="${c} Ergebnisse">${nf.format(c)}</span></label>`; }).join('')}
     </fieldset>`;
   }).join('');
   return out || `<div class="empty"><b>${tl('Kein Stadtteil gefunden.')}</b>${tl('Versuch einen anderen Namen.')}</div>`;

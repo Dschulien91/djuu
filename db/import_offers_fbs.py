@@ -4,29 +4,37 @@ Source: the provider's Kufer course portal on https://www.fbs-hamburg.de (TYPO3 
 (Elternschule Altona, Elternschule Osdorf, Alstertal, Blankenese, HafenCity, Hamm-Bergedorf, Harburg,
 Niendorf-Lokstedt, Winterhude-Uhlenhorst). The Schleswig-Holstein sites (Norderstedt, Pinneberg, Uetersen) are left out.
 
-What is read (all allowed by robots.txt):
-- the first page of each site's category listing, /standorte/<site>/kurse/<category> (title, subtitle with the
-  child's age, first date and time, course number, room, booking status),
+What is read (the provider agreed to be read; fbs-hamburg.de is in PERMITTED_HOSTS, so the robots.txt rules
+'Disallow: /*cHash' etc. no longer block the pagination; the per-host pause still applies):
+- every page of each site's category listing, /standorte/<site>/kurse/<category> plus the numbered pages linked from
+  it (the links carry a cHash; the category filter lives in the session cookie, so the pages are read in order right
+  after page 1, and a page whose page count differs from page 1 means the filter was lost: page 1 is reloaded once).
+  The main category includes all its sub-categories, so the sub-category filters and /kurssuche are not needed.
+  Listing facts: title, subtitle with the child's age, first date and time, course number, room, booking status.
+  The full catalogue is about 320 listing pages (~11 minutes at the per-host pause), more than one nightly run on a slow
+  server should take: the rows of each site/category listing are cached in data/raw/fbs_listing.json, every run
+  refreshes the stalest listings first until LIST_BUDGET is used up and takes the others from the cache (at most
+  LIST_MAX_AGE days old), so the whole catalogue is re-read about every second night. A listing that was never read
+  (first run) may use the whole TIME_BUDGET, so the first run reads the full catalogue and few detail pages.
 - the course detail page /standorte/<site>/kurse/einrichtung/<inst>/kurs/<knr>/filterbeibehalten/1 (every session
   date and time, fee, address). Detail facts already read are cached in data/raw/fbs_details.json (no texts, no
-  names) and reused while the listing date is unchanged, so a run fetches at most MAX_DETAILS new detail pages;
-  courses not yet read keep the listing facts (first date and time) until a later run.
+  names) and reused while the listing date is unchanged, so a run fetches at most MAX_DETAILS new detail pages and
+  stops early when the run nears TIME_BUDGET; courses not yet read keep the listing facts (first date and time)
+  until a later night fills the cache (upcoming courses first).
 - weekly open groups without dates ('Di 10:00 - 12:00 Uhr / außer in den HH-Ferien') become kind 'gruppe'.
 Undated individual consultations are skipped; a course shared by several sites (online courses) is kept once.
-
-robots.txt: 'Disallow: /*cHash', '/*?id=*', '/*&id=*', '/*?L=0*'. Every further listing page (pagination,
-sub-category filter, the full /kurssuche) carries a cHash and is therefore not fetched: only the first ten courses
-(sorted by date) of each site and category are seen per run. The complete catalogue needs Julian's ask first.
+Window: courses starting within WINDOW_DAYS (the portal already lists runs more than a year ahead); weekly groups and
+running courses are kept.
 Only facts are stored; the course text is read only for the age and never saved. Course leaders are never stored.
-Terms: the sites' disclaimer says 'Die Vervielfältigung von Informationen oder Daten, insbesondere die Verwendung von
-Texten, Textteilen oder Bildmaterial bedarf der vorherigen Zustimmung' -> Julian asks.
 """
 import json
 import re
 import sys
+import time
 import unicodedata
 from collections import Counter
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
+from html import unescape
 
 from bs4 import BeautifulSoup
 
@@ -37,7 +45,11 @@ from offers_util import WEEKDAYS, age_of as util_age_of, clean, finish, get, gro
 SOURCE_ID = 'ev_fbs_hamburg'
 BASE = 'https://www.fbs-hamburg.de'
 PROVIDER = 'Evangelische Familienbildung Hamburg'
-MAX_DETAILS = 60  # new detail pages per run; the rest comes from the cache of earlier runs
+MAX_DETAILS = 80  # new detail pages per run; the rest comes from the cache of earlier runs
+LIST_BUDGET = 7 * 60  # seconds: no further listing page after this; the rest comes from the listing cache
+LIST_MAX_AGE = 7  # days a cached listing may be reused
+TIME_BUDGET = 12 * 60  # seconds: no further detail pages after this (slow server, nightly run)
+WINDOW_DAYS = 240  # courses starting later than this are left out
 
 SITES = {  # slug -> display name
     'elternschule-altona': 'Ev. Elternschule Altona',
@@ -106,9 +118,9 @@ def page(url):
     return r.content.decode('utf-8', 'replace')
 
 
-def list_category(site, cat):
-    """Courses on the first (robots-allowed) page of one site's category listing."""
-    soup = BeautifulSoup(page(f'{BASE}/standorte/{site}/kurse/{cat}'), 'html.parser')
+def parse_rows(html):
+    """Course rows of one listing page."""
+    soup = BeautifulSoup(html, 'html.parser')
     out = []
     for row in soup.select('div.kw-table-row'):
         a = row.find('a', href=re.compile(r'/kurs/[^/]+/filterbeibehalten'))
@@ -123,6 +135,45 @@ def list_category(site, cat):
                     'title': lines[0] if lines else '', 'subtitle': ' '.join(lines[1:]),
                     'when': data[0] if data else '', 'room': data[2] if len(data) > 2 else '',
                     'status': img['title'] if img else None})
+    return out
+
+
+PAGE_LINK = re.compile(r'href="([^"]*tx_kuportal_search%5BpSeite%5D=(\d+)&amp;cHash=[0-9a-f]+)"')
+
+
+def page_links(html):
+    """Pagination links (page number -> url) of a listing page; sub-category links are left out."""
+    return {int(n): BASE + unescape(href) for href, n in PAGE_LINK.findall(html) if 'katid=' not in href}
+
+
+class OutOfTime(Exception):
+    """The run budget ended inside a listing; .rows holds the pages read so far."""
+    def __init__(self, rows):
+        super().__init__('time budget used up')
+        self.rows = rows
+
+
+def list_category(site, cat, deadline=None):
+    """Courses on all pages of one site's category listing (the filter is kept in the session cookie).
+    Raises OutOfTime (with the rows read so far) when time.monotonic() passes deadline between two pages."""
+    first = f'{BASE}/standorte/{site}/kurse/{cat}'
+    html = page(first)
+    links = page_links(html)
+    pages = max(links, default=1)
+    out = parse_rows(html)
+    for n in range(2, pages + 1):
+        if deadline and time.monotonic() > deadline:
+            raise OutOfTime(out)
+        for attempt in range(2):
+            h = page(links[n])
+            if max(page_links(h), default=1) == pages:
+                break
+            if attempt == 0:  # session filter lost (cookie expired): set it again via page 1
+                links = page_links(page(first)) or links
+        else:
+            print(f'  {site}/{cat}: filter lost at page {n}, stopped')
+            break
+        out += parse_rows(h)
     return out
 
 
@@ -326,23 +377,62 @@ def build(site, meta, det):
 ADDR_BY_ROOM, ADDR_BY_SITE = {}, {}
 
 
-def main():
-    today = date.today()
-    courses = {}  # knr -> (site, meta, groups)
-    for site in SITES:
-        for cat, grp in CATEGORIES.items():
+LIST_CACHE = DB_PATH.parent / 'raw' / 'fbs_listing.json'  # listing rows per site/category (facts only)
+
+
+def listings(t0):
+    """Rows of every site/category listing: the stalest ones fetched while LIST_BUDGET lasts, the others cached."""
+    try:
+        store = json.loads(LIST_CACHE.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        store = {}
+    keys = [f'{site}/{cat}' for site in SITES for cat in CATEGORIES]
+    fresh, reused, missing, partial = 0, 0, [], {}
+    oldest = (datetime.now() - timedelta(days=LIST_MAX_AGE)).isoformat(timespec='seconds')
+    for key in sorted(keys, key=lambda k: (store.get(k) or {}).get('fetched', '')):
+        # a listing never read (first run, new category) may use the detail budget too: better than missing it
+        budget = LIST_BUDGET if key in store else TIME_BUDGET
+        if time.monotonic() - t0 < budget:
             try:
-                rows = list_category(site, cat)
-            except Exception as e:  # a missing category on one site is fine
-                print(f'  {site}/{cat}: {type(e).__name__}: {e}')
+                rows = list_category(*key.split('/'), deadline=t0 + budget)
+                store[key] = {'fetched': datetime.now().isoformat(timespec='seconds'), 'rows': [dict(r) for r in rows]}
+                fresh += 1
                 continue
-            for m in rows:
-                c = courses.setdefault(m['knr'], [site, m, set()])
-                c[2].add(grp)
-                c[1].setdefault('cats', set()).add(cat)
-        print(f'  {site}: {sum(1 for c in courses.values() if c[0] == site)} courses so far')
+            except OutOfTime as e:  # slow site: keep the cached copy, or use the pages read so far for this run only
+                print(f'  {key}: time budget used up after {len(e.rows)} rows')
+                if key not in store and e.rows:
+                    partial[key] = e.rows
+                    continue
+            except Exception as e:  # a missing category on one site is fine; an older copy may still be used
+                print(f'  {key}: {type(e).__name__}: {e}')
+        if (store.get(key) or {}).get('fetched', '') >= oldest:
+            reused += 1
+        else:
+            store.pop(key, None)
+            missing.append(key)
+    LIST_CACHE.parent.mkdir(parents=True, exist_ok=True)
+    LIST_CACHE.write_text(json.dumps({k: v for k, v in store.items() if k in keys}, ensure_ascii=False), encoding='utf-8')
+    print(f'listings: {fresh} fetched, {reused} from cache' + (f', {len(missing)} not read yet: {missing[:5]}' if missing else ''))
+    out = {k: [dict(r) for r in store[k]['rows']] for k in keys if k in store}
+    out.update({k: [dict(r) for r in rows] for k, rows in partial.items()})
+    return out
+
+
+def main():
+    t0 = time.monotonic()
+    today = date.today()
+    until = today + timedelta(days=WINDOW_DAYS)
+    courses = {}  # knr -> (site, meta, groups)
+    for key, rows in listings(t0).items():
+        site, cat = key.split('/')
+        for m in rows:
+            c = courses.setdefault(m['knr'], [site, m, set()])
+            c[2].add(CATEGORIES[cat])
+            c[1].setdefault('cats', set()).add(cat)
+    for site in SITES:
+        print(f'  {site}: {sum(1 for c in courses.values() if c[0] == site)} courses listed')
     picked = {k: v for k, v in courses.items() if keep(v[1], v[2])}
-    print(f'{len(courses)} listed, {len(picked)} family courses')
+    print(f'{len(courses)} listed, {len(picked)} family courses ({time.monotonic() - t0:.0f} s)')
 
     cache = cached()
     details, fetched = {}, 0
@@ -350,7 +440,7 @@ def main():
     def rank(k):
         start = first_when(picked[k][1]['when'])[0]
         if start:
-            return (0 if start >= today else 2, start)
+            return (0 if today <= start <= until else 2 if start < today else 3, start)
         return (1, today) if weekly_when(picked[k][1]['when']) else (3, today)
     order = [k for k in sorted(picked, key=rank) if rank(k)[0] < 3]
     for knr in order:
@@ -360,7 +450,7 @@ def main():
         if c and c.get('when') == meta['when']:
             details[knr] = c
             continue
-        if fetched >= MAX_DETAILS:
+        if fetched >= MAX_DETAILS or time.monotonic() - t0 > TIME_BUDGET:
             continue
         try:
             details[knr] = parse_detail(page(meta['url']))
@@ -378,6 +468,10 @@ def main():
     save_cache(details, today)
     print(f'detail pages: {fetched} fetched, {len(details) - fetched} from cache, {len(picked) - len(details)} listing only')
 
+    def key(o, site):  # undated weekly groups: one per site, weekday and time, whichever term lists them
+        return (o['title'].lower(), o.get('start_date'), o.get('weekday'), o.get('time_from'),
+                o.get('address') if o.get('start_date') else site)
+
     offers, dropped, seen = [], Counter(), set()
     for knr, (site, meta, _) in picked.items():
         o = build(site, meta, details.get(knr))
@@ -385,10 +479,12 @@ def main():
             dropped['no date or older'] += 1
         elif (o.get('end_date') or o.get('start_date') or '9999') < today.isoformat():
             dropped['past' + (' (listing only)' if knr not in details else '')] += 1
-        elif (o['title'].lower(), o.get('start_date'), o.get('weekday'), o.get('time_from'), o.get('address')) in seen:
-            dropped['same course listed by another site'] += 1  # e.g. the online courses every site lists
+        elif (o.get('start_date') or '') > until.isoformat():
+            dropped['starts later than the window'] += 1
+        elif key(o, site) in seen:
+            dropped['same course listed twice'] += 1  # online courses every site lists; a weekly group listed for two terms
         else:
-            seen.add((o['title'].lower(), o.get('start_date'), o.get('weekday'), o.get('time_from'), o.get('address')))
+            seen.add(key(o, site))
             offers.append(o)
     print(f'dropped: {dict(dropped)}')
     return finish(SOURCE_ID, 'Evangelische Familienbildung Hamburg: Kurse für Schwangere, Babys, Kinder und Familien',

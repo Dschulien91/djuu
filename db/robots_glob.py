@@ -10,7 +10,7 @@ from urllib.parse import urlparse
 
 import requests
 
-from common import ROBOTS_AGENT, USER_AGENT, fetch
+from common import ROBOTS_AGENT, USER_AGENT, fetch, permitted
 
 UA_TOKEN = ROBOTS_AGENT  # anonymous: we follow the '*' group
 _cache = {}      # base url -> (rules, crawl_delay)
@@ -73,7 +73,9 @@ def _rules(url):
 
 
 def allowed_glob(url):
-    """Longest matching rule wins; on a tie Allow wins (RFC 9309)."""
+    """Longest matching rule wins; on a tie Allow wins (RFC 9309). Hosts in PERMITTED_HOSTS are always allowed."""
+    if permitted(url):
+        return True
     p = urlparse(url)
     path = (p.path or '/') + (('?' + p.query) if p.query else '')
     best = None

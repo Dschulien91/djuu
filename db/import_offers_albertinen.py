@@ -1,20 +1,23 @@
 """Import parent courses and information evenings of the two Immanuel Albertinen birth clinics in Hamburg.
 
-1. Albertinen Krankenhaus (Schnelsen), Albertinen ElternZentrum: one page per course under
-   https://albertinen.de/abteilungen/fachabteilungen/geburtshilfe/leistungspektrum/vor-der-geburt/elternzentrum-albertinen/
-   Each page shows the next date(s) of that course as event teasers (date, title, time, link to the event page).
-   The information evening page lists its dates explicitly (two per month) plus an online session in English.
-2. Evangelisches Amalie Sieveking Krankenhaus (Volksdorf): the information evenings are published as rules
-   ('An jedem 1. Dienstag des Monats ... um 19 Uhr', 'am 3. Donnerstag jeden Monat' virtual) and kept as recurring
-   groups; event teasers on the page are added as dated events. The 'Offener Stilltreff' is kept as a group. The other
-   courses on the Amalie pages are run by named freelance midwives without dates and are not imported.
-Course leaders' names are never stored.
+Main source: the group's event calendar API that the clinics' 'Veranstaltungen' pages load,
+https://immanuelalbertinen.de/api/v1/calendar/subsites?tx_solr[filter][]=instituteId:<id> (JSON, 100 per page),
+restricted to the two Hamburg birth clinics (the ids come from data-restriction-filters on the pages):
+1. instituteId:67 - Albertinen Krankenhaus (Schnelsen), Geburtshilfe and Albertinen ElternZentrum
+   (https://albertinen.de/abteilungen/fachabteilungen/geburtshilfe/aktuelles/veranstaltungen/): every course run
+   (start and end date, times), information evenings (two per month), online sessions in English, first aid.
+2. instituteId:44 - Evangelisches Amalie Sieveking Krankenhaus (Volksdorf)
+   (https://amalie.de/abteilungen/fachabteilungen/geburtshilfe/aktuelles/veranstaltungen/): every dated information
+   evening on site and online. The 'Offener Stilltreff' (weekly, from the 'nach der Geburt' page) is kept as a group.
+Each entry links to the clinic's own event page. Fully booked or cancelled runs are left out; dates more than a year
+ahead are left out. If the API fails, the older page reading is used: the course pages of the ElternZentrum (next
+date of each course as event teasers), the Albertinen information evening page and, for Amalie, the published rules
+('An jedem 1. Dienstag des Monats ... um 19 Uhr') as recurring groups.
+Course leaders' names (part of many titles: 'mit Hebamme ...') are cut out and never stored.
 
-robots.txt (albertinen.de, amalie.de): 'Disallow: /*?' and 'Crawl-delay: 30' - only plain paths are fetched and the
-30 s delay is kept (about 12 requests, ~5 minutes). The site-wide event calendar is a search API with query
-parameters (immanuelalbertinen.de/api/v1/calendar/subsites?tx_solr...), disallowed by '/*?', so it is not used.
-Terms: imprint (https://immanuelalbertinen.de/impressum/): 'Die Vervielfältigung, Bearbeitung, Verbreitung und jede Art
-der Verwertung ... bedürfen der schriftlichen Zustimmung' (standard copyright notice) -> Julian asks.
+robots.txt (albertinen.de, amalie.de, immanuelalbertinen.de): the provider agreed to be read; the hosts are in
+PERMITTED_HOSTS, so 'Disallow: /*?' no longer blocks the API. 'Crawl-delay: 30' is still kept: 2 API requests and
+1 page per run (fallback: about 12 pages, ~5 minutes).
 """
 import re
 import sys
@@ -40,6 +43,9 @@ AMA_AFTER = AMA_GH + '/nach-der-geburt/kursangebote-nach-der-geburt/'
 AMA_PROVIDER = 'Ev. Amalie Sieveking Krankenhaus'
 AMA_ADDRESS = 'Haselkamp 33, 22359 Hamburg'
 WEEKDAY_WORDS = ['montag', 'dienstag', 'mittwoch', 'donnerstag', 'freitag', 'samstag', 'sonntag']
+CALENDAR = 'https://immanuelalbertinen.de/api/v1/calendar/subsites'
+ALB_INSTITUTE, AMA_INSTITUTE = 67, 44
+BIRTH = re.compile(r'eltern|schwanger|geburt|baby|säugling|kind|still|rückbildung|wochenbett|zwilling|beikost|birth|parents', re.I)
 PARENTS = re.compile(r'geburtsvorbereit|crashkurs|schwanger|werdende|erste hilfe|akupunktur|infoabend|rückbildung', re.I)
 
 
@@ -140,27 +146,81 @@ def split_title(title, day):
     return title, (end if end and end > day else None)
 
 
+def make_offer(day, title, url, tf, tt, provider, venue, address, latlon, end=None, online=False):
+    """One course run (kind 'kurs' when it spans several days) or one dated event; title already cleaned."""
+    age = (None, None) if PARENTS.search(title) else age_of(title)
+    if age == (None, None) and not PARENTS.search(title) and re.search(r'baby|säugling|beikost', title, re.I):
+        age = (0, 12)
+    topic = 'erste_hilfe' if re.search(r'erste hilfe', title, re.I) else ('geburtsvorbereitung' if re.search(r'infoabend|information', title, re.I) else None)
+    online = online or bool(re.search(r'virtuell|online', title, re.I))
+    kw = dict(venue='Online' if online else venue, address=None if online else address, lat=None if online else latlon[0],
+              lon=None if online else latlon[1], time_from=tf, time_to=tt, age=age,
+              registration='nötig' if topic != 'geburtsvorbereitung' or end else None, topic=topic)
+    ref = f'{url.rstrip("/").rsplit("/", 1)[1][:80]}:{day}'
+    if end:
+        if (end - day).days <= 2:
+            when = f'{WEEKDAYS[day.weekday()]}–{WEEKDAYS[end.weekday()]} {day:%d.%m.}–{end:%d.%m.}'
+        elif end.weekday() == day.weekday():  # weekly course
+            when = f'{WEEKDAYS[day.weekday()]} wöchentlich {day:%d.%m.}–{end:%d.%m.}'
+        else:
+            when = f'{WEEKDAYS[day.weekday()]} {day:%d.%m.}–{end:%d.%m.}'
+        return group(ref, title, url, provider, kind='kurs', weekday=day.weekday(), start=day, end=end,
+                     schedule=when + (f', {tf}' + (f'–{tt}' if tt else '') if tf else ''), **kw)
+    return termin(ref, title, day, url, provider, **kw)
+
+
 def teaser_offers(soup, base, provider, venue, address, latlon, today):
     for day, title, url, tf, tt in teasers(soup, base):
         title, end = split_title(title, day)
         if (end or day) < today:
             continue
-        age = (None, None) if PARENTS.search(title) else age_of(title)
-        if age == (None, None) and not PARENTS.search(title) and re.search(r'baby|säugling|beikost', title, re.I):
-            age = (0, 12)
-        topic = 'erste_hilfe' if re.search(r'erste hilfe', title, re.I) else ('geburtsvorbereitung' if re.search(r'infoabend', title, re.I) else None)
-        online = re.search(r'virtuell|online', title, re.I)
-        kw = dict(venue='Online' if online else venue, address=None if online else address, lat=None if online else latlon[0],
-                  lon=None if online else latlon[1], time_from=tf, time_to=tt, age=age,
-                  registration='nötig' if topic != 'geburtsvorbereitung' or end else None, topic=topic)
-        ref = f'{url.rstrip("/").rsplit("/", 1)[1][:80]}:{day}'
-        if end:
-            when = (f'{WEEKDAYS[day.weekday()]}–{WEEKDAYS[end.weekday()]} {day:%d.%m.}–{end:%d.%m.}' if (end - day).days <= 2
-                    else f'{WEEKDAYS[day.weekday()]} {day:%d.%m.}–{end:%d.%m.}')
-            yield group(ref, title, url, provider, kind='kurs', weekday=day.weekday(), start=day, end=end,
-                        schedule=when + (f', {tf}' + (f'–{tt}' if tt else '') if tf else ''), **kw)
-        else:
-            yield termin(ref, title, day, url, provider, **kw)
+        yield make_offer(day, title, url, tf, tt, provider, venue, address, latlon, end=end)
+
+
+def calendar(institute):
+    """All events of one institute in the calendar API (as the 'Veranstaltungen' page loads them)."""
+    out, page_no = [], 1
+    while True:
+        url = f'{CALENDAR}?tx_solr%5Bfilter%5D%5B%5D=instituteId%3A{institute}' + (f'&tx_solr%5Bpage%5D={page_no}' if page_no > 1 else '')
+        data = get(url).json()['content']['colPos0'][0]['content']['data']
+        out += data['documents']['results']
+        if page_no >= int((data.get('pagination') or {}).get('numberOfPages') or 1) or page_no >= 10:
+            return out
+        page_no += 1
+
+
+def calendar_offers(institute, provider, venues, address, latlon, today):
+    """Offers from the calendar API; venues maps the event's place header (lower case) to the venue shown."""
+    until = today + timedelta(days=365)
+    for e in calendar(institute):
+        t = e.get('time') or {}
+        if not t.get('datetimeStart') or e.get('type') != 'event':
+            continue
+        if any(re.search(r'abgesagt|entfällt|ausgebucht|ausverkauft', x or '', re.I) for x in e.get('errorTags') or []):
+            continue
+        start = datetime.fromisoformat(t['datetimeStart'])
+        stop = datetime.fromisoformat(t['datetimeEnd']) if t.get('datetimeEnd') else None
+        day = start.date()
+        end = stop.date() if stop and stop.date() > day else None
+        if (end or day) < today or day > until:
+            continue
+        if day < today and end and (end - day).days > 2:  # a weekly course that already runs: no longer bookable
+            continue
+        title, title_end = split_title(clean(e.get('title')), day)
+        if not BIRTH.search(title):  # the institute calendar may also hold other departments' events
+            continue
+        end = end or title_end
+        tags = [x for tag_group in e.get('tags') or [] for x in tag_group or []]
+        place = clean((e.get('address') or {}).get('header')).lower()
+        online = any(x.lower() in ('online', 'onlineveranstaltung') for x in tags)
+        tf = t.get('startTimeLabel') or (None if t.get('allDay') else start.strftime('%H:%M'))
+        tt = t.get('endTimeLabel') or None
+        url = ((e.get('target') or {}).get('url') or '').strip()
+        if not url:
+            continue
+        o = make_offer(day, title, url, tf, tt, provider, venues.get(place, venues['']), address, latlon, end=end, online=online)
+        o['source_ref'] += f':{tf or ""}'  # two groups of one course on the same day share the page slug
+        yield o
 
 
 def amalie_rules(soup, latlon):
@@ -200,22 +260,33 @@ def main():
     today = date.today()
     alb_ll = osm_coords('Albertinen Krankenhaus')
     ama_ll = osm_coords('Amalie-Sieveking-Krankenhaus')
+    alb_venues = {'': ALB_VENUE, 'albertinen elternzentrum': 'Albertinen ElternZentrum'}
+    ama_venues = {'': AMA_PROVIDER}
+
+    def ama_fallback():
+        soup = page(AMA_INFO)
+        return amalie_rules(soup, ama_ll) + [  # dated teasers other than the info evening the rules already cover
+            o for o in teaser_offers(soup, AMA, AMA_PROVIDER, AMA_PROVIDER, AMA_ADDRESS, ama_ll, today)
+            if not re.search(r'infoabend', o['title'], re.I)]
+
+    steps = [('Albertinen calendar', lambda: list(calendar_offers(ALB_INSTITUTE, ALB_PROVIDER, alb_venues, ALB_ADDRESS, alb_ll, today)),
+              lambda: albertinen_info(page(ALB_INFO), alb_ll, today) + albertinen_courses(alb_ll, today)),
+             ('Amalie calendar', lambda: list(calendar_offers(AMA_INSTITUTE, AMA_PROVIDER, ama_venues, AMA_ADDRESS, ama_ll, today)),
+              ama_fallback),
+             ('Amalie Stilltreff', lambda: amalie_stilltreff(page(AMA_AFTER), ama_ll), None)]
     offers = []
-    steps = [('Albertinen Infoabend', lambda: albertinen_info(page(ALB_INFO), alb_ll, today)),
-             ('Amalie Infoabend', lambda: amalie_rules(soup_ama_info[0], ama_ll) + [  # dated teasers other than the info evening the rules already cover
-                 o for o in teaser_offers(soup_ama_info[0], AMA, AMA_PROVIDER, AMA_PROVIDER, AMA_ADDRESS, ama_ll, today)
-                 if not re.search(r'infoabend', o['title'], re.I)]),
-             ('Amalie Stilltreff', lambda: amalie_stilltreff(page(AMA_AFTER), ama_ll)),
-             ('Albertinen ElternZentrum', lambda: albertinen_courses(alb_ll, today))]
-    soup_ama_info = [None]
-    for name, fn in steps:
-        try:
-            if name == 'Amalie Infoabend':
-                soup_ama_info[0] = page(AMA_INFO)
-            found = fn()
-        except Exception as e:  # keep the other clinic if one page fails
-            print(f'  {name}: {type(e).__name__}: {e}')
-            found = []
+    for name, fn, fallback in steps:
+        found = []
+        for f in (fn, fallback):
+            if not f:
+                continue
+            try:
+                found = f()
+            except Exception as e:  # keep the other clinic if one source fails
+                print(f'  {name}{" (fallback)" if f is fallback else ""}: {type(e).__name__}: {e}')
+                found = []
+            if found:
+                break
         print(f'  {name}: {len(found)}')
         offers += found
     return finish(SOURCE_ID, 'Albertinen & Amalie: Elternkurse und Infoabende Geburtshilfe', ALB_EZ, 'Immanuel Albertinen Diakonie', offers)

@@ -22,6 +22,11 @@ Small parsers, one per centre, each reading one to a few public pages (robots.tx
   Kinderbuchhaus              kinderbuchhaus.de          dated workshops / readings on the home page
   Kulturschloss Wandsbek      kulturschloss-wandsbek.de  weekday course pages, children's courses only
   Kulturpunkt Basch           kulturpunkt-basch.de       event list (family entries only)
+  GWA St. Pauli / Kölibri     gwa-stpauli.de             /kalender/ (dated), week list of regular dates, OKJA Kölibri hours
+  ella Kulturhaus Langenhorn  ella-kulturhaus.de         event list (children / family titles only; mostly none)
+  Bunte Kuh e.V.              buntekuh-hamburg.de        /aktuell: the yearly clay-building site (Aug/Sep), dates and place
+
+GWA St. Pauli, ella and Bunte Kuh are in PERMITTED_HOSTS (they agreed), so robots.txt is not applied to them.
 
 Only family / children content is kept (offers_util.FAMILY or the site's own Kinder/Familie category). Titles are
 stored without course leaders' names; descriptions are read only to find age, price and registration.
@@ -749,8 +754,163 @@ def basch():
     return out
 
 
+def gwa():
+    """GWA St. Pauli / Kölibri: dated calendar (TYPO3 calendarize), the weekly list of regular dates and the OKJA Kölibri
+    opening hours (children 6-13)."""
+    base = 'https://gwa-stpauli.de'
+    pl = Place('GWA St. Pauli / Kölibri', 'Stadtteilzentrum Kölibri', 'Hein-Köllisch-Platz 12, 20359 Hamburg', 'Kölibri')
+    out, seen = [], set()
+
+    def venue_of(text):
+        v = re.search(r'Veranstaltungsort:\s*([^|]+?)(?:\s*\||\s*Veranstalter:|\s*ICS|$)', text)
+        v = v.group(1).strip() if v else 'Kölibri'
+        return None if 'kölibri' in v.lower() else v
+
+    # dated events: '<span class="event_date"> 22.11.2026 11:00 - 12:00 </span> | Kölibri' + title + teaser, in the calendar
+    # pages and in the 'latest' box of the children's page (children's theatre is often only there)
+    def cards(html):
+        for blk in re.split(r'<div class="card card-event">', html)[1:]:
+            d = re.search(r'event_date">\s*(\d\d)\.(\d\d)\.(\d{4})\s*(\d\d:\d\d)?\s*(?:-\s*(\d\d:\d\d))?', blk)
+            a = re.search(r'(?s)<h3 class="card-title"><a href="([^"]+)">(.*?)</a>', blk)
+            if not (d and a):
+                continue
+            title, text = clean(a.group(2)), clean((re.search(r'(?s)class="card-text">(.*?)</div>', blk) or [0, ''])[1])
+            place = clean((re.search(r'(?s)</span>\s*\|\s*([^<]+)</p>', blk) or [0, ''])[1])
+            if not is_family(f'{title} {text}'):
+                continue
+            day = date(int(d.group(3)), int(d.group(2)), int(d.group(1)))
+            ref = a.group(1).rstrip('/').rsplit('/', 1)[-1]
+            if (ref, day) in seen:
+                continue
+            seen.add((ref, day))
+            v = None if not place or 'kölibri' in place.lower() else place
+            out.append(pl.termin(ref, title, day, base + a.group(1), f'{title} {text}', time_from=d.group(4), time_to=d.group(5),
+                                 venue=v, address=v))
+
+    url = base + '/kalender/'
+    for _ in range(8):
+        html = page(url)
+        cards(html)
+        nxt = re.search(r'<li class="next"><a href="([^"]+)"', html)
+        if not nxt:
+            break
+        url = base + unescape(nxt.group(1))
+    cards(page(base + '/kids-jugendliche/kinder-jugendliche/'))
+    # regular dates: the week list of next week, one detail page per offer for audience, place and price
+    nxt = TODAY + timedelta(days=7)
+    y, w, _ = nxt.isocalendar()
+    html = page(f'{base}/kalender/woche/{y}/{w}/')
+    weekly = {}
+    for day_s, ul in re.findall(r'(?s)<h5>\s*(\d\d\.\d\d\.\d{4})\s*</h5>\s*<ul class="weeklist">(.*?)</ul>', html):
+        dd, mm, yy = map(int, day_s.split('.'))
+        for tf, tt, href, name in re.findall(r'(?s)<li>\s*(\d\d:\d\d)\s*-\s*(\d\d:\d\d)\s*<a href="([^"]+)">(.*?)</a>', ul):
+            weekly.setdefault((clean(name), date(yy, mm, dd).weekday(), tf), (tt, href))
+    for (name, wd, tf), (tt, href) in weekly.items():
+        if re.search(r'beratung|sprechstunde|chor$|gestaltung|mieter', name, re.I) and not re.search(r'hebamm|famili', name, re.I):
+            continue
+        detail = ' | '.join(lines_of(page(base + href)))
+        k = detail.find(name)
+        k = detail.find(name, k + 1) if detail.count(name) > 1 else k
+        ctx = detail[k:k + 900].split('ICS/iCal Export')[0] if k >= 0 else name
+        if not (is_family(ctx) or re.search(r'hebamm|mütter|wichte', name, re.I)):
+            continue
+        if re.search(r'jugendchor|für jugendliche', ctx, re.I) and not re.search(r'kinder', ctx, re.I):
+            continue
+        v = venue_of(ctx)
+        seen.add((wd, tf))
+        out.append(pl.weekly(re.sub(r'\W+', '-', name.lower())[:40], name, wd, base + '/kalender/', ctx, tf, tt, venue=v,
+                             address=v.split(',', 1)[1].strip() + ', Hamburg' if v and ',' in v else None))
+    # OKJA Kölibri opening hours: weekday heading, then 'HH.MM - HH.MM Title'
+    url = base + '/kids-jugendliche/okja-koelibri/'
+    wd = None
+    for l in lines_of(page(url)):
+        if wd_index(l) is not None and re.fullmatch(r'(Montag|Dienstag|Mittwoch|Donnerstag|Freitag|Samstag|Sonntag)', l):
+            wd = wd_index(l)
+            continue
+        m = re.match(r'(\d{1,2})[.:](\d\d)\s*-\s*(\d{1,2})[.:](\d\d)\s+(.{3,80})$', l)
+        if wd is None or not m:
+            continue
+        tf, tt = hhmm(m.group(1), m.group(2)), hhmm(m.group(3), m.group(4))
+        if (wd, tf) in seen:  # Comic-Gruppe is in the week list, too
+            continue
+        title = re.sub(r'\s+im Kölibri$', '', m.group(5)).strip()
+        v = re.search(r'\bim (Musikraum.*|Turnhalle.*)$', title) or re.search(r'\bin der (Turnhalle)$', title)
+        title = re.sub(r'\s+(im Musikraum.*|in der Turnhalle)$', '', title)
+        out.append(pl.weekly(re.sub(r'\W+', '-', title.lower())[:40], f'OKJA Kölibri: {title}', wd, url, title, tf, tt,
+                             age=(6 * 12, 14 * 12), price=('kostenlos', 1), venue=v.group(1) if v else None))
+    return out
+
+
+def ella():
+    """ella Kulturhaus Langenhorn: event list (all dates on one page); only titles that name families or children."""
+    base = 'https://www.ella-kulturhaus.de'
+    pl = Place('ella Kulturhaus Langenhorn', 'ella Kulturhaus Langenhorn', 'Käkenflur 30, 22419 Hamburg', 'ella Kulturhaus Langenhorn', 'ella Kulturhaus')
+    html = page(base + '/veranstaltungen/index.php')
+    dated, out, details = {}, [], {}
+    for blk in re.split(r'<div class="row events-entry-3">', html)[1:]:
+        d = re.search(r'datetime="(\d{4})-(\d\d)-(\d\d)"', blk)
+        a = re.search(r'(?s)events-entry-3-headline">\s*<a href="([^"]+)">(.*?)</a>', blk)
+        if not (d and a):
+            continue
+        title = clean(a.group(2))
+        if not is_family(title) or re.search(r'senior|sprechstunde|beratung', title, re.I):
+            continue
+        dated.setdefault(title, []).append((date(int(d.group(1)), int(d.group(2)), int(d.group(3))), base + a.group(1)))
+    for title, items in dated.items():
+        day0, link0 = items[0]
+        if link0 not in details:
+            details[link0] = ' | '.join(lines_of(page(link0)))
+        ctx = details[link0]
+        k = ctx.find(title, ctx.find(title) + 1)
+        ctx = ctx[k:k + 1200] if k >= 0 else ''
+        tm = re.search(r'um (\d{1,2}):(\d\d)(?:\s*(?:bis|[-–])\s*(\d{1,2}):(\d\d))? Uhr', ctx)
+        tf, tt = (hhmm(tm.group(1), tm.group(2)), hhmm(tm.group(3), tm.group(4)) if tm.group(3) else None) if tm else (None, None)
+        wds = {d.weekday() for d, _ in items}
+        if len(items) >= 3 and len(wds) == 1:  # weekly
+            out.append(pl.weekly(re.sub(r'\W+', '-', title.lower())[:40], title, day0.weekday(), link0, ctx, tf, tt))
+            continue
+        for day, link in items:
+            out.append(pl.termin(re.sub(r'\W+', '-', title.lower())[:40], title, day, link, ctx, time_from=tf, time_to=tt))
+    return out
+
+
+def buntekuh():
+    """Bunte Kuh e.V.: the yearly public clay-building site ('Bauen mit Lehm für Groß und Klein'), dates from /aktuell."""
+    url = 'https://www.buntekuh-hamburg.de/aktuell'
+    pl = Place('Bunte Kuh e.V.', 'Lehmbaustelle Bunte Kuh', None)
+    lines = [x for x in (l.replace('\u200b', '').strip() for l in lines_of(page(url))) if x]
+    text = ' | '.join(lines)
+    year = re.search(r'Lehmbauprojekt\s+(\d{4})', text)
+    if not year:
+        return []
+    y = int(year.group(1))
+    ort = re.search(r'\|\s*Ort\s*\|\s*([^|]+)\|\s*(\d{5}\s+Hamburg)', text)
+    venue = ort.group(1).strip() if ort else None
+    address = f'{venue}, {ort.group(2)}' if ort else None
+    free = ('kostenlos', 1) if re.search(r'eintritt frei', text, re.I) else None
+    out = []
+    bau = re.search(r'Bautage\s*\|\s*(\d{1,2})\.(\d{1,2})\.\s*[–-]\s*(\d{1,2})\.(\d{1,2})\.(\d{4})\s*\|\s*([^|]*)\|\s*(\d{1,2}[.:]\d\d)\s*[–-]\s*(\d{1,2}[.:]\d\d)', text)
+    if bau:
+        start, end = date(y, int(bau.group(2)), int(bau.group(1))), date(int(bau.group(5)), int(bau.group(4)), int(bau.group(3)))
+        tf, tt = (hhmm(*re.split('[.:]', x)) for x in (bau.group(7), bau.group(8)))
+        out.append(pl.termin('bautage', f'Lehmbaustelle: Bauen mit Lehm für Groß und Klein ({bau.group(6).strip()})', start, url, text,
+                             time_from=tf, time_to=tt, end=end, venue=venue, address=address, price=free, registration='offen',
+                             description='Anmeldung nur für Gruppen ab vier Personen'))
+    fest = re.search(r'Fest\s*\|\s*\w+,\s*(\d{1,2})\.(\d{1,2})\.\s*\|\s*(\d{1,2}[.:]\d\d)\s*[–-]\s*(\d{1,2}[.:]\d\d)', text)
+    if fest:
+        out.append(pl.termin('fest', 'Lehmbaustelle: Fest', date(y, int(fest.group(2)), int(fest.group(1))), url, text,
+                             time_from=hhmm(*re.split('[.:]', fest.group(3))), time_to=hhmm(*re.split('[.:]', fest.group(4))),
+                             venue=venue, address=address, price=free, registration='offen'))
+    aus = re.search(r'Ausstellung\s*\|\s*(\d{1,2})\.\s*[–-]\s*(\d{1,2})\.(\d{1,2})\.\s*\|\s*[^|]*?(\d{1,2}[.:]\d\d)\s*[–-]\s*(\d{1,2}[.:]\d\d)', text)
+    if aus:
+        out.append(pl.termin('ausstellung', 'Lehmbaustelle: Ausstellung der Bauwerke', date(y, int(aus.group(3)), int(aus.group(1))), url, text,
+                             time_from=hhmm(*re.split('[.:]', aus.group(4))), time_to=hhmm(*re.split('[.:]', aus.group(5))),
+                             end=date(y, int(aus.group(3)), int(aus.group(2))), venue=venue, address=address, price=free, registration='offen'))
+    return out
+
+
 PARSERS = [serrahn, hamm, bim, kultberg, backstube, btreff, sprungbrett, kunstklinik, agdaz, igl, alles_wird_schoen, lukulule, lurup,
-           kiku, kinderbuchhaus, kulturschloss, basch]
+           kiku, kinderbuchhaus, kulturschloss, basch, gwa, ella, buntekuh]
 
 
 def main():

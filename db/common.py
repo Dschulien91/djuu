@@ -21,6 +21,19 @@ RAW_DIR = ROOT / 'data' / 'raw'
 USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
 ROBOTS_AGENT = '*'
 MIN_DELAY = 1.5  # seconds between requests to the same host
+# Providers that agreed to be read and shown (non-commercial use); for these hosts and their subdomains robots.txt
+# is not applied. Crawl-delay and the per-host pause still are. Everyone else: robots.txt for all crawlers applies.
+PERMITTED_HOSTS = {
+    'baederland.de', 'elbphilharmonie.de', 'asklepios.com', 'imm-hamburg.de', 'ndr.de', 'museumsdienst-hamburg.de',
+    'fbs-hamburg.de', 'albertinen.de', 'immanuelalbertinen.de', 'amalie.de', 'dlrg.net', 'kurabu.com', 'fcstpauli.com',
+    'gwa-stpauli.de', 'koelibri.de', 'buntekuh-hamburg.de', 'bunte-kuh.de', 'ella-kulturhaus.de', 'ella-langenhorn.de',
+    'hamburgercamerata.de',
+}
+
+
+def permitted(url):
+    host = urlparse(url).netloc.lower().split(':')[0]
+    return any(host == h or host.endswith('.' + h) for h in PERMITTED_HOSTS)
 
 _session = requests.Session()
 _session.headers['User-Agent'] = USER_AGENT
@@ -42,6 +55,8 @@ def connect():
 
 def allowed(url):
     """robots.txt check for web pages (APIs and open-data services are called directly)."""
+    if permitted(url):
+        return True
     host = urlparse(url)
     base = f'{host.scheme}://{host.netloc}'
     if base not in _robots:

@@ -31,8 +31,27 @@ KEYS = ['changing_table', 'changing_table_location', 'highchair', 'kids_area', '
         'street', 'housenumber', 'for_baby', 'for_toddler', 'fenced', 'shade', 'water_play', 'device_count', 'bench_count',
         'description', 'image', 'age_groups', 'type', 'operator', 'water_status', 'water_quality_eu', 'season', 'services',
         'maternity', 'emergency', 'rating', 'review_text', 'drinking_water', 'cuisine', 'care_types', 'transit',
-        'sport', 'min_age', 'max_age', 'toilets_children', 'fee_text', 'area_ha', 'unisex', 'table_tennis_count', 'picnic_count', 'soccer', 'basketball']
+        'sport', 'min_age', 'max_age', 'toilets_children', 'fee_text', 'area_ha', 'unisex', 'table_tennis_count', 'picnic_count', 'soccer', 'basketball',
+        'kids_pool', 'water_slide', 'wave_pool', 'baby_swimming']
 WC_NEAR_M = 300
+# Places outside Hamburg's border form the region 'Umland': day-trip highlights up to 100 km from the Rathaus,
+# everyday family places (playground, café, pharmacy ...) up to 25 km for families living near the border.
+UMLAND = 'Umland'
+RATHAUS = (53.5503, 9.9927)
+UMLAND_FAR = {'ausflug', 'museum', 'tierhof', 'indoor', 'baden', 'freizeit', 'abenteuer', 'kultur', 'garten', 'naturschutz', 'reiten', 'camping'}
+UMLAND_NEAR = {'spielplatz', 'park', 'picknick', 'grillplatz', 'cafe', 'eis', 'familienfreundlich', 'restaurant', 'imbiss', 'bolzplatz',
+               'hundeauslauf', 'kinderarzt', 'apotheke', 'wc', 'windeln', 'spielhaus', 'treffpunkt'}
+
+
+def umland(cat, lat, lon, osm, name):
+    """'Umland' for a family place outside Hamburg within reach, else None (left out). Nameless places only for playgrounds and parks."""
+    if not name and cat not in ('spielplatz', 'park'):
+        return None
+    km = dist(lat, lon, *RATHAUS) / 1000
+    if cat in UMLAND_FAR and km <= 100:
+        # lookouts and single attractions inside a wildlife park are part of the park, not places of their own
+        return None if osm.get('tourism') in ('viewpoint', 'attraction') else UMLAND
+    return UMLAND if cat in UMLAND_NEAR and km <= 25 else None
 
 # Category refinement: official sources and clear names beat the generic OSM category.
 SOURCE_CAT = {'hh_ekiz': 'kurs', 'hh_elternschule': 'kurs', 'hh_familienbildung_konf': 'kurs',
@@ -97,7 +116,9 @@ def run():
         for k, v in facts.get(dup, {}).items(): facts[keep].setdefault(k, v)
         gear[keep] |= gear.get(dup, set())
         srcs[keep] |= srcs.get(dup, set()); srcnames[keep] |= srcnames.get(dup, set())
-    rows = con.execute('SELECT id, name, category, lat, lon, district FROM places WHERE district IS NOT NULL').fetchall()
+    rows = con.execute('SELECT id, name, category, lat, lon, district FROM places').fetchall()
+    rows = [(i, n, c, la, lo, d or umland(new_cat.get(i, c), la, lo, osm_raw[i], n)) for i, n, c, la, lo, d in rows]
+    rows = [r for r in rows if r[5]]
     n_all = len(rows)
     names = {i: n for i, n, *_ in rows}
     for dup, keep in dup_of.items():
@@ -189,7 +210,7 @@ def audience(o):
     return 'erwachsene' if ADULT_TITLE.search(t) else 'kinder'
 
 
-def drop_cross_source_duplicates(con, out, sidx):
+def drop_cross_source_duplicates(con, out, sidx, pos=None):
     """The same dated event from two sources (venue and organiser, importer and Redaktion) is shown once.
 
     Same day and start time, similar title, and the same place or venues close together (or similar venue names when
@@ -209,12 +230,22 @@ def drop_cross_source_duplicates(con, out, sidx):
         a, b = norm(a), norm(b)
         if not a or not b: return False
         if min(len(a), len(b)) >= 8 and (a in b or b in a): return True
+        ta, tb = set(a.split()), set(b.split())
+        short = min(ta, tb, key=len)
+        if len(short) >= 2 and short <= (ta | tb) and ta & tb == short: return True  # 'Laternenumzug Schnelsen' in '... Feuerwehr Schnelsen'
         return SequenceMatcher(None, a, b).ratio() >= 0.75
+
+    def where(x):
+        if x[c['lat']]: return x[c['lat']], x[c['lon']]
+        return (pos or {}).get(x[c['place_id']])
 
     def near(x, y):
         if x[c['place_id']] and x[c['place_id']] == y[c['place_id']]: return True
-        if x[c['lat']] and y[c['lat']]: return dist(x[c['lat']], x[c['lon']], y[c['lat']], y[c['lon']]) < 400
-        return similar(x[c['venue']], y[c['venue']])
+        a, b = where(x), where(y)
+        if a and b and a[0] and b[0]: return dist(a[0], a[1], b[0], b[1]) < 400
+        if similar(x[c['venue']], y[c['venue']]): return True
+        words = lambda v: {w for w in re.findall(r'[a-zäöüß]{6,}', (v or '').lower()) if w not in ('hamburg', 'straße', 'strasse')}
+        return bool(words(x[c['venue']]) & words(y[c['venue']]))
 
     def rank(o):
         filled = sum(1 for k in ('age_min_m', 'price', 'time_to', 'lat', 'registration') if o[c[k]] is not None)
@@ -285,11 +316,11 @@ def export_offers(con, places, sidx, dup_of=None):
         o['audience'] = audience(o)
         # Stadtteil by coordinates (point in polygon): the linked place's position, else the offer's own
         la, lo = pos.get(o['place_id'], (o['lat'], o['lon']))
-        o['district'] = stadtteil(la, lo) if la and lo else None
+        o['district'] = (stadtteil(la, lo) or (UMLAND if dist(la, lo, *RATHAUS) <= 100000 else None)) if la and lo else None
         o['source_id'] = sidx.get(o['source_id'], -1)
         o['dogs'] = dogs.get(o['id'])
         out.append([o[c] for c in OFFER_COLS])
-    out = drop_cross_source_duplicates(con, out, sidx)
+    out = drop_cross_source_duplicates(con, out, sidx, pos)
     path = ROOT / 'data' / 'offers.json'
     path.write_text(json.dumps({'version': 1, 'generated': now(), 'cols': OFFER_COLS, 'offers': out}, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
     linked = sum(1 for o in out if o[OFFER_COLS.index('place_id')])

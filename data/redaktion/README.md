@@ -9,7 +9,8 @@ Rules (decided 19 Nov 2026):
 - `url` is the organiser's own page or document. Never Facebook, Instagram or an aggregator/competitor
   (kinderflohmarkt.com, meine-flohmarkt-termine.de, rausgegangen.de, Kindaling, weekend-willi.de,
   hh-mit-kindern.de, flohsonntag.de, kinder-in-hamburg.de …). No linkable source = no entry.
-- Sites that ban our bot (Elbphilharmonie, hamburg-tourism.de, Museumsdienst) are not read with tools.
+- Platforms (Facebook, Instagram, Reddit …) are only for finding events: search for the organiser's own page; an event that is
+  only on Facebook is not added. Sites whose robots.txt blocks us are read only if listed in `PERMITTED_HOSTS` (db/common.py).
 - robots.txt of the organiser is honoured. Only facts, no texts, no photos, no names of private persons.
 - `found_via` and `checked` are internal and not shown in the app.
 

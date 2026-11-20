@@ -1206,6 +1206,8 @@ dj_852357d28468;;museum;Neustadt;Ohne Namen, generisches Objekt;;review
 dj_90821b167ccd;;museum;Neustadt;Ohne Namen, generisches Objekt;;review
 dj_6f11aae8413e;;museum;HafenCity;Ohne Namen, generisches Objekt;;review
 dj_81098ed12390;;museum;Barmbek-Nord;Ohne Namen, generisches Objekt;;review
+dj_2d9e111b2c19;Bildungs- und Förderstätte Himmelmoor gGmbH;museum;;Förderstätte, kein Museum;;review
+dj_53ca88c46076;Dampf- und Traktorentreffen im Freilichtmuseum am Kiekeberg;museum;;Veranstaltung, kein Ort (Ort ist das Freilichtmuseum);;review
 dj_b6bc483ed2b7;Erotic Art Museum;museum;St. Pauli;Erotik-Museum, Erwachsene;;review
 dj_b80030690a38;Hochzeitsfriseurin Annika Berning;museum;Hoheluft-Ost;Friseurin, kein Museum;;review
 dj_f8efc8ba8eba;Satapak Tattoo Hamburg;museum;Altona-Nord;Tattoo-Studio, kein Museum;;review
@@ -1300,6 +1302,10 @@ dj_67bfa93a3894;Club Céronne Hamburg;tanzschule;Eimsbüttel;Fitnessstudio;;revi
 dj_4c82098a32ec;Damen Aktiv Studio Bramfeld;tanzschule;Bramfeld;Fitnessstudio;;review
 dj_40c3e95af6d2;Pole Your Body;tanzschule;Barmbek-Nord;Poledance für Erwachsene;;review
 dj_8248feac47ff;Praxis für Arbeitstherapie;therapie;Langenhorn;Arbeitstherapie Erwachsene;;review
+dj_0cc64fff0e51;Bio Hofladen Lührs;tierhof;;Hofladen, kein Familienort;;review
+dj_c5a2d34fd05e;Feldkiosk;tierhof;;Verkaufsstand, kein Familienort;;review
+dj_bfee130199f2;Hofladen Gut Wulfsdorf;tierhof;;Hofladen, Gut Wulfsdorf ist eigener Eintrag;;review
+dj_1cee008cf313;saisonaler Spargel, Erdbeeren, Kirschen, kürbisverkauf;tierhof;;Verkaufsstand, kein Familienort;;review
 dj_2ecb45419f5b;;treffpunkt;St. Pauli;Kein Name;;review
 dj_7cf77750a53a;;treffpunkt;Tonndorf;Kein Name;;review
 dj_9861728786f0;;treffpunkt;Wilstorf;Kein Name;;review

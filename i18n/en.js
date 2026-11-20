@@ -81,7 +81,7 @@ window.DJUU_I18N.en = {
   'Nebel': 'Fog', 'Regen': 'Rain', 'Schneeregen': 'Sleet', 'Schnee': 'Snow', 'Hagel': 'Hail', 'Gewitter': 'Thunderstorm', '· Drinnen zeigen': '· show indoor places',
   '· Wasser zeigen': '· show water play',
   // map list and area
-  'Punkt': 'point', 'Eigenes Gebiet': 'Custom area', 'Ganz Hamburg': 'All of Hamburg', 'Alle Orte': 'All places', 'Andere Kategorie wählen': 'Choose another category',
+  'Punkt': 'point', 'Eigenes Gebiet': 'Custom area', 'Ganz Hamburg': 'All of Hamburg', 'Umland': 'Around Hamburg', 'Kinderbecken': 'Children’s pool', 'Gibt es ein Kinder- oder Babybecken?': 'Is there a children’s or baby pool?', 'Wasserrutsche': 'Water slide', 'Babyschwimmen': 'Baby swimming', 'Alle Orte': 'All places', 'Andere Kategorie wählen': 'Choose another category',
   'Zurück zu Erleben oder Service': 'Back to Explore or Essentials', 'Filter': 'Filter', 'Zurück': 'Back', 'Schließen': 'Close', 'passen sicher': 'certainly match',
   'ohne Angabe': 'unknown', 'auch zeigen': 'show too', 'Nächste zuerst,': 'Nearest first,', 'ab Kartenmitte': 'from the map centre', 'Heute:': 'Today:',
   'Gruppen und Kurse': 'groups and classes', 'für': 'for', 'Orte': 'places', 'Hier ist nichts dabei.': 'Nothing here.', 'Probier weniger Filter oder zoom raus.': 'Try fewer filters or zoom out.',

@@ -1,48 +1,67 @@
-# DISABLED (2026-10-28): elbphilharmonie.de robots.txt explicitly disallows ClaudeBot ("User-agent: ClaudeBot / Disallow: /").
-# Djuu respects explicit opt-outs of Claude-operated crawlers: request a data partnership instead of running this importer.
-import sys
-if __name__ == '__main__':
-    sys.exit('Disabled: Elbphilharmonie opts out of ClaudeBot. Ask for a feed instead.')
-"""Import family and children's concerts of Elbphilharmonie / Laeiszhalle as offers.
+"""Import family and children's concerts and workshops of Elbphilharmonie and Laeiszhalle as offers.
 
-robots.txt disallows every URL with a query ('/*?*') and the date/calendar pages, so the event list
-cannot be used. Allowed route: /sitemap-events.xml (its second page '?p=2' is disallowed and skipped),
-whose detail URLs /de/programm/<slug>/<id> are allowed. The sitemap has no dates, so we pre-filter by
-slug keywords that indicate children's / family formats and read the MusicEvent JSON-LD plus the
-subtitle (age) and price box of at most MAX_DETAILS detail pages. Only events in the next 8 weeks with a
-family / children indication are kept.
+Source: the public programme list https://www.elbphilharmonie.de/de/programm/ with the site's own audience filters
+(FAM = Familien, 0JA/1JA/3JA/6JA/8JA = age groups, NDR_ED = NDR Familienkonzerte); each filter list is read page by
+page through its 'load more' URL (/de/programm/<dd-mm-yyyy>/<filter>/) as far as the site lists (about 8 months).
+Every kept event page is read once for the MusicEvent JSON-LD (venue, address, end time) and the organiser line.
+
+Left out: school and Kita concerts (Schulkonzert, Kitakonzert, 'Klasse 1–4', 'Vorschule'), offers for 14+ / adults,
+'für Menschen mit und ohne Demenz', sold-out dates ('Ausverkauft') and concerts organised by the Symphoniker Hamburg,
+the Hamburgische Staatsoper or the Philharmonisches Staatsorchester (own importers: import_offers_symphoniker.py,
+import_offers_staatsoper.py). The NDR family concerts (also those in the Rolf-Liebermann-Studio, filter NDR_ED) and the
+Hamburger Camerata's family concerts are imported here; ndr.de lists the same concerts (no separate NDR importer) and
+hamburgercamerata.de is a parked domain.
+
+Facts only: title, date, time, hall, age, price 'ab', link to the event page.
+robots.txt: elbphilharmonie.de is in PERMITTED_HOSTS (the provider agreed), so robots.txt is not applied; the per-host
+pause still is.
 """
 import json
 import re
 import sys
-from datetime import date, datetime, timedelta
-from html import unescape
+from datetime import date, datetime
 
-from common import connect, register_source, save_raw
-from offers import age_range, replace_offers
-from robots_glob import allowed_glob, polite_fetch
+from offers_util import age_of, clean, finish, get, osm_coords, termin
 
 SOURCE_ID = 'elbphilharmonie_familie'
 SITE = 'https://www.elbphilharmonie.de'
-SITEMAP = SITE + '/sitemap-events.xml'
-WINDOW_DAYS = 56
-MAX_DETAILS = 400
-
-SLUG_HINT = re.compile(r'famil|kind|baby|hasi|funkel|kita|schul|workshop|marchen|maerchen|jung|kids|klangzeit|mini|'
-                       r'entdeck|ohrwurm|elfi|krabbel|eltern|weihnacht')
-FAMILY = re.compile(r'famil|kinder|\bkind\b|kids|baby|babys|krabbel|kuscheltier|eltern|\bab \d+ (jahr|monat)|'
-                    r'\d+\s*[–-]\s*\d+ (jahr|monat)')
-INSTITUTION = re.compile(r'schulklasse|kita-gruppe|kitagruppe|kita-kinder|für schulen|klassenstufe|jahrgangsstufe|'
-                         r'konzert statt schule|\bklassen? \d|schulkonzert|kitakonzert')
-
-VENUES = {  # coordinates of the two houses (all other venues stay without coordinates)
-    'elbphilharmonie': (53.54132, 9.98418, 'Platz der Deutschen Einheit 1, 20457 Hamburg'),
-    'laeiszhalle': (53.55590, 9.98086, 'Johannes-Brahms-Platz, 20355 Hamburg'),
+PAGE = SITE + '/de/programm/FAM/'
+FILTERS = ['FAM', '0JA', '1JA', '3JA', '6JA', '8JA', 'NDR_ED']
+HOUSES = {  # house -> (address, lat, lon)
+    'elbphilharmonie': ('Platz der Deutschen Einheit 1, 20457 Hamburg', 53.54132, 9.98418),
+    'laeiszhalle': ('Johannes-Brahms-Platz, 20355 Hamburg', 53.55590, 9.98086),
 }
+SCHOOL = re.compile(r'schulkonzert|kitakonzert|kita-konzert|\bklassen?\s*\d|vorschule|für schulklassen|kita-gruppen', re.I)
+NOT_FOR_KIDS = re.compile(r'demenz|ab 1[4-9] jahr|ab 1[4-9] und|jugendliche ab 1[4-9]|erwachsene\b(?! und kinder)', re.I)
+OTHER_IMPORTER = re.compile(r'symphoniker hamburg|staatsoper|philharmonisches staatsorchester|philharmoniker hamburg', re.I)
 
 
-def clean(s):
-    return re.sub(r'\s+', ' ', unescape(re.sub(r'(?s)<[^>]+>', ' ', s or ''))).strip()
+def list_items(flt):
+    """All events of one filter list: dicts with id, url, title, subtitle, date, times, venue, status."""
+    url, out = f'{SITE}/de/programm/{flt}/', []
+    for _ in range(40):
+        html = get(url).text
+        items = re.findall(r'<li id="event_id_[^"]+"(.*?)</li>\s*(?=<li id="event_id|</ul>)', html, re.S)
+        for it in items:
+            href = re.search(r'href="(/de/programm/[^"]+/(\d+))"', it)
+            dt = re.search(r'datetime="(\d{4}-\d\d-\d\d)', it)
+            if not (href and dt):
+                continue
+            tm = clean((re.search(r'(?s)class="time">(.*?)</span>', it) or [0, ''])[1])
+            place = re.search(r'(?s)class="cell small-6 medium-8 xlarge-12 place-cell">(.*?)</div>', it)
+            status = re.search(r'(?s)class="cell status-info(.*)', it)
+            status = re.sub(r'(?s)<button class="event__bookmark.*?</button>', '', status.group(1)) if status else ''
+            out.append({'id': href.group(2), 'url': SITE + href.group(1), 'slug': href.group(1).split('/')[3],
+                        'title': clean((re.search(r'(?s)class="event-title[^"]*">(.*?)</p>', it) or [0, ''])[1]),
+                        'sub': clean((re.search(r'(?s)class="event-subtitle">(.*?)</p>', it) or [0, ''])[1]),
+                        'day': date.fromisoformat(dt.group(1)),
+                        'times': [f'{int(h):02d}:{m or "00"}' for h, m in re.findall(r'(\d{1,2})(?::(\d\d))?\s*Uhr', tm)],
+                        'venue': clean(place.group(1)) if place else '', 'status': clean(status)})
+        nxt = re.search(r'data-url="(/de/programm/[^"]+)"', html)
+        if not items or not nxt:
+            break
+        url = SITE + nxt.group(1)
+    return out
 
 
 def jsonld_event(html):
@@ -54,103 +73,80 @@ def jsonld_event(html):
         for e in (d if isinstance(d, list) else [d]):
             if isinstance(e, dict) and 'Event' in str(e.get('@type', '')):
                 return e
-    return None
+    return {}
 
 
-def age_text(s):
-    t = re.sub(r'(\d+)\s*bis\s*(\d+)', r'\1-\2', s)
-    return re.sub(r'(\d+)-?\s*jährige', r'\1 jahre', t, flags=re.I)
+def age_in(text):
+    t = re.sub(r'(\d+)\s*[-–]?\s*jährige', r'\1 Jahre', text or '', flags=re.I)
+    t = re.sub(r'(\d)\s*[-–]\s*(\d+)\s*jahr\b', r'\1-\2 jahre', t, flags=re.I)  # 'Babykonzert: 0–1 Jahr'
+    return age_of(t)
 
 
 def main():
-    today = date.today()
-    until = today + timedelta(days=WINDOW_DAYS)
-    con = connect()
-    register_source(con, SOURCE_ID, 'Elbphilharmonie – Familien- und Kinderkonzerte', SITE + '/de/',
-                    'Fakten mit Link, keine Lizenz angegeben', 'Elbphilharmonie Hamburg / HamburgMusik gGmbH', priority=60)
-
-    xml = polite_fetch(SITEMAP).text
-    save_raw('elbphilharmonie_sitemap_events.xml', xml)
-    urls = re.findall(r'<loc>(https://www\.elbphilharmonie\.de/de/programm/([^/<]+)/(\d+))</loc>', xml)
-    print(f'sitemap: {len(urls)} German event URLs; second sitemap page allowed: {allowed_glob(SITEMAP + "?p=2")}')
-    cands = sorted({(int(i), u, slug) for u, slug, i in urls if SLUG_HINT.search(slug)}, reverse=True)
-    print(f'slug pre-filter: {len(cands)} candidates (full crawl would be {len(urls)} requests)')
-
-    seen = set()
-    offers, n_req, skipped = [], 0, {'robots': 0, 'outside_window': 0, 'not_family': 0, 'institution': 0, 'no_jsonld': 0}
-    for _, url, slug in cands[:MAX_DETAILS]:
-        if not allowed_glob(url):
-            skipped['robots'] += 1
+    events = {}
+    for flt in FILTERS:
+        got = list_items(flt)
+        print(f'  filter {flt:7} {len(got):3} events')
+        for e in got:
+            events.setdefault(e['id'], e)
+    offers, skipped = [], {'school': 0, 'not_for_kids': 0, 'sold_out': 0, 'other_importer': 0}
+    coords = {}
+    for e in sorted(events.values(), key=lambda x: x['day']):
+        head = f'{e["slug"]} {e["title"]} {e["sub"]}'
+        if SCHOOL.search(head):
+            skipped['school'] += 1
             continue
-        try:
-            r = polite_fetch(url)
-        except Exception as e:
-            print(f'  failed {url}: {e}')
+        if NOT_FOR_KIDS.search(f'{e["title"]} {e["sub"]}'):
+            skipped['not_for_kids'] += 1
             continue
-        n_req += 1
-        url = r.url.split('?')[0]  # old event ids redirect to the current one
-        if url in seen:
+        if re.search(r'ausverkauft', e['status'], re.I):
+            skipped['sold_out'] += 1
             continue
-        seen.add(url)
-        html = r.text
+        if OTHER_IMPORTER.search(e['sub']):
+            skipped['other_importer'] += 1
+            continue
+        if e['day'] < date.today():
+            continue
+        html = get(e['url']).text
+        org = clean((re.search(r'(?s)class="cell block-promoters">\s*<p>(.*?)</p>', html) or [0, ''])[1]).replace('Veranstalter:', '').strip()
+        if OTHER_IMPORTER.search(org):
+            skipped['other_importer'] += 1
+            continue
         ev = jsonld_event(html)
-        if not ev or not ev.get('startDate'):
-            skipped['no_jsonld'] += 1
-            continue
-        start = datetime.fromisoformat(ev['startDate'])
-        if not (today <= start.date() <= until):
-            skipped['outside_window'] += 1
-            continue
-        name = clean(ev.get('name'))
-        sub = re.search(r'(?s)<p class="event-subtitle[^"]*"[^>]*>(.*?)</p>', html)
-        sub = clean(sub.group(1)) if sub else ''
-        desc = clean(ev.get('description'))
-        text = f'{name} {sub} {desc}'.lower()
-        if not FAMILY.search(text):
-            skipped['not_family'] += 1
-            continue
-        if INSTITUTION.search(f'{slug} {name} {sub}'.lower() + ' ' + desc.lower()[:400]) and 'famil' not in f'{name} {sub}'.lower():
-            skipped['institution'] += 1
-            continue
-        amin, amax = age_range(age_text(sub)) if re.search(r'\d', sub) else (None, None)
-        if amin is None:
-            amin, amax = age_range(age_text(desc))
-        end = datetime.fromisoformat(ev['endDate']) if ev.get('endDate') else None
         loc = ev.get('location') or {}
-        venue = clean(loc.get('name')) or None
-        coords = next((v for k, v in VENUES.items() if k in (venue or '').lower()), None)
-        price = re.search(r'(?s)<span class="prices">(.*?)</span>\s*</span>', html)
-        nums = re.findall(r'\d+(?:,\d+)?', clean(price.group(1))) if price else []
-        title = name
-        part = sub.split(' / ')[0].strip() if sub else ''
-        if part and not re.search(r'\d+\s*(jahr|monat)', part, re.I) and len(name) + len(part) < 110:
-            title = f'{name} – {part}'
-        offers.append({
-            'source_ref': url.rsplit('/', 1)[1],
-            'title': title[:120],
-            'kind': 'termin',
-            'topic': 'musik',
-            'age_min_m': amin, 'age_max_m': amax,
-            'weekday': start.weekday(),
-            'time_from': start.strftime('%H:%M'),
-            'time_to': end.strftime('%H:%M') if end else None,
-            'start_date': start.date().isoformat(),
-            'price': f'ab {nums[0]} €' if nums else None,
-            'free': 0 if nums else None,
-            'registration': 'Ticket',
-            'venue': venue,
-            'address': coords[2] if coords else (clean(loc.get('address')) or None),
-            'lat': coords[0] if coords else None, 'lon': coords[1] if coords else None,
-            'url': url,
-            'provider': 'Elbphilharmonie',
-        })
-    print(f'detail requests: {n_req}, skipped: {skipped}')
-    offers.sort(key=lambda o: (o['start_date'], o['time_from'] or ''))
-    n = replace_offers(con, SOURCE_ID, offers)
-    print(f'{SOURCE_ID}: {n} offers')
-    for o in offers[:10]:
-        print(' ', o['start_date'], o['time_from'], o['title'][:60], '|', o['venue'], '|', o['age_min_m'], o['age_max_m'], o['price'])
+        venue = clean(loc.get('name')) or e['venue'] or 'Elbphilharmonie'
+        house = next((k for k in HOUSES if k in venue.lower()), None)
+        if house:
+            address, lat, lon = HOUSES[house]
+        else:  # e.g. Rolf-Liebermann-Studio, Bunker Feldstraße
+            address = re.sub(r',(?=\d{5})', ', ', clean(loc.get('address'))) or None
+            if venue not in coords:
+                words = venue.split(' ', 1)  # 'KörberHaus LichtwarkTheater': hall, then house
+                coords[venue] = osm_coords(venue, *(words[::-1] if len(words) == 2 else []))
+            lat, lon = coords[venue]
+        ends = re.search(r'(?s)Ende\s*(?:ca\.)?\s*<span>(.*?)</span>', html)
+        ends = re.findall(r'(\d{1,2})(?::(\d\d))?', ends.group(1)) if ends else []
+        ends = [f'{int(h):02d}:{m or "00"}' for h, m in ends]
+        price = re.search(r'Tickets ab\s*€?\s*(\d+(?:,\d\d)?)', e['status'])
+        age = age_in(e['sub'])
+        if age == (None, None):
+            age = age_in(clean(ev.get('description'))[:600])
+        title = e['title']
+        part = e['sub'].split(' / ')[0].strip()
+        if part and (part.startswith(('„', '"', '»')) or (len(part) < 40 and not re.search(r'\d|\bmit\b|für|familien', part, re.I))):
+            title = f'{title} – {part}'
+        times = e['times'] or [None]
+        provider = 'Laeiszhalle' if house == 'laeiszhalle' else 'Elbphilharmonie'
+        for k, tf in enumerate(times):
+            tt = ends[k] if len(ends) == len(times) else None
+            offers.append(termin(f'{e["id"]}:{tf}', title, e['day'], e['url'], provider, venue=venue, address=address, lat=lat, lon=lon,
+                                 time_from=tf, time_to=tt, price=f'ab {price.group(1)} €' if price else None,
+                                 free=0 if price else None, age=age, registration='Ticket', topic='musik',
+                                 description=f'Veranstalter: {org}'[:200] if org else None))
+    print(f'  {len(events)} listed events, skipped: {skipped}')
+    return finish(SOURCE_ID, 'Elbphilharmonie & Laeiszhalle: Familien- und Kinderkonzerte', PAGE, 'Elbphilharmonie Hamburg / HamburgMusik gGmbH',
+                  offers)
 
 
 if __name__ == '__main__':
-    sys.exit(main())
+    sys.exit(0 if main() else 1)
