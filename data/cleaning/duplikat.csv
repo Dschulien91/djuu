@@ -128,10 +128,12 @@ dj_0bb9e9fcb0f5;;freizeit;Barmbek-Nord;Skateanlage doppelt erfasst;dj_7f92d37059
 dj_81c82a28222f;;freizeit;Lurup;Skateanlage doppelt erfasst;dj_4832ea5b15db;review
 dj_19c182b1f2e8;Bunker Skatepark;freizeit;Lokstedt;Skateanlage doppelt erfasst;dj_51a1e4f24714;review
 dj_17b19ecbe416;Bäderland Eisland;freizeit;Farmsen-Berne;Gleicher Betrieb, Schreibvariante;dj_13fc32528d9a;review
+dj_8b67f7812b7d;Café und Minigolf an der Bille;freizeit;Bergedorf;Gleicher Betrieb, Schreibvariante;dj_f3e096ec20b4;review
 dj_2c2ae51442c8;Gilde Bowling Forty-Four;freizeit;Othmarschen;Gleicher Betrieb, Schreibvariante;dj_1fa23163cd7b;review
 dj_e6f12ec74aac;Kelle Skatepark;freizeit;Eppendorf;Skateanlage doppelt erfasst;dj_743a714dc9f9;review
 dj_3ae1d9d5fd5f;Kletteranlage Döhrnstr. 4 (Deutscher Alpenverein);freizeit;Lokstedt;Gleicher Betrieb, Schreibvariante;dj_ab9b65857868;review
 dj_5a8fb4371843;Minigolf Hamburg Horn;freizeit;Horn;Gleicher Betrieb, Schreibvariante;dj_349c243f8969;review
+dj_42dab2c38fa8;Schwarzlicht Minigolf;freizeit;Stellingen;Gleicher Betrieb, Anlage im selben Haus;dj_9d24ea032b14;review
 dj_88c9e051c616;Skateanlage Loogeplatz (Skateanlage Kellinghusenstr.);freizeit;Eppendorf;Skateanlage doppelt erfasst;dj_743a714dc9f9;review
 dj_a938507a05d7;Skateanlage Rehrstieg 15 (Skate-Island-Neuwiedenthal);freizeit;Neugraben-Fischbek;Skateanlage doppelt erfasst;dj_68c1744285cc;review
 dj_49e412158ed7;Skateanlage Sophie-Schoop-Weg 90 (TSG Sportpark Allermöhe);freizeit;Neuallermöhe;Gleicher Betrieb, Schreibvariante;dj_c76928153a1b;review
@@ -206,6 +208,7 @@ dj_491d6321aebc;DAV Kletterzentrum;indoor;Lokstedt;Gleicher Name, selber Standor
 dj_6f14b7efc6eb;DAV Kletterzentrum Hamburg;indoor;Lokstedt;Gleicher Name, selber Standort;dj_ab9b65857868;review
 dj_0016f1822018;HoheLuftschiff Kindertheater & Theater Zeppelin e.V.;indoor;Harvestehude;Gleicher Betrieb, Schreibvariante;dj_742a2daeb6b2;review
 dj_3daae4ab71d2;Sportwerk Hamburg;indoor;Stellingen;Gleicher Name, selber Standort;dj_09727abc080e;review
+dj_996a936cdcec;Universitätsklinikum Hamburg-Eppendorf;kinderarzt;Eppendorf;Dasselbe Krankenhaus, Register und OSM;dj_b81edfaa4557;review
 dj_3bb399a74727;;kita;Bergedorf;Gleicher Betrieb, Schreibvariante;dj_09e7e722ba15;review
 dj_5c9de10d0db1;;kita;Iserbrook;Gleicher Betrieb, Schreibvariante;dj_cf03e0c9b680;review
 dj_0d8c822566b3;Arche Kita Hamburg-Jenfeld;kita;Jenfeld;Gleiche Adresse, gleiche Kategorie, Name weicht ab;dj_0bfd517d0198;review
@@ -298,6 +301,7 @@ dj_3a27a2c775d7;ev. Kindergarten Gemeinde Wellingsbüttel;kita;Wellingsbüttel;G
 dj_15d31917e604;kita nordvind;kita;Bahrenfeld;Dieselbe Kita, Register und OSM;dj_bf9c52a4fd4c;review
 dj_59e72cab6e26;Asklepios Klinik Nord - Standort Heidberg;klinik;Langenhorn;Gleicher Betrieb, Schreibvariante;dj_3dcda10fb085;review
 dj_5e1bfd8ca3ac;Asklepios Klinik Nord - Standort Ochsenzoll;klinik;Langenhorn;Gleicher Betrieb, Schreibvariante;dj_fc33423e9efb;review
+dj_9f5cce4ee3ac;Asklepios Klinik Nord - Standort Wandsbek;klinik;Marienthal;Dasselbe Krankenhaus, Register und OSM;dj_3bbe229f5bef;review
 dj_db75f4164651;Asklepios Klinik Wandsbek;klinik;Marienthal;Dasselbe Krankenhaus, Register und OSM;dj_3bbe229f5bef;review
 dj_2a55a6b1561e;Asklepios Klinikum Harburg;klinik;Heimfeld;Gleicher Betrieb, Schreibvariante;dj_80e449bfc370;review
 dj_7ecbbd04a88b;Asklepios Westklinikum Hamburg;klinik;Rissen;Dasselbe Krankenhaus, Register und OSM;dj_c96a23ee96ff;review
@@ -307,6 +311,7 @@ dj_9dd93d01b124;Bundeswehrkrankenhaus Hamburg;klinik;Wandsbek;Dasselbe Krankenha
 dj_0f2245617126;Helios Mariahilf Klinik Hamburg;klinik;Heimfeld;Dasselbe Krankenhaus, Register und OSM;dj_4b043daa7015;review
 dj_aeefc77822f2;Schön Klinik Hamburg Eilbek;klinik;Barmbek-Süd;Dasselbe Krankenhaus, Register und OSM;dj_b874be3986b2;review
 dj_6cc5c989b563;Das Schiff;kultur;Altstadt;Gleicher Name, selber Standort;dj_63b56c25a494;review
+dj_63b56c25a494;Das Schiff;kultur;Altstadt;Gleicher Betrieb, Schreibvariante;dj_7e43d049cddb;review
 dj_a15890af4c8a;Goldbekhaus;kultur;Winterhude;Gleicher Name, selber Standort;dj_ebdacac2ac99;review
 dj_a65b117ccd70;Institut français Hamburg;kultur;Rotherbaum;Gleicher Name, selber Standort;dj_47d2c0b2b245;review
 dj_7a6cfa77fb0d;Kampnagel;kultur;Winterhude;Gleicher Name, selber Standort;dj_daf1c1892cf0;review
@@ -325,10 +330,12 @@ dj_a439261a3ee7;The LEGO Store Hamburg;laden;Altstadt;Gleicher Betrieb, Schreibv
 dj_61a8960cf3b5;Archäologisches Museum Hamburg;museum;Harburg;Museum mit zwei Häusern nebenan;dj_a1226e4cb800;review
 dj_6667ab41204f;Destille;museum;St. Georg;Gleicher Betrieb, Schreibvariante;dj_5de2d86bdf60;review
 dj_86a709496553;Gorch Fock Haus (Kinan Haus);museum;Finkenwerder;Gleicher Betrieb, Schreibvariante;dj_96081ea0467b;review
+dj_ed87229d983f;KL!CK Kindermuseum;museum;Osdorf;Altes Haus bis ca. 2027 geschlossen, Übergangsquartier Brandstücken;dj_b81ed87c4fa7;review
 dj_2bd95c5b5200;KZ-Gedenkstatte Neuengamme;museum;Neuengamme;Gleicher Betrieb, Schreibvariante;dj_f3b947a9a246;review
 dj_32403240aae3;Kleinbahnmuseum Wohldorf;museum;Wohldorf-Ohlstedt;Gleicher Betrieb, Schreibvariante;dj_f199cb52f717;review
 dj_cb83badab976;Kultur Kontor;museum;Altstadt;Gleicher Name, selber Standort;dj_d2117572cc85;review
 dj_9bfaa95e6fca;LEGO Discovery Centre Hamburg;museum;HafenCity;Gleicher Betrieb, Schreibvariante;dj_ee0869dff895;review
+dj_daac01d162b1;Museum Ohlsdorfer Friedhof;museum;Ohlsdorf;Gleicher Betrieb, Schreibvariante;dj_7dd06b745798;review
 dj_a68dfa8e190c;Museum für Bergedorf und die Vierlande;museum;Bergedorf;Gleicher Betrieb, Schreibvariante;dj_cbc614d9771c;review
 dj_c9c345f499c0;Rickmer Rickmers;museum;Neustadt;Gleicher Name, selber Standort;dj_ad9ffcda61eb;review
 dj_5df44b2fefee;Schloss Bergedorf;museum;Bergedorf;Gleicher Betrieb, Schreibvariante;dj_cbc614d9771c;review
@@ -418,6 +425,14 @@ dj_eb8a0740ac72;Alter Elbpark;park;St. Pauli;Selber Park, Teilfläche im Registe
 dj_4a52e6e850fa;Altonaer Balkon;park;Altona-Altstadt;Gleicher Name, selbe Sehenswürdigkeit;dj_fd49765beafa;review
 dj_b993d50421be;Altonaer Balkon;park;Altona-Altstadt;Selber Park, Teilfläche im Register;dj_fd49765beafa;review
 dj_0c6369d6f1ed;Altonaer Volkspark;park;Bahrenfeld;Selber Park, Teilfläche im Register;dj_b7141bfbc2c5;review
+dj_a03bd53f13ff;Altonaer Volkspark;park;Bahrenfeld;Selber Park, Teilfläche im Register;dj_763322921319;review
+dj_24823d49c946;Altonaer Volkspark;park;Bahrenfeld;Selber Park, Teilfläche im Register;dj_763322921319;review
+dj_3330687f22a2;Altonaer Volkspark;park;Bahrenfeld;Selber Park, Teilfläche im Register;dj_763322921319;review
+dj_c66578036e53;Altonaer Volkspark;park;Bahrenfeld;Selber Park, Teilfläche im Register;dj_763322921319;review
+dj_6011d4c34732;Altonaer Volkspark;park;Bahrenfeld;Selber Park, Teilfläche im Register;dj_763322921319;review
+dj_801ef67b7e78;Altonaer Volkspark;park;Bahrenfeld;Selber Park, Teilfläche im Register;dj_763322921319;review
+dj_1b0d58561bd9;Altonaer Volkspark;park;Bahrenfeld;Selber Park, Teilfläche im Register;dj_763322921319;review
+dj_89f3fe3887b1;Altonaer Volkspark;park;Bahrenfeld;Selber Park, Teilfläche im Register;dj_763322921319;review
 dj_c598de789348;Am Botanischen Garten;park;Osdorf;Selber Park, Teilfläche im Register;dj_42ad2a236a02;review
 dj_e29c20e3fee6;Andresengarten;park;Lokstedt;Selber Park, Teilfläche oder Doppel;dj_7722801a6330;review
 dj_f0aa5ab1a499;Andresengarten;park;Lokstedt;Selber Park, Teilfläche im Register;dj_7722801a6330;review
@@ -487,6 +502,7 @@ dj_87408f16f639;Klöpperpark;park;Volksdorf;Selber Park, Teilfläche im Register
 dj_0fae24314e9e;Liliencronpark;park;Rahlstedt;Selber Park, Teilfläche im Register;dj_c166c967af42;review
 dj_91160d9df075;Lohmühlenpark;park;St. Georg;Selber Park, Teilfläche im Register;dj_91e4199c79af;review
 dj_ce7e9a7093b0;Lohmühlenpark;park;St. Georg;Selber Park, Teilfläche im Register;dj_91e4199c79af;review
+dj_2a9e30acfb91;Loki-Schmidt-Garten;park;Osdorf;Gleicher Name, selber Standort;dj_682b8f959c84;review
 dj_26a76a1ce1e0;Luusbarg;park;Rissen;Selber Park, Teilfläche im Register;dj_a222e229730d;review
 dj_74c0b4954a82;Luusbarg;park;Rissen;Selber Park, Teilfläche im Register;dj_a222e229730d;review
 dj_987dd64231d1;Luusbarg;park;Rissen;Selber Park, Teilfläche im Register;dj_a222e229730d;review
@@ -711,6 +727,7 @@ dj_0bc462afbba7;Fährbuernfleet;spielplatz;Neuallermöhe;Registerfläche und OSM
 dj_cc6b14027478;Großer Spielplatz Bullerberge;spielplatz;St. Pauli;Gleicher Betrieb, Schreibvariante;dj_63d9a9e97263;review
 dj_12df1f292ac2;Grünzug Käckenkamp;spielplatz;Langenhorn;Highlight-Eintrag desselben Spielplatzes;dj_51d60d3a0cd4;review
 dj_3e383e077b21;Grünzug Schleemer Bach;spielplatz;Billstedt;Registerfläche und OSM-Spielplatz identisch;dj_6540842baa9d;review
+dj_a991b32b35ab;Hammer Park;spielplatz;Hamm;Teilfläche desselben Spielplatzes;dj_f0e482c7349c;review
 dj_3a498286ca3b;Jacobipark;spielplatz;Eilbek;Registerfläche und OSM-Spielplatz identisch;dj_f57f8f00f293;review
 dj_858b640c36ad;Lindenpark;spielplatz;Eimsbüttel;Registerfläche und OSM-Spielplatz identisch;dj_ea6233a06f35;review
 dj_37831264456f;Piratenspielplatz Goebenbrücke;spielplatz;Eimsbüttel;Registerfläche und OSM-Spielplatz identisch;dj_231cee3a752d;review
@@ -993,6 +1010,7 @@ dj_c5d70e26f539;Jugendzentrum Startloch;treffpunkt;Rahlstedt;Gleicher Name, selb
 dj_5e44455c7d50;Kinder- und Familienhilfezentrum Großlohe;treffpunkt;Rahlstedt;Gleicher Betrieb, Schreibvariante;dj_abcd1a8572bd;review
 dj_7d25988c3cd7;Kleines Kifaz Rissen;treffpunkt;Rissen;Gleicher Betrieb, Schreibvariante;dj_5445874537a7;review
 dj_30e08acd4de7;Kölibri/GWA St. Pauli;treffpunkt;St. Pauli;Gleicher Betrieb, Schreibvariante;dj_0bd87d0cca59;review
+dj_a95e1cf92115;Spielhaus Hohenhorst;treffpunkt;Rahlstedt;Gleiches Spielhaus, Register und OSM;dj_d0fcc76fd9a5;review
 dj_105e567bb3c6;;trinkwasser;Rissen;Trinkstelle doppelt, unbenannt;dj_62e37ce81cf8;review
 dj_ce947d74f58c;Basic AEZ;trinkwasser;Poppenbüttel;Dieselbe Trinkstelle, zwei Quellen;dj_090404e8ad6a;review
 dj_12fc2c581837;Trinkbrunnen;trinkwasser;Winterhude;Dieselbe Trinkstelle, zwei Quellen;dj_b075b2bcca73;review
@@ -1028,6 +1046,7 @@ dj_48d688707cd7;Shell;windeln;Bramfeld;Gleiche Tankstelle, Station und Shop;dj_7
 dj_ec96d651df54;Star Mart;windeln;Hausbruch;Gleicher Betrieb, Schreibvariante;dj_d50517160d71;review
 dj_3d754b14c5fa;Total;windeln;Langenhorn;Gleiche Tankstelle, Station und Shop;dj_c3e0d3d96159;review
 dj_49ff3080a011;TotalEnergies;windeln;Altenwerder;Gleiche Tankstelle, Station und Shop;dj_cc314a8366e2;review
+dj_b84bf0758e97;Wochenmarkt Isestraße;wochenmarkt;Harvestehude;Derselbe Markt, zweiter Registereintrag;dj_543e1ae50b00;review
 dj_dbb22b3007bb;Kieferorthopädische Fachpraxis am Hammer Park;zahnarzt;Hamm;Gleicher Betrieb, Schreibvariante;dj_e77d48b4c712;review
 dj_9e9e055d5a9d;Quarree Dental;zahnarzt;Wandsbek;Gleicher Betrieb, Schreibvariante;dj_60d82a0803bd;review
 dj_8354733c293b;ZMVZ Dentologicum 275;zahnarzt;Othmarschen;Gleicher Betrieb, Schreibvariante;dj_8bf53c449862;review

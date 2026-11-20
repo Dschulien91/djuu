@@ -189,6 +189,56 @@ def audience(o):
     return 'erwachsene' if ADULT_TITLE.search(t) else 'kinder'
 
 
+def drop_cross_source_duplicates(con, out, sidx):
+    """The same dated event from two sources (venue and organiser, importer and Redaktion) is shown once.
+
+    Same day and start time, similar title, and the same place or venues close together (or similar venue names when
+    coordinates are missing). The source with the higher priority wins, then the entry with more facts.
+    """
+    from difflib import SequenceMatcher
+    from merge import similar
+    c = {k: i for i, k in enumerate(OFFER_COLS)}
+    prio = dict(con.execute('SELECT id, priority FROM sources'))
+    prio_by_idx = {i: prio.get(s, 0) for s, i in sidx.items()}
+
+    def norm(t):
+        t = re.sub(r'\(.*?\)|kindertheater|theater für kinder|familienvorstellung|für kinder|ab \d+ jahren?', ' ', (t or '').lower())
+        return re.sub(r'[^a-z0-9äöüß]+', ' ', t).strip()
+
+    def same_title(a, b):
+        a, b = norm(a), norm(b)
+        if not a or not b: return False
+        if min(len(a), len(b)) >= 8 and (a in b or b in a): return True
+        return SequenceMatcher(None, a, b).ratio() >= 0.75
+
+    def near(x, y):
+        if x[c['place_id']] and x[c['place_id']] == y[c['place_id']]: return True
+        if x[c['lat']] and y[c['lat']]: return dist(x[c['lat']], x[c['lon']], y[c['lat']], y[c['lon']]) < 400
+        return similar(x[c['venue']], y[c['venue']])
+
+    def rank(o):
+        filled = sum(1 for k in ('age_min_m', 'price', 'time_to', 'lat', 'registration') if o[c[k]] is not None)
+        return (prio_by_idx.get(o[c['source_id']], 0), filled)
+
+    slots = defaultdict(list)
+    for o in out:
+        if o[c['kind']] == 'termin' and o[c['start_date']]:
+            slots[(o[c['start_date']], o[c['time_from']] or '')].append(o)
+    drop = set()
+    for items in slots.values():
+        if len(items) < 2: continue
+        items.sort(key=rank, reverse=True)
+        for i, keep in enumerate(items):
+            if id(keep) in drop: continue
+            for other in items[i + 1:]:
+                if id(other) in drop or other[c['source_id']] == keep[c['source_id']]: continue
+                if same_title(keep[c['title']], other[c['title']]) and near(keep, other):
+                    drop.add(id(other))
+    if drop:
+        print(f'{len(drop)} offers dropped as duplicates of the same event from another source')
+    return [o for o in out if id(o) not in drop]
+
+
 def export_offers(con, places, sidx, dup_of=None):
     """Write data/offers.json: courses, groups and events, each linked to the nearest matching Djuu place."""
     from offers import ensure, topic_of
@@ -215,6 +265,7 @@ def export_offers(con, places, sidx, dup_of=None):
     for r in rows:
         o = dict(zip(cols, r))
         if o['id'] in hide: continue
+        if (o['age_min_m'] or 0) >= 13 * 12 and not o['for_parents']: continue  # teen groups: outside our target group (0 to about 12)
         o['place_id'] = (dup_of or {}).get(o['place_id'], o['place_id'])
         if o['lat'] and not o['place_id']:
             best, bd = None, 150
@@ -238,6 +289,7 @@ def export_offers(con, places, sidx, dup_of=None):
         o['source_id'] = sidx.get(o['source_id'], -1)
         o['dogs'] = dogs.get(o['id'])
         out.append([o[c] for c in OFFER_COLS])
+    out = drop_cross_source_duplicates(con, out, sidx)
     path = ROOT / 'data' / 'offers.json'
     path.write_text(json.dumps({'version': 1, 'generated': now(), 'cols': OFFER_COLS, 'offers': out}, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
     linked = sum(1 for o in out if o[OFFER_COLS.index('place_id')])

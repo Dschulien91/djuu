@@ -17,6 +17,7 @@ dj_02abbb66895b;Toni's Pizza Service;cafe;Bahrenfeld;Falsche Kategorie;imbiss;re
 dj_8a73f81fcb8b;filón Tapas Bar;cafe;Blankenese;Falsche Kategorie;restaurant;review
 dj_2d12c927f475;trader.hifi;cafe;Ottensen;Falsche Kategorie;laden;review
 dj_114cd872bdbd;Spielplatz Fruchtallee;freizeit;Eimsbüttel;Spielplatz;spielplatz;review
+dj_d144f89df22e;Notfallpraxis Altona;hno;St. Pauli;Allgemeine Notfallpraxis, kein HNO-Arzt;klinik;review
 dj_62e81a59d74a;Mini Golf;imbiss;Neustadt;Minigolf;freizeit;review
 dj_9ae246895159;Minigolf im Stadtpark;imbiss;Winterhude;Minigolf;freizeit;review
 dj_2dfb9416b00b;Zahnarztpraxis Kerstin Dochow;kinderarzt;Schnelsen;Zahnarztpraxis;zahnarzt;review
@@ -57,7 +58,6 @@ dj_7ff9d9ed342d;Die Kuhle - Bauspielplatz Kaltenbergen;park;Billstedt;Spielplatz
 dj_fedbd8b0a2a7;Dschungelspielplatz Steilhooper Straße;park;Steilshoop;Spielplatz, nicht Park;spielplatz;review
 dj_743a714dc9f9;Kelle Skatepark;park;Eppendorf;Sportanlage;sportstaette;review
 dj_f6f3ffaf90ae;Kinderspielplatz Kiefernberg;park;Heimfeld;Spielplatz, nicht Park;spielplatz;review
-dj_2a9e30acfb91;Loki-Schmidt-Garten;park;Osdorf;Botanischer Garten;garten;review
 dj_b8ab3d37d363;Spielpark Rissener Kuhle;park;Rissen;Spielplatz, nicht Park;spielplatz;review
 dj_f0c8d0e0a189;Spielplatz Grandweg;park;Lokstedt;Spielplatz, nicht Park;spielplatz;review
 dj_33318be17cd3;Spielplatz Meenkwiese am Alsterwanderweg;park;Winterhude;Spielplatz, nicht Park;spielplatz;review
@@ -86,6 +86,9 @@ dj_d0fcc76fd9a5;Spielhaus Galaxie;spielplatz;Rahlstedt;Spielhaus;spielhaus;revie
 dj_3ab3497606bd;Spielhaus und Bauspielplatz Essener Straße;spielplatz;Langenhorn;Spielhaus;spielhaus;review
 dj_2154a67c3307;Sportpark Lurup;spielplatz;Rissen;Sportanlage;sportstaette;review
 dj_5554820746f9;Treffpunkt Pogwischrund;spielplatz;Rahlstedt;Nachbarschaftstreff;treffpunkt;review
+dj_7e4d33cb97d7;Goblinstadt;spielplatz_privat;Wandsbek;Indoorspielplatz, war als privater Spielplatz versteckt;indoor;review
+dj_da442aeb6f79;rabatzz!;spielplatz_privat;Stellingen;Indoorspielplatz, war als privater Spielplatz versteckt;indoor;review
+dj_52f82f2eeb34;Pandino;sportstaette;Bergedorf;Indoorspielplatz, keine Sportstätte;indoor;review
 dj_e03d52bae8bd;Praxis für Massage & Krankengymnastik Dieter Jährling;sportstaette;Rahlstedt;Physiotherapie-Praxis;physio;review
 dj_a387ca6bf278;Abenteuerspielplatz Wegenkamp e.V.;treffpunkt;Stellingen;Abenteuerspielplatz;abenteuer;review
 dj_a9052dc72847;Abenteuerspielplatz am Brunnenhof e.V.;treffpunkt;St. Pauli;Abenteuerspielplatz;abenteuer;review
@@ -164,7 +167,6 @@ dj_f7089129118c;Spielhaus Essener Straße;treffpunkt;Langenhorn;Spielhaus;spielh
 dj_512878386aac;Spielhaus Fahrenort;treffpunkt;Lurup;Spielhaus;spielhaus;review
 dj_43fc2580cda0;Spielhaus Farmsen;treffpunkt;Farmsen-Berne;Spielhaus;spielhaus;review
 dj_cf857ec6f04e;Spielhaus Friedrich-Frank-Bogen;treffpunkt;Bergedorf;Spielhaus;spielhaus;review
-dj_a95e1cf92115;Spielhaus Hohenhorst;treffpunkt;Rahlstedt;Spielhaus;spielhaus;review
 dj_891abe07ddd4;Spielhaus Horner Geest;treffpunkt;Horn;Spielhaus;spielhaus;review
 dj_f8f62dbcd506;Spielhaus Horner Landstraße;treffpunkt;Horn;Spielhaus;spielhaus;review
 dj_e4220e2b0d2a;Spielhaus Horner Rennbahn;treffpunkt;Horn;Spielhaus;spielhaus;review
@@ -193,6 +195,7 @@ dj_6ef91b1b5966;Vereinsheim SV Wilhelmsburg;treffpunkt;Wilhelmsburg;Sportverein;
 dj_dab1fd436467;Vereinsheim VfL 93;treffpunkt;Winterhude;Sportverein;sportverein;review
 dj_6f6446ce6af8;VfL Lohbrügge;treffpunkt;Lohbrügge;Sportverein;sportverein;review
 dj_c2c5cd83ac5e;Wassersport-Verein Süderelbe von 1921 e.V.;treffpunkt;Wilhelmsburg;Sportverein;sportverein;review
+dj_2b239b8f2785;Väter e.V.;wickel;Ottensen;Väterverein mit Treffs, kein Wickelplatz;treffpunkt;review
 dj_3f699da62de7;Apotheke am Eckhoffplatz;windeln;Lurup;Apotheke;apotheke;review
 dj_e63d0e1a443c;Bootsvermietung auf der Liebesinsel;windeln;Winterhude;Bootsverleih;freizeit;review
 dj_b2b9f38aeb11;Fundus Jacke wie Hose;windeln;Ottensen;Second-Hand-Kleidung;laden;review
