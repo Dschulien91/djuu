@@ -28,6 +28,10 @@ PERMITTED_HOSTS = {
     'fbs-hamburg.de', 'albertinen.de', 'immanuelalbertinen.de', 'amalie.de', 'dlrg.net', 'kurabu.com', 'fcstpauli.com',
     'gwa-stpauli.de', 'koelibri.de', 'buntekuh-hamburg.de', 'bunte-kuh.de', 'ella-kulturhaus.de', 'ella-langenhorn.de',
     'hamburgercamerata.de',
+    'diemotte.de', 'kulturklinker-barmbek.de', 'kulturwerk-rahlstedt.de', 'schroedingers.hamburg', 'monsuntheater.de',
+    'monsun.theater', 'firststagehamburg.de', 'lapiazza.show', 'speicherstadtmuseum.de', 'buceriuskunstforum.de',
+    'garten-der-schmetterlinge.de', 'arche-warder.de', 'harderhof.de', 'miniandmecafe.de', 'wandsbekerwinterzauber.info',
+    'naju-hamburg.de', 'hamburger-sternwarte.de', 'helios-gesundheit.de',
 }
 
 

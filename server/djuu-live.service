@@ -1,0 +1,10 @@
+[Unit]
+Description=Djuu live values: hvv elevator status (see /opt/djuu/live.sh)
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/djuu/live.sh
+TimeoutStartSec=10min
+Nice=10

@@ -1,0 +1,9 @@
+[Unit]
+Description=Djuu emergency pharmacies daily after the 09:00 change of duty
+
+[Timer]
+OnCalendar=*-*-* 09:05 Europe/Berlin
+Persistent=true
+
+[Install]
+WantedBy=timers.target

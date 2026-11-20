@@ -32,7 +32,8 @@ KEYS = ['changing_table', 'changing_table_location', 'highchair', 'kids_area', '
         'description', 'image', 'age_groups', 'type', 'operator', 'water_status', 'water_quality_eu', 'season', 'services',
         'maternity', 'emergency', 'rating', 'review_text', 'drinking_water', 'cuisine', 'care_types', 'transit',
         'sport', 'min_age', 'max_age', 'toilets_children', 'fee_text', 'area_ha', 'unisex', 'table_tennis_count', 'picnic_count', 'soccer', 'basketball',
-        'kids_pool', 'water_slide', 'wave_pool', 'baby_swimming']
+        'kids_pool', 'water_slide', 'wave_pool', 'baby_swimming',
+        'cabin_length_cm', 'cabin_width_cm', 'door_width_cm', 'kinder_notinsel', 'notinsel_url']  # live values: export_live.py
 WC_NEAR_M = 300
 # Places outside Hamburg's border form the region 'Umland': day-trip highlights up to 100 km from the Rathaus,
 # everyday family places (playground, café, pharmacy ...) up to 25 km for families living near the border.

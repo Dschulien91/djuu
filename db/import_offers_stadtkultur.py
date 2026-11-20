@@ -25,6 +25,8 @@ Small parsers, one per centre, each reading one to a few public pages (robots.tx
   GWA St. Pauli / Kölibri     gwa-stpauli.de             /kalender/ (dated), week list of regular dates, OKJA Kölibri hours
   ella Kulturhaus Langenhorn  ella-kulturhaus.de         event list (children / family titles only; mostly none)
   Bunte Kuh e.V.              buntekuh-hamburg.de        /aktuell: the yearly clay-building site (Aug/Sep), dates and place
+  Lenzsiedlung e.V.           lenzsiedlung.de            EventON events (wp/v2/ajde_events + event page JSON-LD, family titles
+                                                         only) and the weekly children's / baby groups of Kinderclub and LenzTreFF
 
 GWA St. Pauli, ella and Bunte Kuh are in PERMITTED_HOSTS (they agreed), so robots.txt is not applied to them.
 
@@ -908,9 +910,77 @@ def buntekuh():
                              end=date(y, int(aus.group(3)), int(aus.group(2))), venue=venue, address=address, price=free, registration='offen'))
     return out
 
+LENZ = 'https://www.lenzsiedlung.de'
+LENZ_WD = r'(mo|di|mi|do|fr|sa|so)(?:ntag|nstag|ttwoch|nnerstag|eitag|mstag|nntag)?s?\.?'
+
+
+def lenz():
+    """Lenzsiedlung e.V. (Bürgerhaus, Kinderclub, LenzTreFF): the EventON calendar is loaded by JavaScript, but its events
+    are in the WordPress REST API (ajde_events) and each event page carries schema.org start/end dates."""
+    pl = Place('Lenzsiedlung e.V.', 'Bürgerhaus Lenzsiedlung', 'Julius-Vosseler-Straße 193, 22527 Hamburg', 'Bürgerhaus Lenzsiedlung')
+    out = []
+    for e in get(LENZ + '/wp-json/wp/v2/ajde_events?per_page=100').json():
+        title = clean(e['title']['rendered'])
+        text = clean(e.get('content', {}).get('rendered'))[:600]
+        if not is_family(title) or re.search(r'beratung|senior', title, re.I):
+            continue
+        html = page(e['link'])
+        for sd, ed in re.findall(r'"startDate":\s*"([^"]+)",\s*"endDate":\s*"([^"]+)"', html):
+            day = date.fromisoformat(sd[:10])
+            tf = sd[11:16] if 'T' in sd else None
+            tt = ed[11:16] if 'T' in ed and ed[:10] == sd[:10] else None
+            out.append(pl.termin(e['id'], title, day, e['link'], text, time_from=tf, time_to=tt))
+    # weekly groups: children's club (6-12) / youth house activities with an age up to 12, and the baby meeting of LenzTreFF
+    for path in ('/lenzsiedlung-e-v/kinder-und-jugendarbeit/', '/lenzsiedlung-e-v/lenztreff/'):
+        url = LENZ + path
+        lines = lines_of(page(url))
+        for i, line in enumerate(lines):
+            m = re.match(r'(?:jeden\s+)?' + LENZ_WD + r'[\s.,:]*(.*)$', line, re.I)
+            if not m or not re.match(r'(jeden\s+)?(mo|di|mi|do|fr|sa|so)', line, re.I) or len(line) > 160:
+                continue
+            rest = m.group(2)
+            if not times(rest)[0] and i + 1 < len(lines) and re.match(r'\d', lines[i + 1]):
+                rest = lines[i + 1]
+            tf, tt = times(rest)
+            if not tf:
+                continue
+            after = re.sub(r'^[\d.:\s–-]+uhr\s*', '', rest, flags=re.I).strip()
+            title = after if re.match(r'(treffpunkt|eltern|baby|krabbel|spiel)', after, re.I) else None
+            ctx = rest
+            if not title:  # heading a line or a few lines above ('Fußball', 'Boxen: (10 – 18 Jahre)', 'Performance mit LenzDance')
+                for j in range(i - 1, max(-1, i - 4), -1):
+                    if not re.match(r'(jeden\s+)?' + LENZ_WD + r'\b', lines[j], re.I) and len(lines[j]) < 50:
+                        title, ctx = lines[j], f'{lines[j]} {rest}'
+                        break
+            if not title:
+                continue
+            group_name = re.search(r'\((kleine|mittlere|gro[ßs]e[^)]*)\)', rest, re.I)
+            title = re.sub(r'^Performance mit\s+|:\s*$', '', title).strip()
+            title = re.sub(r':\s*\(', ' (', title)
+            if group_name:
+                if not group_name.group(1).lower().startswith('kleine'):
+                    continue  # the older dance groups are for teenagers
+                title += ' (Kleine)'
+            age = good_age(age_in(ctx))
+            baby = re.search(r'schwanger|baby', title, re.I)
+            if baby:
+                age = (0, 12)
+            elif age[0] is None and not group_name or (age[0] or 0) >= 12 * 12:
+                continue  # youth-house offers without an age or only for teenagers
+            venue, address = (None, None)
+            if 'sportplatz' in rest.lower():
+                venue, address = 'Sportplatz Grün-Weiß-Eimsbüttel', None
+            if not baby:
+                title = strip_names(re.sub(r'\s*–\s*', ' – ', title))
+            if any(o['title'] == title and o['weekday'] == wd_index(m.group(1)) for o in out):
+                continue
+            out.append(pl.weekly(re.sub(r'\W+', '-', title.lower())[:40], title, wd_index(m.group(1)), url, ctx, tf, tt, venue=venue,
+                                 address=address, age=age, price=('kostenlos', 1) if 'jugendarbeit' in path else (None, None)))
+    return out
+
 
 PARSERS = [serrahn, hamm, bim, kultberg, backstube, btreff, sprungbrett, kunstklinik, agdaz, igl, alles_wird_schoen, lukulule, lurup,
-           kiku, kinderbuchhaus, kulturschloss, basch, gwa, ella, buntekuh]
+           kiku, kinderbuchhaus, kulturschloss, basch, gwa, ella, buntekuh, lenz]
 
 
 def main():

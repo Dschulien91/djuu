@@ -15,10 +15,13 @@ ROOT = Path(__file__).resolve().parent.parent
 DB = ROOT / 'db'
 DATA = ROOT / 'data'
 LOG = DATA / 'refresh.log'
-SKIP = set()  # importers to leave out of the nightly run
+SKIP = {
+    'import_offers_tsg_bergedorf.py',  # reads yolawo's booking API through the widget; api.yolawo.de disallows robots: needs TSG's OK
+    'import_offers_hamburgde.py',      # links hamburg.de pages; hamburg.de is for finding events only (the fire brigades come via feuerwehr)
+}
 # place importers whose records keep their links to places between runs (replace_records keeps them by ref), so they can be
 # refreshed without merge.py (which needs the OSM extract and runs locally only); new places still come in through a local merge
-PLACE_IMPORTERS = ['import_baederland.py']
+PLACE_IMPORTERS = ['import_baederland.py', 'import_notinsel.py']  # elevators and Notdienst: server/live.sh
 TIMEOUT = 3600
 OUTPUTS = ['places.json', 'offers.json', 'sources.json']
 

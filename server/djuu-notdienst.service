@@ -1,0 +1,10 @@
+[Unit]
+Description=Djuu emergency pharmacies of today and tomorrow (see /opt/djuu/live.sh)
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/djuu/live.sh notdienst
+TimeoutStartSec=10min
+Nice=10

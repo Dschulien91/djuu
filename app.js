@@ -7,7 +7,7 @@
    User input is stored on this device only until the server exists (server-ready shape, see STORE). */
 'use strict'; // i18n-skip
 
-const VERSION = '0.61';
+const VERSION = '0.62';
 const CONTACT = window.DJUU_CONTACT || {}; // config.js: reports and feedback stay hidden until an address is set
 // Logo on light backgrounds, as specified in the design PDF.
 const LOGO = `<span class="logo" role="img" aria-label="djuu"><span style="color:#6B4EE6">d</span><span style="color:#0E8F84">j</span><span style="color:#D6336C">u</span><span style="color:#CC6A00">u</span>
@@ -178,14 +178,17 @@ const ATTRS = [
   { id: 'kinderbecken', label: tl('Kinderbecken'), keys: ['kids_pool'], groups: ['entdecken'], q: tl('Gibt es ein Kinder- oder Babybecken?') },
   { id: 'wasserrutsche', label: tl('Wasserrutsche'), keys: ['water_slide'], groups: ['entdecken'] },
   { id: 'babyschwimmen', label: tl('Babyschwimmen'), keys: ['baby_swimming'], groups: ['entdecken'] },
+  { id: 'notdienst', label: tl('Notdienst jetzt'), keys: ['notdienst_now'], groups: ['gesundheit'], live: true },
+  { id: 'aufzug_ok', label: tl('Aufzug in Betrieb'), keys: ['elevator_status'], groups: ['mobil'], live: true },
   { id: 'kostenlos', label: tl('Kostenlos'), keys: ['fee'], invert: true, groups: ['spielen', 'entdecken', 'sanitaer', 'familie'], q: tl('Ist es kostenlos?') },
 ];
 const ATTR = Object.fromEntries(ATTRS.map(a => [a.id, a]));
-const NO_LABEL = { stillen: tl('Keine Stillmöglichkeit'), spielecke: tl('Keine Spielecke'), kleinkind: tl('Nicht für Kleinkinder'), eingezaeunt: tl('Nicht eingezäunt'), schatten: tl('Wenig Schatten'), kinderwagen: tl('Nicht stufenlos'), toilette: tl('Keine Toilette'), drinnen: tl('Draußen'), hund: tl('Keine Hunde'), baenke: tl('Keine Sitzbänke'), kinder_wc: tl('Keine Kindertoilette'), kostenlos: tl('Kostenpflichtig'), windeln: tl('Keine Windeln') };
+const NO_LABEL = { stillen: tl('Keine Stillmöglichkeit'), spielecke: tl('Keine Spielecke'), kleinkind: tl('Nicht für Kleinkinder'), eingezaeunt: tl('Nicht eingezäunt'), schatten: tl('Wenig Schatten'), kinderwagen: tl('Nicht stufenlos'), toilette: tl('Keine Toilette'), drinnen: tl('Draußen'), hund: tl('Keine Hunde'), baenke: tl('Keine Sitzbänke'), kinder_wc: tl('Keine Kindertoilette'), kostenlos: tl('Kostenpflichtig'), windeln: tl('Keine Windeln'), aufzug_ok: tl('Aufzug außer Betrieb') };
 function normValue(attr, v) {
   if (v == null || v === '') return null;
   if (attr.id === 'hund') return /yes|leashed|outside|offleash/.test(v) ? 'yes' : v === 'no' ? 'no' : null;
   if (attr.id === 'wc_nahe' || attr.id === 'hst_nahe') return 'yes';
+  if (attr.id === 'aufzug_ok') return v === 'in_betrieb' ? 'yes' : v === 'ausser_betrieb' ? 'no' : null;
   if (attr.count) return +v > 0 ? 'yes' : null;
   if (attr.id === 'trinkwasser') return v === 'no' ? 'no' : 'yes';
   if (attr.invert) { const t = truthy(v); return t === 'yes' ? 'no' : t === 'no' ? 'yes' : null; }
@@ -1096,6 +1099,10 @@ async function detailView(id) {
     cuisineText(f.cuisine?.[0]) && `<b>${tl('Küche:')}</b> ${esc(cuisineText(f.cuisine[0]))}`,
     f.device_count && +f.device_count[0] > 1 && `${esc(f.device_count[0])} ${tl('Spielgeräte')}`,
     f.area_ha && +f.area_ha[0] >= 1 && `${tl('Größe:')} ${esc(String(Math.round(+f.area_ha[0] * 10) / 10).replace('.', ','))} ${tl('Hektar')}`,
+    p.lift && `<b>${tl('Aufzug:')}</b> ${p.lift[0] === 'in_betrieb' ? tl('in Betrieb') : p.lift[0] === 'ausser_betrieb' ? tl('außer Betrieb') : tl('Status unbekannt')}${p.lift[2] ? ' – ' + esc(p.lift[2]) : ''} <span class="muted">(${tl('laut hvv, Stand')} ${esc(fmtStamp(p.lift[1]))})</span>`,
+    f.cabin_width_cm && `${tl('Kabine:')} ${esc(f.cabin_length_cm?.[0] || '?')} × ${esc(f.cabin_width_cm[0])} cm${f.door_width_cm ? `, ${tl('Tür')} ${esc(f.door_width_cm[0])} cm` : ''}`,
+    p.duty && p.duty.length && `<b>${tl('Notdienst:')}</b> ${p.duty.map(([a, b]) => esc(fmtStamp(a)) + ' – ' + esc(fmtStamp(b))).join(', ')} <span class="muted">(${tl('laut aponet.de, bitte vorher anrufen')})</span>`,
+    f.kinder_notinsel && `<b>${tl('Kinder-Notinsel:')}</b> ${tl('Hier bekommen Kinder Hilfe, wenn sie sich bedroht fühlen oder verlaufen haben.')}`,
     f.operator && p.cat !== 'aufzug' && `<span class="muted">${tl('Betreiber:')} ${esc(f.operator[0])}</span>`,
   ].filter(Boolean);
   const today = dayIdx(new Date());
@@ -2497,6 +2504,23 @@ function hideSplash() {
 setTab('map');
 setSize(desktop() ? 'full' : 'peek');
 loadWeather();
+// ---------- Live values (elevators, emergency pharmacies) from the server, refreshed during the day ----------
+const fmtStamp = s => { const d = new Date(s); return isNaN(d) ? s : d.toLocaleString(LOCALE, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); };
+async function loadLive() {
+  let live;
+  try { const r = await fetch((window.DJUU_API || '') + '/data/live.json?t=' + Math.floor(Date.now() / 600000)); if (!r.ok) return; live = await r.json(); } catch (e) { return; }
+  const nowMs = Date.now();
+  for (const [id, v] of Object.entries(live.aufzug || {})) {
+    const p = byId.get(id); if (!p) continue;
+    if (v[1] && nowMs - new Date(v[1]) > 3 * 864e5) continue; // older than three days: say nothing rather than something wrong
+    p.lift = v; p.f.elevator_status = [v[0], -1, 'live'];
+  }
+  for (const [id, ws] of Object.entries(live.notdienst || {})) {
+    const p = byId.get(id); if (!p) continue;
+    p.duty = ws.filter(([, b]) => new Date(b) > nowMs);
+    if (p.duty.some(([a, b]) => new Date(a) <= nowMs && nowMs < new Date(b))) p.f.notdienst_now = ['yes', -1, 'live'];
+  }
+}
 loadBreaks().then(() => { if (['list', 'me', 'events'].includes(view().type)) renderPanel(); });
 renderTop();
 $('#panelBody').innerHTML = `<div class="ph"><h2>${tl('Lade Orte …')}</h2></div>`;
@@ -2512,6 +2536,7 @@ $('#panelBody').innerHTML = `<div class="ph"><h2>${tl('Lade Orte …')}</h2></di
     // events are refreshed every night on the Djuu server; the copy shipped with the app is the fallback
     const getOffers = async url => { const r = await fetch(url); if (!r.ok) throw new Error(r.status); return r.json(); };
     try { const od = await getOffers(window.DJUU_API ? window.DJUU_API + '/data/offers.json' : 'data/offers.json').catch(() => getOffers('data/offers.json')); DATA_AT.offers = od.generated; loadOffers(od); } catch (e) { /* offers optional */ }
+    await loadLive();
     refresh();
     renderPanel();
     loadGeo();
