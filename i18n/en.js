@@ -22,6 +22,8 @@ window.DJUU_I18N.en = {
   'Kitas': 'Nurseries', 'Schulen': 'Schools', 'Musikschulen': 'Music schools', 'Tanzschulen': 'Dance schools', 'Sprachschulen': 'Language schools',
   'Kreativschulen': 'Art schools', 'Nachhilfe': 'Tutoring', 'Jugendhilfe': 'Youth services', 'Pfadfinder': 'Scouts', 'Haltestellen': 'Stops', 'Bahnhöfe': 'Stations',
   'Aufzüge': 'Lifts', 'Für Kinder': 'For children', 'Für Erwachsene': 'For adults', 'Krabbel- & Spielgruppe': 'Baby & toddler group', 'PEKiP & Bewegung': 'PEKiP & movement',
+  'Indoor, Klettern & Trampolin': 'Indoor, climbing & trampolines', 'Rodeln & Eislaufen': 'Sledging & ice skating', 'Sprachen, Kreatives & Nachhilfe': 'Languages, arts & tutoring',
+  'Café oder Restaurant mit Spielecke': 'Café or restaurant with a play corner',
   'Musik': 'Music', 'Babyschwimmen': 'Baby swimming', 'Babymassage': 'Baby massage', 'Kreativ': 'Arts & crafts', 'Spielen & Medien': 'Games & media',
   'Sport & Toben': 'Sport & active play', 'Elternthemen': 'Parenting topics', 'Eltern-Café': 'Parents’ café', 'Geburtsvorbereitung': 'Antenatal classes',
   'Rückbildung': 'Postnatal recovery', 'Erste Hilfe': 'First aid', 'Vorlesen': 'Story time', 'Basteln': 'Crafts', 'Theater, Kino & Zirkus': 'Theatre, cinema & circus',

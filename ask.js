@@ -107,7 +107,7 @@ const VOCAB = () => ({
   filters: ATTRS.map(a => a.id).filter(id => id !== 'hund' || hasDog()).concat(['jetzt', 'sonntag']),
 });
 // which group a tag belongs to (the first that has it)
-const groupOfTag = t => Object.keys(TAGS).find(id => !GROUP[id].offers && TAGS[id].some(x => x.id === t)) || null;
+const groupOfTag = t => Object.keys(TAGS).find(id => !GROUP[id].offers && TAGS[id].some(x => x.id === t || x.of?.includes(t))) || null;
 async function understand(q) {
   try {
     // only the question goes out: no account token, no names, no position

@@ -7,7 +7,7 @@
    User input is stored on this device only until the server exists (server-ready shape, see STORE). */
 'use strict'; // i18n-skip
 
-const VERSION = '0.65';
+const VERSION = '0.66';
 const CONTACT = window.DJUU_CONTACT || {}; // config.js: reports and feedback stay hidden until an address is set
 // Logo on light backgrounds, as specified in the design PDF.
 const LOGO = `<span class="logo" role="img" aria-label="djuu"><span style="color:#6B4EE6">d</span><span style="color:#0E8F84">j</span><span style="color:#D6336C">u</span><span style="color:#CC6A00">u</span>
@@ -107,10 +107,10 @@ const GROUP = Object.fromEntries(GROUPS.map(g => [g.id, g]));
 // of: a sub-category that stands for several place tags (Entdecken: "Museen & Kultur" = museum, kultur, theater ...)
 const T = (id, label, p, of) => ({ id, label, p: p ? 1 : 0, of });
 const TAGS = {
-  spielen: [T('spielplatz', tl('Spielplatz')), T('abenteuer', tl('Abenteuerspielplatz')), T('indoorspielplatz', tl('Indoor-Spielplatz')), T('klettern', tl('Klettern & Bouldern')),
-    T('trampolin', tl('Trampolin')), T('spielhaus', tl('Spielhaus')), T('spielstrasse', tl('Spielstraße')), T('bolzplatz', tl('Bolzplatz')), T('tischtennis', tl('Tischtennis')), T('sportstaette', tl('Sportanlagen')), T('sportverein', tl('Sportvereine')), T('reiten', tl('Reiten')), T('rodeln', tl('Rodeln')), T('minigolf', tl('Minigolf')), T('skaten', tl('Skaten')), T('eislaufen', tl('Eislaufen')),
+  spielen: [T('spielplatz', tl('Spielplatz')), T('abenteuer', tl('Abenteuerspielplatz')), T('s_indoor', tl('Indoor, Klettern & Trampolin'), 0, ['indoorspielplatz', 'klettern', 'trampolin']),
+    T('spielhaus', tl('Spielhaus')), T('spielstrasse', tl('Spielstraße')), T('bolzplatz', tl('Bolzplatz')), T('tischtennis', tl('Tischtennis')), T('sportstaette', tl('Sportanlagen')), T('sportverein', tl('Sportvereine')), T('reiten', tl('Reiten')), T('s_winter', tl('Rodeln & Eislaufen'), 0, ['rodeln', 'eislaufen']), T('minigolf', tl('Minigolf')), T('skaten', tl('Skaten')),
     T('bewegung', tl('Sport & Bewegung')), T('wasserspiel', tl('Wasserspiel'), 1), T('grosser_spielplatz', tl('Großer Spielplatz'), 1)],
-  gastro: [T('cafe', tl('Café')), T('restaurant', tl('Restaurant')), T('imbiss', tl('Imbiss')), T('eis', tl('Eis')), T('kindercafe', tl('Kindercafé'), 1),
+  gastro: [T('cafe', tl('Café')), T('restaurant', tl('Restaurant')), T('imbiss', tl('Imbiss')), T('eis', tl('Eis')), { ...T('kindercafe', tl('Kindercafé'), 1), hide: 1 },
     T('fruehstueck', tl('Frühstück'), 1), T('kuchen', tl('Kuchen'), 1), T('vegan', tl('Vegan'), 1), T('vegetarisch', tl('Vegetarisch'), 1), T('terrasse', tl('Draußen sitzen'), 1),
     T('italienisch', tl('Pizza & Pasta'), 1), T('asiatisch', tl('Asiatisch'), 1), T('burger', tl('Burger'), 1)],
   entdecken: [T('e_natur', tl('Natur & Parks'), 0, ['natur', 'picknick', 'aussicht', 'hundeauslauf']), T('tiere', tl('Tiere (Zoo, Bauernhof)')),
@@ -120,10 +120,10 @@ const TAGS = {
   sanitaer: [T('wc', tl('Toilette')), T('wickeln', tl('Wickelplatz')), T('stillen', tl('Stillen')), T('trinkwasser', tl('Trinkwasser'))],
   laeden: [T('drogerie', tl('Drogerie')), T('supermarkt', tl('Supermarkt')), T('spaeti', tl('Späti & Kiosk')), T('tankstelle', tl('Tankstelle')), T('baby', tl('Babyausstattung')),
     T('wochenmarkt', tl('Wochenmarkt')), T('kinderkleidung', tl('Kinderkleidung')), T('spielzeug', tl('Spielzeug')), T('buecher', tl('Bücher')), T('secondhand', tl('Secondhand'))],
-  familie: [T('familienzentrum', tl('Treffpunkte & Familienzentren')), T('elternschule', tl('Elternschulen')), T('beratung', tl('Beratung')), T('kita', tl('Kitas')), T('schule', tl('Schulen')), T('musikschule', tl('Musikschulen')), T('tanzschule', tl('Tanzschulen')), T('sprachschule', tl('Sprachschulen')), T('kreativschule', tl('Kreativschulen')), T('nachhilfe', tl('Nachhilfe')), T('jugend', tl('Jugendhilfe')), T('pfadfinder', tl('Pfadfinder'))],
+  familie: [T('familienzentrum', tl('Treffpunkte & Familienzentren')), T('elternschule', tl('Elternschulen')), T('beratung', tl('Beratung')), T('kita', tl('Kitas')), T('schule', tl('Schulen')), T('musikschule', tl('Musikschulen')), T('tanzschule', tl('Tanzschulen')), T('f_lernen', tl('Sprachen, Kreatives & Nachhilfe'), 0, ['sprachschule', 'kreativschule', 'nachhilfe']), T('jugend', tl('Jugendhilfe')), T('pfadfinder', tl('Pfadfinder'))],
   mobil: [T('haltestelle', tl('Haltestellen')), T('bahnhof', tl('Bahnhöfe')), T('aufzug', tl('Aufzüge'))],
   kurse: [T('aud:kinder', tl('Für Kinder')), T('aud:erwachsene', tl('Für Erwachsene')), T('krabbelgruppe', tl('Krabbel- & Spielgruppe')), T('pekip', tl('PEKiP & Bewegung')),
-    T('musik', tl('Musik')), T('schwimmen', tl('Babyschwimmen')), T('babymassage', tl('Babymassage')), T('kreativ', tl('Kreativ')), T('spiele', tl('Spielen & Medien')),
+    T('musik', tl('Musik')), T('schwimmen', tl('Schwimmen')), T('babymassage', tl('Babymassage')), T('kreativ', tl('Kreativ')), T('spiele', tl('Spielen & Medien')),
     T('sport', tl('Sport & Toben')), T('eltern_thema', tl('Elternthemen')), T('eltern_cafe', tl('Eltern-Café')), T('geburtsvorbereitung', tl('Geburtsvorbereitung')), T('rueckbildung', tl('Rückbildung')), T('erste_hilfe', tl('Erste Hilfe')), T('beratung', tl('Beratung'))],
   events: [T('aud:kinder', tl('Für Kinder')), T('aud:erwachsene', tl('Für Erwachsene')), T('lesen', tl('Vorlesen')), T('kreativ', tl('Basteln')), T('spiele', tl('Spielen & Medien')),
     T('theater', tl('Theater, Kino & Zirkus')), T('musik', tl('Musik')), T('feste', tl('Feste & Laternen')), T('wissen', tl('Forschen & Wissen')), T('sport', tl('Sport & Toben')), T('kochen', tl('Kochen & Backen')), T('eltern_thema', tl('Elternthemen')), T('flohmarkt', tl('Flohmarkt & Basar'))],
@@ -132,7 +132,8 @@ const TAG_LABEL = {};
 for (const list of Object.values(TAGS)) for (const t of list) TAG_LABEL[t.id] = TAG_LABEL[t.id] || t.label;
 // the single place tags inside Entdecken keep their names (lists, search, quick questions)
 Object.assign(TAG_LABEL, { natur: tl('Natur'), kultur: tl('Kultur'), baden: tl('Baden'), museum: tl('Museen'), theater: tl('Theater & Kino'), buecherei: tl('Bücherhallen'), picknick: tl('Picknick & Grillen'),
-  hundeauslauf: tl('Hundeauslauf'), aussicht: tl('Aussicht'), brunnen: tl('Brunnen'), buecherschrank: tl('Bücherschränke'), faehre: tl('Fähren'), bootsverleih: tl('Boot fahren'), camping: tl('Camping'), ausflugsziel: tl('Ausflugsziele') });
+  hundeauslauf: tl('Hundeauslauf'), indoorspielplatz: tl('Indoor-Spielplatz'), klettern: tl('Klettern & Bouldern'), trampolin: tl('Trampolin'), rodeln: tl('Rodeln'), eislaufen: tl('Eislaufen'),
+  sprachschule: tl('Sprachschulen'), kreativschule: tl('Kreativschulen'), nachhilfe: tl('Nachhilfe'), aussicht: tl('Aussicht'), brunnen: tl('Brunnen'), buecherschrank: tl('Bücherschränke'), faehre: tl('Fähren'), bootsverleih: tl('Boot fahren'), camping: tl('Camping'), ausflugsziel: tl('Ausflugsziele') });
 TAG_LABEL.drinnen = tl('Drinnen'); TAG_LABEL.draussen = tl('Draußen'); TAG_LABEL.groessere = tl('Eher für Größere');
 const IO_GROUPS = ['tipps', 'spielen', 'gastro', 'entdecken'];
 const CAT_ICON = { museum: 'museum', kultur: 'museum', buecherei: 'museum', baden: 'waves', faehre: 'waves', bootsverleih: 'waves', brunnen: 'waves', hundeauslauf: 'paw', buecherschrank: 'museum', kita: 'blocks', schule: 'blocks', wc: 'toilet', apotheke: 'pill' };
@@ -157,7 +158,7 @@ for (const g of GROUPS) for (const c of g.cats) GROUP_OF[c] = g;
 const truthy = v => /^(yes|designated|room|true|ja|1|limited|partial)$/i.test(v) ? (v === 'limited' || v === 'partial' ? 'limited' : 'yes') : /^(no|false|nein|0)$/i.test(v) ? 'no' : null;
 const INDOOR = ['gastro', 'laeden', 'sanitaer', 'gesundheit', 'entdecken', 'spielen', 'familie', 'mobil'];
 const ATTRS = [
-  { id: 'wickeltisch', label: tl('Wickeltisch'), keys: ['changing_table'], groups: INDOOR, q: tl('Gibt es hier einen Wickeltisch?') },
+  { id: 'wickeltisch', label: tl('Wickeltisch'), keys: ['changing_table'], groups: INDOOR, nochipIn: ['sanitaer'], q: tl('Gibt es hier einen Wickeltisch?') },
   { id: 'stillen', label: tl('Stillmöglichkeit'), keys: ['baby_feeding'], groups: INDOOR, q: tl('Kann man hier in Ruhe stillen?'), hide: 1 },
   { id: 'hochstuhl', label: tl('Hochstuhl'), keys: ['highchair'], groups: ['gastro'], q: tl('Gibt es Hochstühle?') },
   { id: 'spielecke', label: tl('Mit Spielecke'), keys: ['kids_area'], groups: ['gastro', 'laeden', 'entdecken', 'gesundheit', 'familie'], q: tl('Gibt es eine Spielecke?') },
@@ -167,14 +168,14 @@ const ATTRS = [
   { id: 'eingezaeunt', label: tl('Eingezäunt'), keys: ['fenced'], groups: ['spielen'], q: tl('Ist der Spielplatz eingezäunt?') },
   { id: 'schatten', label: tl('Schatten'), keys: ['shade'], groups: ['spielen'], q: tl('Gibt es Schatten?'), hide: 1 },
   { id: 'wc_nahe', label: tl('WC in der Nähe'), keys: ['wc_near'], groups: ['spielen'], q: tl('Gibt es ein WC in der Nähe?') },
-  { id: 'wasser', label: tl('Wasserspiel'), keys: ['water_play'], groups: ['spielen'], q: tl('Gibt es ein Wasserspiel?') },
+  { id: 'wasser', label: tl('Wasserspiel'), keys: ['water_play'], groups: ['spielen'], nochipIn: ['spielen'], q: tl('Gibt es ein Wasserspiel?') },
   { id: 'kinderwagen', label: tl('Stufenlos'), keys: ['stroller', 'wheelchair'], q: tl('Kommt man gut mit dem Kinderwagen hin?') },
   { id: 'toilette', label: tl('Toilette'), keys: ['toilets'], groups: ['gastro', 'entdecken', 'spielen', 'laeden'], q: tl('Gibt es eine Toilette?') },
   { id: 'drinnen', label: tl('Drinnen'), keys: ['indoor'], groups: ['spielen', 'entdecken', 'familie'], q: tl('Ist es drinnen oder überdacht?'), nofilter: 1 },
   { id: 'hund', label: tl('Hunde erlaubt'), keys: ['dog'], q: tl('Sind Hunde erlaubt?') },
   { id: 'hst_nahe', label: tl('Haltestelle in der Nähe'), keys: ['stop_near'], groups: ['spielen', 'gastro', 'entdecken', 'gesundheit', 'familie'], nochip: 1 },
   { id: 'baenke', label: tl('Sitzbänke'), keys: ['bench_count'], count: 1, groups: ['spielen', 'entdecken'], nochip: 1 },
-  { id: 'trinkwasser', label: tl('Trinkwasser'), keys: ['drinking_water'], groups: ['spielen', 'entdecken', 'gastro', 'sanitaer'] },
+  { id: 'trinkwasser', label: tl('Trinkwasser'), keys: ['drinking_water'], groups: ['spielen', 'entdecken', 'gastro', 'sanitaer'], nochipIn: ['sanitaer'] },
   { id: 'babyccino', label: tl('Babyccino'), keys: ['babyccino'], groups: ['gastro'], hide: 1 },
   { id: 'kinder_wc', label: tl('Kindertoilette'), keys: ['toilets_children'], groups: INDOOR, nofilter: 1 },
   // pool facts: only offered when "Wasser & Schwimmen" (or bathing places) is chosen
@@ -190,7 +191,7 @@ const ATTRS = [
   { id: 'elementar', label: tl('Elementar (3–6)'), keys: ['elementar'], groups: ['familie'] },
   { id: 'integration', label: tl('Integration'), keys: ['integration'], groups: ['familie'] },
   { id: 'hort', label: tl('Hort'), keys: ['hort'], groups: ['familie'] },
-  { id: 'kostenlos', label: tl('Kostenlos'), keys: ['fee'], invert: true, groups: ['spielen', 'entdecken', 'sanitaer', 'familie'], q: tl('Ist es kostenlos?') },
+  { id: 'kostenlos', label: tl('Kostenlos'), keys: ['fee'], invert: true, groups: ['spielen', 'entdecken', 'sanitaer', 'familie'], nochipIn: ['spielen', 'familie'], q: tl('Ist es kostenlos?') },
 ];
 const ATTR = Object.fromEntries(ATTRS.map(a => [a.id, a]));
 const NO_LABEL = { stillen: tl('Keine Stillmöglichkeit'), spielecke: tl('Keine Spielecke'), kleinkind: tl('Nicht für Kleinkinder'), eingezaeunt: tl('Nicht eingezäunt'), schatten: tl('Wenig Schatten'), kinderwagen: tl('Nicht stufenlos'), toilette: tl('Keine Toilette'), drinnen: tl('Draußen'), hund: tl('Keine Hunde'), baenke: tl('Keine Sitzbänke'), kinder_wc: tl('Keine Kindertoilette'), kostenlos: tl('Kostenpflichtig'), windeln: tl('Keine Windeln'), aufzug_ok: tl('Aufzug außer Betrieb') };
@@ -229,7 +230,7 @@ const PRESETS = [
   // rain: a curated indoor set (no sports clubs): indoor playgrounds, climbing, trampolines, play houses, museums, libraries, kids' cafés, indoor pools
   { id: 'regen', label: tl('Es regnet: drinnen spielen und entdecken'), icon: 'house', groups: ['spielen', 'entdecken', 'gastro'], cats: ['indoor', 'spielhaus'],
     tags: ['indoorspielplatz', 'klettern', 'trampolin', 'spielhaus', 'museum', 'buecherei', 'baden', 'kindercafe'], io: 'drinnen', filters: [] },
-  { id: 'kindercafe', label: tl('Kindercafé'), icon: 'cup', groups: ['gastro'], tags: ['kindercafe'], filters: [] },
+  { id: 'spielecke', label: tl('Café oder Restaurant mit Spielecke'), icon: 'cup', groups: ['gastro'], filters: ['spielecke'] },
   { id: 'kleinkind', label: tl('Spielplatz für die Kleinen'), icon: 'playground', groups: ['spielen'], tags: ['spielplatz'], filters: ['kleinkind'] },
   { id: 'wasser', label: tl('Wasserspielplatz'), icon: 'waves', groups: ['spielen'], tags: ['wasserspiel'], filters: [] },
   { id: 'hitze', label: tl('Es ist heiß: Baden und Wasser'), icon: 'waves', groups: ['spielen', 'entdecken'], tags: ['wasserspiel', 'baden'], filters: [] },
@@ -1139,7 +1140,7 @@ function tagCounts(g) {
     if (!places.length) return [];
     tagCountCache.set(g.id, TAGS[g.id].map(t => [t, n[t.id] || 0]).filter(([, c]) => c));
   }
-  return tagCountCache.get(g.id);
+  return tagCountCache.get(g.id).filter(([t]) => !t.hide || state.tags.has(t.id));
 }
 
 // Panel header: where (Gebiet) and how (Filter), plus the active filters as removable chips.
@@ -1507,9 +1508,12 @@ async function sendPlaceReport() {
 }
 
 // filters
+// a chip shows when it is on, when it finds at least RARE_BELOW places in the selection, or when it is a core family fact
+// (or a live value: 8 pharmacies on duty) that finds any place; the rest is left out
 const RARE_BELOW = 10;
-// always in the main list (never under "Seltene Angaben"), also the live values with few hits (8 pharmacies on duty)
-const CORE_FILTERS = new Set(['jetzt', 'sonntag', 'wickeltisch', 'hochstuhl', 'spielecke', 'kindermenue', 'kinderwagen', 'toilette', 'kleinkind', 'eingezaeunt', 'wasser', 'hund', 'age_fit', 'age_0', 'age_3', 'age_6', 'notdienst', 'aufzug_ok', 'aufzug_kaputt']);
+const CORE_FILTERS = new Set(['jetzt', 'sonntag', 'wickeltisch', 'hochstuhl', 'spielecke', 'kindermenue', 'kinderwagen', 'toilette', 'kleinkind', 'eingezaeunt', 'hund', 'notdienst', 'aufzug_ok', 'aufzug_kaputt']);
+// without a category: only facts that mean the same everywhere (no Kita, playground or age chips)
+const UNIVERSAL_FILTERS = new Set(['wickeltisch', 'kinderwagen', 'toilette', 'hund']);
 // pool facts (Kinderbecken, Wasserrutsche, Babyschwimmen) only make sense once "Wasser & Schwimmen" or bathing places are chosen
 const poolChosen = () => state.tags.has('e_wasser') || state.tags.has('baden') || state.cats.has('baden');
 function filtersView() {
@@ -1520,29 +1524,29 @@ function filtersView() {
 const shownTotal = () => last.match.length + (state.showUnknown ? last.unknown.length : 0);
 // the filter chips themselves: on the Filter page and folded into Suchen
 function filtersBody() {
-  const fits = a => !a.groups || !state.groups.size || [...state.groups].some(g => a.groups.includes(g));
+  const gs = [...state.groups];
+  const fits = a => !gs.length ? UNIVERSAL_FILTERS.has(a.id) : (!a.groups || gs.some(g => a.groups.includes(g))) && !(a.nochipIn && gs.every(g => a.nochipIn.includes(g)));
   const sel = places.filter(inSelection), counts = new Map();
   const count = id => { if (!counts.has(id)) { let n = 0; for (const p of sel) if (filterVal(p, id) === true) n++; counts.set(id, n); } return counts.get(id); };
-  const rare = [];
   const chipFor = x => `<button type="button" class="chip${state.filters.has(x.id) ? ' on' : ''}" data-filter="${x.id}">${esc(x.label)} <span class="n">${nf.format(count(x.id))}</span></button>`;
   const block = (title, all, sorted = false) => {
-    const live = all.filter(x => state.filters.has(x.id) || count(x.id) > 0);
-    const main = live.filter(x => state.filters.has(x.id) || CORE_FILTERS.has(x.id) || count(x.id) >= RARE_BELOW);
-    rare.push(...live.filter(x => !main.includes(x)));
+    const main = all.filter(x => state.filters.has(x.id) || count(x.id) >= RARE_BELOW || (CORE_FILTERS.has(x.id) && count(x.id) > 0));
     if (sorted) main.sort((a, b) => (hasDog() ? (b.id === 'hund') - (a.id === 'hund') : 0) || CORE_FILTERS.has(b.id) - CORE_FILTERS.has(a.id) || count(b.id) - count(a.id));
     return main.length ? `<div class="sec"><h4>${title}</h4><div class="fgrid">${main.map(chipFor).join('')}</div></div>` : '';
   };
-  // stations and lifts have no opening hours of their own
-  const timeBlock = state.groups.size === 1 && state.groups.has('mobil') ? '' : block(tl('Öffnungszeiten'), TIME_FILTERS);
+  // stations and lifts have no opening hours of their own, Kitas and advice centres hardly publish any
+  const timeBlock = gs.length && gs.every(g => g === 'mobil' || g === 'familie') && !TIME_FILTERS.some(f => state.filters.has(f.id)) ? '' : block(tl('Öffnungszeiten'), TIME_FILTERS);
   if (!hasDog()) state.filters.delete('hund');
-  // hidden: facts without data yet (hide), duplicates or dead ones (nofilter), pool facts outside "Wasser & Schwimmen"
-  const attrBlock = block(tl('Ausstattung'), ATTRS.filter(a => fits(a) && !a.hide && !a.nofilter && (!a.pool || poolChosen() || state.filters.has(a.id)) && (a.id !== 'hund' || hasDog())), true);
-  const ageBlock = !state.groups.size || ['spielen', 'entdecken', 'familie'].some(g => state.groups.has(g)) ? block(tl('Alter'), AGE_FILTERS.filter(a => !a.family || hasFamily())) : '';
-  const gearBlock = !state.groups.size || state.groups.has('spielen') ? block(tl('Spielgeräte'), GEAR.filter(g => !g.hide), true) : '';
+  // hidden: facts without data yet (hide), duplicates or dead ones (nofilter), facts shown only on place pages (nochip),
+  // pool facts outside "Wasser & Schwimmen"; an active filter always keeps its chip, so it can be switched off
+  const attrBlock = block(tl('Ausstattung'), ATTRS.filter(a => state.filters.has(a.id) || (fits(a) && !a.hide && !a.nofilter && !a.nochip && (!a.pool || poolChosen()) && (a.id !== 'hund' || hasDog()))), true);
+  // ages of places are mostly unknown (most "0–3" hits were Kitas): Krippe/Elementar and "Für Kleinkinder" say it better.
+  // Age chips appear only when a question set one (Suchen), so it can be switched off.
+  const ageBlock = block(tl('Alter'), AGE_FILTERS.filter(a => state.filters.has(a.id)));
+  const gearBlock = state.groups.has('spielen') || GEAR.some(g => state.filters.has(g.id)) ? block(tl('Spielgeräte'), GEAR.filter(g => !g.hide || state.filters.has(g.id)), true) : '';
   return `<p class="muted text">${tl('Die Zahl zeigt, bei wie vielen Orten wir es sicher wissen. Es können mehr sein.')}</p>
     ${ioAllowed() ? `<div class="sec"><h4>${tl('Drinnen oder draußen')}</h4><div class="fgrid">${[['drinnen', 'house', tl('Drinnen')], ['draussen', 'tree', tl('Draußen')]].map(([id, ic, l]) => `<button type="button" class="chip${state.io === id ? ' on' : ''}" data-io="${id}">${svg(ic)}${l}</button>`).join('')}</div></div>` : ''}
     ${timeBlock}${attrBlock}${ageBlock}${gearBlock}
-    ${rare.length ? `<details class="fold"><summary>${tl('Seltene Angaben')}</summary><div class="fgrid" style="margin-top:10px">${rare.map(chipFor).join('')}</div></details>` : ''}
     <label class="switch" for="unkSwitch">${tl('Orte ohne Angabe blass zeigen')} <input type="checkbox" id="unkSwitch" ${state.showUnknown ? 'checked' : ''}></label>`;
 }
 // area
@@ -1897,11 +1901,14 @@ const fitNames = () => familyAges().filter(k => k.months >= 0).map(k => `${k.nam
 const started = o => o.kind === 'kurs' && !!o.start_date && o.start_date < ymd(today0()) && (!o.end_date || o.end_date >= ymd(today0()));
 const rolling = o => o.kind === 'gruppe' && isRecurring(o) && o.registration === 'offen';
 // Filter sections: inside one section any choice may match, across sections all must. Order as in the sheet (Thema sits between Alter and Preis).
+const offerWithDog = o => ['auch', 'ja', 'leine'].includes(offerDog(o));
+let dogOffers = { n: -1, any: false };
+const anyOfferWithDog = () => { if (dogOffers.n !== OFFERS.length) dogOffers = { n: OFFERS.length, any: OFFERS.some(offerWithDog) }; return dogOffers.any; };
 const EV_SECTIONS = [
   { id: 'time', title: tl('Uhrzeit'), any: true, two: true, items: [['vormittag', tl('Vormittag'), o => hourOf(o) != null && hourOf(o) < 12], ['mittag', tl('Mittag'), o => hourOf(o) >= 12 && hourOf(o) < 15],
     ['nachmittag', tl('Nachmittag'), o => hourOf(o) >= 15 && hourOf(o) < 18], ['abend', tl('Abend'), o => hourOf(o) >= 18]] },
   { id: 'aud', title: tl('Für wen'), any: true, items: [['kinder', tl('Für Kinder'), o => o.audience === 'kinder'], ['erwachsene', tl('Für Erwachsene'), o => o.audience === 'erwachsene'],
-    ['hund', tl('Mit Hund'), o => ['auch', 'ja', 'leine'].includes(offerDog(o)), () => hasDog()]] },
+    ['hund', tl('Mit Hund'), offerWithDog, () => hasDog() && anyOfferWithDog()]] },
   { id: 'age', title: tl('Alter'), any: true, two: true, note: tl('Nur Termine mit Altersangabe, auch geschätzter.'),
     items: [['fit', () => tl('Passt zu ') + fitNames(), o => offerFits(o) === true, () => hasFamily() && familyAges().some(k => k.months >= 0)],
       ['a0', tl('bis 1'), ageIs(0, 12)], ['a1', '1–2', ageIs(12, 36)], ['a3', '3–5', ageIs(36, 72)], ['a6', '6–9', ageIs(72, 120)], ['a10', '10+', ageIs(120, 216)]] },
