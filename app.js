@@ -7,7 +7,7 @@
    User input is stored on this device only until the server exists (server-ready shape, see STORE). */
 'use strict'; // i18n-skip
 
-const VERSION = '0.64';
+const VERSION = '0.65';
 const CONTACT = window.DJUU_CONTACT || {}; // config.js: reports and feedback stay hidden until an address is set
 // Logo on light backgrounds, as specified in the design PDF.
 const LOGO = `<span class="logo" role="img" aria-label="djuu"><span style="color:#6B4EE6">d</span><span style="color:#0E8F84">j</span><span style="color:#D6336C">u</span><span style="color:#CC6A00">u</span>
@@ -220,8 +220,9 @@ const AGE_FILTERS = [{ id: 'age_fit', label: tl('Passt zu unseren Kindern'), fam
 const FILTER_LABEL = Object.fromEntries([...TIME_FILTERS, ...ATTRS, ...GEAR, ...AGE_FILTERS].map(f => [f.id, f.label]));
 const AGES = [{ id: '0-2', label: tl('0–2 Jahre') }, { id: '3-6', label: tl('3–6 Jahre') }, { id: '7+', label: tl('ab 7 Jahre') }];
 const PRESETS = [
-  { id: 'windeln-jetzt', label: tl('Jetzt Windeln kaufen'), icon: 'bag', groups: ['laeden'], cats: ['apotheke'], filters: ['jetzt'] },
-  { id: 'windeln-sonntag', label: tl('Windeln am Sonntag'), icon: 'bag', groups: ['laeden'], cats: ['apotheke'], filters: ['sonntag'] },
+  // nappies: drugstores, supermarkets, kiosks, petrol stations and baby shops (plus pharmacies), never bookshops, markets or toy shops
+  { id: 'windeln-jetzt', label: tl('Jetzt Windeln kaufen'), icon: 'bag', groups: ['laeden'], cats: ['apotheke'], tags: ['drogerie', 'supermarkt', 'spaeti', 'tankstelle', 'baby'], filters: ['jetzt'] },
+  { id: 'windeln-sonntag', label: tl('Windeln am Sonntag'), icon: 'bag', groups: ['laeden'], cats: ['apotheke'], tags: ['drogerie', 'supermarkt', 'spaeti', 'tankstelle', 'baby'], filters: ['sonntag'] },
   { id: 'tipps', label: tl('Djuu-Tipps: was Eltern lieben'), icon: 'star', groups: ['tipps'], filters: [] },
   { id: 'kurse', label: tl('Krabbelgruppen & Kurse'), icon: 'group', groups: ['kurse'], filters: [], termine: { page: 'wiederkehrend', topic: 'krabbelgruppe' } },
   { id: 'wickeln', label: tl('Wickeln unterwegs'), icon: 'baby', groups: ['sanitaer'], tags: ['wickeln'], filters: [] },
@@ -289,6 +290,17 @@ function parseOH(s) {
   }
   for (let d = 0; d < 7; d++) if (week[d] === null) week[d] = [];
   return { week, spill, ph };
+}
+// opening hours the app cannot work with ("Apr-Oct 08:00-20:00; Nov-Mar 09:00-sunset"): readable words, one rule per line
+const OH_WORDS = { Mo: 0, Tu: 1, We: 2, Th: 3, Fr: 4, Sa: 5, Su: 6 };
+const OH_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']; // i18n-skip: OSM syntax
+function ohReadable(s) {
+  return String(s).replace(/"([^"]*)"/g, '$1').split(/\s*;\s*/).filter(Boolean).map(rule => rule
+    .replace(/\b(Mo|Tu|We|Th|Fr|Sa|Su)\b/g, d => I18N_DAYS[OH_WORDS[d]])
+    .replace(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b/g, m => I18N_MONTHS_SHORT[OH_MONTHS.indexOf(m)])
+    .replace(/\bPH\b/g, tl('Feiertage')).replace(/\bSH\b/g, tl('Schulferien')).replace(/\b(off|closed)\b/g, tl('geschlossen'))
+    .replace(/\bsunset\b|\bdusk\b/g, tl('Sonnenuntergang')).replace(/\bsunrise\b|\bdawn\b/g, tl('Sonnenaufgang')).replace(/\bopen\b/g, tl('geöffnet'))
+    .replace(/\bunknown\b/g, tl('unbekannt')).replace(/24\/7/g, tl('rund um die Uhr')).replace(/\s*-\s*/g, '–').replace(/\s*,\s*/g, ', ')).join('\n');
 }
 const dayIdx = date => (date.getDay() + 6) % 7;
 const localYmd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -381,7 +393,6 @@ let store = { contributions: [], confirmations: [], reviews: [], reports: [], ev
 try { Object.assign(store, JSON.parse(localStorage.getItem(STORE_KEY) || '{}')); } catch (e) { /* storage blocked */ }
 store.favorites = store.favorites || [];
 store.savedOffers = store.savedOffers || []; // [{ id, at, snap }]
-store.visits = store.visits || {}; // offer id -> ['YYYY-MM-DD', ...]
 // v0.8: expected date is a full date now; an old 'YYYY-MM' value becomes the middle of that month
 if (store.profile && /^\d{4}-\d{2}$/.test(store.profile.expecting || '')) store.profile.expecting += '-15';
 store.profile = Object.assign({ kids: [], expecting: '', dogs: 0, state: 'DE-HH' }, store.profile || {});
@@ -402,11 +413,13 @@ const photoDB = (() => {
 })();
 async function compressPhoto(file) {
   const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = URL.createObjectURL(file); });
-  const k = Math.min(1, 1280 / Math.max(img.width, img.height));
+  // always a fresh JPEG from a canvas (at most 1600 px, quality 0.85): no camera metadata, and the server takes JPEG only
+  const k = Math.min(1, 1600 / Math.max(img.width, img.height));
   const c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
-  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  const g = c.getContext('2d'); g.fillStyle = '#FFFFFF'; g.fillRect(0, 0, c.width, c.height); // transparent PNGs get a white ground
+  g.drawImage(img, 0, 0, c.width, c.height);
   URL.revokeObjectURL(img.src);
-  return c.toDataURL('image/jpeg', 0.75);
+  return c.toDataURL('image/jpeg', 0.85);
 }
 
 // ---------- State ----------
@@ -421,7 +434,8 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 const nf = new Intl.NumberFormat(LOCALE);
 const fmtDate = t => new Date(t).toLocaleDateString(LOCALE);
 const desktop = () => window.innerWidth >= 900;
-function toast(msg) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, 3000); }
+function toast(msg, ms = 3000) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, ms); }
+const toastLong = msg => toast(msg, 7000); // a longer sentence needs time to be read
 function dist(a, b) {
   const k = Math.PI / 180;
   return 6371000 * Math.hypot((b[1] - a[1]) * k * Math.cos((a[0] + b[0]) * k / 2), (b[0] - a[0]) * k);
@@ -434,9 +448,15 @@ const iconOf = p => CAT_ICON[p.cat] || groupOf(p).icon;
 const badge = (p, cls = 'badge') => `<span class="${cls}" style="--c:${groupOf(p).color}">${svg(iconOf(p), '')}</span>`;
 const origin = () => state.area.type === 'radius' && state.area.center !== 'me' ? state.area.center : state.me || [map.getCenter().lat, map.getCenter().lng];
 
+// entries for a place: this phone's own plus the approved ones of everyone (community.js); reviews alike
+// (called for every place when filtering: no new arrays when there is nothing)
+const NONE = Object.freeze([]);
+const withLocal = (list, pid, more) => list.length ? list.filter(c => c.placeId === pid).concat(more) : more;
+const contribsOf = pid => withLocal(store.contributions, pid, typeof commContribsOf === 'function' ? commContribsOf(pid) : NONE);
+const reviewsOf = pid => withLocal(store.reviews, pid, typeof commReviewsOf === 'function' ? commReviewsOf(pid) : NONE);
 function userAnswers(pid, attrId) {
   const out = [];
-  for (const c of store.contributions) if (c.placeId === pid && c.attrs?.[attrId] && c.attrs[attrId] !== 'unknown') out.push({ v: c.attrs[attrId], at: c.createdAt });
+  for (const c of contribsOf(pid)) if (c.attrs?.[attrId] && c.attrs[attrId] !== 'unknown') out.push({ v: c.attrs[attrId], at: c.createdAt, remote: !!c.remote });
   for (const c of store.confirmations) if (c.placeId === pid && c.attr === attrId) out.push({ v: c.answer, at: c.at });
   return out.sort((a, b) => b.at - a.at);
 }
@@ -460,12 +480,16 @@ function attrVal(p, id) {
 function agesOf(p) {
   const f = p.f, out = [];
   if (f.age_groups) for (const r of f.age_groups[0].split(',')) { const m = r.match(/(\d+)\D+(\d+)/); if (m) out.push([+m[1] * 12, +m[2] * 12]); }
-  if (f.min_age || f.max_age) out.push([(parseInt(f.min_age?.[0]) || 0) * 12, (parseInt(f.max_age?.[0]) || 18) * 12]);
+  const top = p.cat === 'kita' ? (truthy(f.hort?.[0] || '') === 'yes' ? 14 : 6) : 18; // a Kita without an upper age: up to school age
+  if (f.min_age || f.max_age) out.push([(parseInt(f.min_age?.[0]) || 0) * 12, (parseInt(f.max_age?.[0]) || top) * 12]);
   if (f.for_baby || f.for_toddler) out.push([0, 36]);
   return out.length ? out : null;
 }
+// playgrounds without age data: "passt vermutlich" (listed after the ones we know fit), never hidden by an age filter
+const MAYBE_AGE_CATS = new Set(['spielplatz', 'spielstrasse', 'indoor', 'spielhaus']);
 function ageFilter(p, id) {
-  const spans = agesOf(p); if (!spans) return null;
+  const spans = agesOf(p);
+  if (!spans) return MAYBE_AGE_CATS.has(p.cat) && !(p.tags.has('groessere') && id === 'age_0') && (id !== 'age_fit' || familyAges().length) ? 'maybe' : null;
   if (id === 'age_fit') { const kids = familyAges(); return kids.length ? kids.some(k => spans.some(([a, b]) => ageIn(k, a, b))) : null; }
   const a = AGE_FILTERS.find(x => x.id === id);
   return spans.some(([x, y]) => x < a.to && y > a.from);
@@ -515,12 +539,26 @@ function nameLifts() {
     (s.lifts || (s.lifts = [])).push(p.id);
   }
 }
+// Places people added: this phone's own, the approved ones of everyone, and own ones that wait for the check (only on the
+// sender's phone). Rebuilt on every call, as entries get approved, removed or sent. Approved opening hours replace the data's.
+const HOURS_SET = new Map(); // place id -> the data's own opening hours, while approved ones are shown
 function addUserPlaces() {
   SI = null;
-  for (const c of store.contributions) if (c.isNew && !byId.has(c.placeId)) {
-    const p = { id: c.placeId, name: c.name, named: true, cat: c.cat, lat: c.lat, lon: c.lon, district: '', f: {}, srcs: [], tags: new Set([c.cat]), mine: true };
+  for (let i = places.length - 1; i >= 0; i--) if (places[i].user) { byId.delete(places[i].id); places.splice(i, 1); }
+  const add = (c, mine) => {
+    if (byId.has(c.placeId) || !c.cat) return;
+    const p = { id: c.placeId, name: c.name, named: true, cat: c.cat, lat: c.lat, lon: c.lon, district: nearestDistrict(c.lat, c.lon) || '', f: {}, srcs: [], tags: new Set([c.cat]), mine, user: true, pending: !!c.pending };
     if (c.hours) { p.hoursRaw = c.hours; p.oh = parseOH(c.hours); }
     places.push(p); byId.set(p.id, p);
+  };
+  for (const c of store.contributions) if (c.isNew) add(c, true);
+  if (typeof commNewPlaces === 'function') for (const c of commNewPlaces()) add(c, !!c.mine);
+  const hours = typeof commHours === 'function' ? commHours() : new Map();
+  for (const [id, raw] of HOURS_SET) if (!hours.has(id)) { const p = byId.get(id); if (p) { p.hoursRaw = raw || undefined; p.oh = raw ? parseOH(raw) : undefined; delete p.hoursUser; } HOURS_SET.delete(id); }
+  for (const [id, x] of hours) {
+    const p = byId.get(id); if (!p || p.user) continue;
+    if (!HOURS_SET.has(id)) HOURS_SET.set(id, p.hoursRaw || '');
+    p.hoursRaw = x.h; p.oh = parseOH(x.h); p.hoursUser = true;
   }
 }
 
@@ -539,46 +577,108 @@ const WD = I18N_DAYS;
 const titleOf = o => (LANG !== 'de' && o['title_' + LANG]) || o.title;
 function loadOffers(data) {
   const cols = data.cols;
+  HAS_REPEAT = cols.includes('repeat'); // older files without the column: a group or course with a weekday counts as weekly
   OFFERS = data.offers.map(r => Object.fromEntries(cols.map((c, i) => [c, r[i]])));
   OFFER_BY_ID.clear(); for (const o of OFFERS) OFFER_BY_ID.set(o.id, o);
   offersByPlace.clear();
   for (const o of OFFERS) if (o.place_id) (offersByPlace.get(o.place_id) || offersByPlace.set(o.place_id, []).get(o.place_id)).push(o);
   SERIES_N = null; EVB.clear(); TODAY_C.key = ''; // rarity, Termine lists and the map card follow the new data
+  NEW_C.ok = OFFERS.filter(o => seenAgo(o) < NEW_DAYS).length <= OFFERS.length * 0.6; // ~100 % = the day tracking began
 }
 const today0 = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
 const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+// The rhythm of an offer (offers.json `repeat`): 'weekly', 'biweekly', 'monthly' ("jeden letzten Samstag"), 'once', or null
+// = not known: then only the provider's own text and first date are shown, no dates are worked out and no calendar series.
+// Older data without the column: a group or course with a weekday is weekly, one with a period only is 'period' (daily).
+let HAS_REPEAT = false;
+const REPEATS = ['weekly', 'biweekly', 'monthly', 'once'];
+function repeatOf(o) {
+  if (o.kind === 'termin' || o.sessions === 1 || (o.start_date && o.start_date === o.end_date)) return 'once';
+  if (!HAS_REPEAT) return o.weekday != null ? 'weekly' : 'period';
+  const r = REPEATS.includes(o.repeat) ? o.repeat : null;
+  if (r === 'once') return r;
+  if (!r || o.weekday == null) return null;
+  if (r === 'biweekly' && !o.start_date) return null; // every 2 weeks needs the first date to count from
+  return r === 'monthly' && !monthRule(o) ? null : r; // monthly: which week of the month must be known
+}
+const seriesRepeat = r => r === 'weekly' || r === 'biweekly' || r === 'monthly';
+// the first session: the first weekday of the offer on or after its start
+const firstOcc = o => { const s = new Date(o.start_date + 'T00:00'); return addDays(s, (o.weekday - dayIdx(s) + 7) % 7); };
+// which weekday of the month a monthly offer meets: as the provider says it ("jeden 1. Freitag", "letzten Samstag"), else the
+// same "n-th weekday" as its first date (a fifth weekday, or one in the last week the provider calls "letzte": the last one);
+// null when neither is known ("monatlich" without a date: only the provider's text is shown)
+function monthRule(o) {
+  if (o._mr !== undefined) return o._mr;
+  const s = o.schedule || '', said = s.match(/(?:jeden|jede[nm]?|am|every)?\s*([1-4])\.\s*(?:mo|di|mi|do|fr|sa|so)[a-z]*/i);
+  if (/\bletzte[nm]?\b|\blast\b/i.test(s)) return o._mr = { n: 5, last: true };
+  if (said && !/\bund\b|\band\b|,\s*[1-4]\./i.test(s)) return o._mr = { n: +said[1], last: false };
+  if (!o.start_date) return o._mr = null;
+  const a = firstOcc(o), n = Math.ceil(a.getDate() / 7);
+  return o._mr = { n, last: n === 5 };
+}
+const monthHit = (o, d) => { const r = monthRule(o); return r.last ? addDays(d, 7).getMonth() !== d.getMonth() : Math.ceil(d.getDate() / 7) === r.n; };
+// the last day a series can meet: its end date, else the last of its known number of sessions (weekly, every 2 weeks)
+function lastSession(o, rp = repeatOf(o)) {
+  if (o.end_date) return new Date(o.end_date + 'T00:00');
+  if (o.sessions > 1 && o.start_date && (rp === 'weekly' || rp === 'biweekly')) return addDays(firstOcc(o), (o.sessions - 1) * (rp === 'biweekly' ? 14 : 7));
+  return null;
+}
+// no dates known: a group or course whose rhythm the provider does not say clearly (shown with its own text, no date)
+const undated = o => o.kind !== 'termin' && repeatOf(o) === null && !(o.start_date && o.start_date >= ymd(today0()));
 // Next date this offer takes place from day t on (today included), or null. A show or exhibition that started earlier
-// and is still running takes place today.
+// and is still running takes place today; an offer without known dates counts as running (see undated).
 function nextDate(o, t = today0()) {
   const start = o.start_date ? new Date(o.start_date + 'T00:00') : null;
   const end = o.end_date ? new Date(o.end_date + 'T00:00') : null;
-  if (o.kind === 'termin') return start && start >= t ? start : start && end && end >= t ? new Date(t) : null;
-  if (o.weekday != null) {
-    const from = start && start > t ? start : t;
-    const d = new Date(from); d.setDate(d.getDate() + ((o.weekday - dayIdx(d) + 7) % 7));
-    return end && d > end ? null : d;
+  const rp = repeatOf(o);
+  if (rp === 'once') return start && start >= t ? start : start && end && end >= t ? new Date(t) : null;
+  if (seriesRepeat(rp)) {
+    let d = new Date(start && start > t ? start : t); d.setDate(d.getDate() + ((o.weekday - dayIdx(d) + 7) % 7));
+    if (rp === 'biweekly' && Math.round((d - firstOcc(o)) / 6048e5) % 2) d = addDays(d, 7);
+    if (rp === 'monthly') { let i = 0; while (!monthHit(o, d) && i < 6) { d = addDays(d, 7); i++; } if (!monthHit(o, d)) return null; }
+    const last = lastSession(o, rp);
+    return last && d > last ? null : d;
   }
   if (start && start >= t) return start;
-  return end && end >= t ? new Date(t) : null;
+  if (rp === 'period') return end && end >= t ? new Date(t) : null;
+  return !end || end >= t ? new Date(t) : null;
 }
-// minutes after midnight when the offer is over today: its end, else one hour after the start, else the end of the day
-const endMin = o => o.time_to ? +o.time_to.slice(0, 2) * 60 + +o.time_to.slice(3, 5) : o.time_from ? +o.time_from.slice(0, 2) * 60 + +o.time_from.slice(3, 5) + 60 : 24 * 60;
+const hmMin = s => +s.slice(0, 2) * 60 + +s.slice(3, 5);
+// an event over several days (exhibition, festival week): open until the evening of each day
+const multiDay = o => repeatOf(o) === 'once' && !!o.start_date && !!o.end_date && o.end_date > o.start_date;
+// minutes after midnight when the offer is over today: its end, else one hour after the start (an event over several days:
+// the evening), else the end of the day
+const endMin = o => o.time_to && hmMin(o.time_to) > (o.time_from ? hmMin(o.time_from) : 0) ? hmMin(o.time_to) : multiDay(o) ? 20 * 60 : o.time_from ? hmMin(o.time_from) + 60 : 24 * 60;
 // the next date that is not over yet: a session that ended today moves on (a weekly group to next week)
 function nextAfterNow(o) {
   const t = today0(), d = nextDate(o, t);
-  if (!d || +d !== +t) return d;
+  if (!d || +d !== +t || undated(o)) return d;
   const now = new Date();
   if (endMin(o) > now.getHours() * 60 + now.getMinutes()) return d;
   const tm = new Date(t); tm.setDate(tm.getDate() + 1);
   return nextDate(o, tm);
 }
+// one unit per range: "6–18 Mon.", "1–5 J.", "2–5 J."; only a start under one year mixes them ("6 Mon.–5 J.")
 function ageLabel(min, max) {
   if (min == null && max == null) return '';
-  const f = m => m < 24 ? `${m} ${tl('Mon.')}` : tl('{n} J.', { n: Math.floor(m / 12) });
+  const y = m => Math.floor(m / 12), f = m => m < 24 ? `${m} ${tl('Mon.')}` : tl('{n} J.', { n: y(m) });
   if (max == null) return tl('ab {age}', { age: f(min) });
   if (!min) return tl('bis {age}', { age: f(max - 1) });
-  return min < 24 && max <= 25 ? `${min}–${max - 1} ${tl('Mon.')}` : `${f(min)}–${f(max - 1)}`;
+  if (min < 24 && max <= 25) return `${min}–${max - 1} ${tl('Mon.')}`;
+  return min >= 12 ? tl('{n} J.', { n: `${y(min)}–${y(max - 1)}` }) : `${f(min)}–${f(max - 1)}`;
 }
+// the age of an offer; when the provider names none, Djuu may estimate it from the provider and kind of offer (age_guess 1),
+// a family event is "für alle Altersgruppen" (age_guess 2)
+const allAges = o => o.age_guess === 2;
+const offerAge = o => { if (allAges(o)) return tl('für alle Altersgruppen'); const l = ageLabel(o.age_min_m, o.age_max_m); return l && o.age_guess ? `${l} ${tl('(geschätzt)')}` : l; };
+// who it is for, in one short tag: the children's age, "für Erwachsene", or a parents' course with the child's age
+const whoTag = o => o.audience !== 'erwachsene' ? offerAge(o) : o.for_parents && ageLabel(o.age_min_m, o.age_max_m) ? tl('für Eltern, Kind {age}', { age: offerAge(o) }) : tl('für Erwachsene');
+// "neu": first seen in the data within the last 14 days. When most offers (over 60 %) look new at once (the first day of
+// tracking, a rebuilt history), the mark says nothing and stays off.
+const NEW_DAYS = 14;
+const NEW_C = { ok: true };
+const seenAgo = o => o.first_seen ? (today0() - new Date(String(o.first_seen).slice(0, 10) + 'T00:00')) / 864e5 : Infinity;
+const isNewOffer = o => NEW_C.ok && seenAgo(o) < NEW_DAYS;
 // A child's age in months, always worked out from the birth date (never stored, so it grows by itself).
 // The birth date is "YYYY", "YYYY-MM" or "YYYY-MM" plus a day. With the year only, the child may have been born
 // in any month of that year: the age is a range from min to max months and counts as approximate.
@@ -630,11 +730,16 @@ function offerDog(o) {
 }
 const dogChip = v => hasDog() && v ? `<span class="dogchip ${v}">${svg('paw')}${esc(DOG_TEXT[v])}</span>` : '';
 // true = fits one of the children (or the pregnancy), false = fits none, null = no profile / no age info
+// Parents' courses (for_parents) with a child's age (first aid for babies, Babyschlaf) fit by that age, a pregnancy fits those
+// from birth on; without an age they fit babies, toddlers and expecting parents. Other adult offers fit none of the children.
+// A family event for all ages says as little as no age (null). Termine › Für euch (evPersonal) uses exactly this.
 function offerFits(o) {
   if (!hasFamily()) return null;
-  if (o.for_parents) return !!store.profile.expecting || familyAges().some(a => a.min < 3);
-  if (o.age_min_m == null && o.age_max_m == null) return null;
-  return familyAges().some(a => ageIn(a, o.age_min_m ?? 0, o.age_max_m ?? 999));
+  if (allAges(o)) return null;
+  const known = o.age_min_m != null || o.age_max_m != null;
+  if (o.for_parents && !known) return !!store.profile.expecting || familyAges().some(a => a.min < 3);
+  if (!known) return o.audience === 'erwachsene' ? false : null;
+  return familyAges().some(a => ageIn(a, o.age_min_m ?? 0, o.age_max_m ?? 999)) || (!!o.for_parents && !!store.profile.expecting && !o.age_min_m);
 }
 const fmtDay = d => {
   const t = today0(), diff = Math.round((d - t) / 864e5);
@@ -658,20 +763,24 @@ const saveBtn = o => o.id ? `<button type="button" class="savebtn${isSaved(o.id)
 function offerItem(o, nd, opts = {}) {
   const place = o.place_id && byId.get(o.place_id);
   const d = state.me && ((o.lat && o.lon) || place) ? dist(origin(), place ? [place.lat, place.lon] : [o.lat, o.lon]) : null;
-  const fits = offerFits(o), n = o.id ? visitsOf(o.id).length : 0;
-  const tags = [o.audience === 'erwachsene' ? tl('für Erwachsene') : ageLabel(o.age_min_m, o.age_max_m), o.free ? tl('kostenlos') : o.price, o.kind === 'gruppe' ? (isRecurring(o) ? tl('regelmäßig') : tl('offenes Treffen')) : o.kind === 'kurs' ? (o.sessions ? `${tl('Kurs,')} ${o.sessions}×` : tl('Kurs')) : '',
-    o.status === 'ausgebucht' ? tl('Ausgebucht') : '', opts.more ? tl('+{n} weitere Termine', { n: opts.more }) : '']
+  const fits = offerFits(o);
+  const tags = [whoTag(o), o.free ? tl('kostenlos') : o.price, o.kind === 'gruppe' ? (isRecurring(o) ? tl('regelmäßig') : undated(o) ? tl('Termine beim Anbieter') : tl('offenes Treffen')) : o.kind === 'kurs' ? (o.sessions > 1 ? `${tl('Kurs,')} ${o.sessions}×` : tl('Kurs')) : '',
+    o.status === 'ausgebucht' ? tl('Ausgebucht') : '', opts.more ? (opts.more === 1 ? tl('+1 weiterer Termin') : tl('+{n} weitere Termine', { n: opts.more })) : '']
     .filter(Boolean).map(t => `<span>${esc(t)}</span>`).join('');
   const box = opts.timeOnly
     ? (o.time_from ? `<span class="datebox time"><b>${esc(o.time_from)}</b><span>${o.time_to ? tl('bis') + ' ' + esc(o.time_to) : tl('Uhr')}</span></span>` : `<span class="datebox time"><span>${tl('ganztags')}</span></span>`)
-    : `<span class="datebox"><b>${nd ? esc(fmtDay(nd)) : '–'}</b><span>${esc(o.time_from || '')}</span></span>`;
+    : `<span class="datebox"><b>${nd && !undated(o) ? esc(fmtDay(nd)) : '–'}</b><span>${esc(o.time_from || '')}</span></span>`;
   const inner = `${box}
     <span><h3>${esc(titleOf(o))}</h3><span class="meta">${esc(TOPIC_LABEL[o.topic] || '')}${o.venue ? ' · ' + esc(o.venue) : ''}${d != null ? ' · ' + fmtDist(d) : ''}</span>
-    <span class="mini${fits === true ? ' fit' : ''}">${fits === true ? `<span class="fitchip">${tl('passt zu euch')}</span>` : ''}${n ? `<span class="visitchip">${n === 1 ? tl('wart ihr schon') : tl('{n}× dabei', { n })}</span>` : ''}${tags}</span></span><span></span>`;
+    <span class="mini${fits === true ? ' fit' : ''}">${fits === true ? `<span class="fitchip">${tl('passt zu euch')}</span>` : ''}${tags}</span></span><span></span>`;
   return o.id ? `<li class="offrow"><button type="button" class="item offer" data-offer="${o.id}">${inner}</button>${saveBtn(o)}</li>` : `<li><div class="item offer">${inner}</div></li>`;
 }
 
 // ---------- Map ----------
+// Hamburg and the Umland (about 100 km): where places may be added. One box for the app, community.js, mod.js and the
+// server (server/pb_hooks/djuu_community.js BOUNDS): [[south, west], [north, east]]
+const AREA_BOX = [[52.65, 8.48], [54.45, 11.51]];
+const inAreaBox = (lat, lon) => lat > AREA_BOX[0][0] && lat < AREA_BOX[1][0] && lon > AREA_BOX[0][1] && lon < AREA_BOX[1][1];
 // wide enough for the Umland highlights (up to 100 km: Heide Park, Hansa-Park, Walsrode …) and for Neuwerk
 const map = L.map('map', { zoomControl: false, minZoom: 8, maxZoom: 19, maxBounds: [[52.6, 8.3], [54.4, 11.2]] }).setView([53.5600, 9.9800], 13);
 // Simplified, Google-like vector basemap from OpenFreeMap (free, no key). Always the light style (dark was too dark).
@@ -911,20 +1020,26 @@ function compute() {
   const qHits = q ? new Set(searchPlaces(q).map(r => r.p.id)) : null;
   const fs = [...state.filters];
   const res = { match: [], unknown: [] };
+  AGE_MAYBE.clear();
   for (const p of places) {
     if (!inSelection(p)) continue;
     if (qHits && !qHits.has(p.id)) continue;
-    let unk = false, ok = true;
+    let unk = false, ok = true, maybe = false;
     for (const f of fs) {
       const v = filterVal(p, f);
       if (v === null || v === undefined) unk = true;
       else if (v === false) { ok = false; break; }
+      else if (v === 'maybe') maybe = true;
     }
     if (!ok) continue;
+    if (maybe && !unk) AGE_MAYBE.add(p.id);
     (unk ? res.unknown : res.match).push(p);
   }
   return res;
 }
+// places that pass an age filter only as "passt vermutlich" (see ageFilter): listed after the sure ones
+const AGE_MAYBE = new Set();
+const maybeLast = (d, p) => d + (AGE_MAYBE.has(p.id) ? 1e8 : 0);
 let last = { match: [], unknown: [] };
 const shownList = () => state.showUnknown ? last.match.concat(last.unknown) : last.match;
 let onlyMarker = null, shownMk = new Set();
@@ -1110,7 +1225,7 @@ function listView() {
   if (offerGroup()) return offerListView(offerGroup());
   const o = origin(), only = state.onlyPlace && byId.get(state.onlyPlace);
   const shown = only ? [only] : shownList(); // "Nur dieser Ort": the list says what the map shows
-  const sorted = shown.map(p => [dist(o, [p.lat, p.lon]), p]).sort((a, b) => a[0] - b[0]);
+  const sorted = shown.map(p => [dist(o, [p.lat, p.lon]), p]).sort((a, b) => maybeLast(a[0], a[1]) - maybeLast(b[0], b[1]));
   const u = only ? 0 : last.unknown.length;
   const sub = state.filters.size && !only
     ? `${nf.format(last.match.length)} ${tl('passen sicher')}${u ? ` · ${nf.format(u)} ${tl('ohne Angabe')} <button type="button" data-unk="1">${state.showUnknown ? tl('ausblenden') : tl('auch zeigen')}</button>` : ''}`
@@ -1155,8 +1270,9 @@ function itemHtml(p, d, opts = {}) {
     .concat(dogChip(dogOf(p)) || [])
     .concat(chipAttrs(p).map(a => `<span>${esc(a.label)}</span>`)).join('');
   const ot = openText(p) || (opts.hours ? `<span class="muted">${tl('Öffnungszeiten unbekannt')}</span>` : '');
+  const maybe = AGE_MAYBE.has(p.id) ? `<span class="maybe">${tl('Alter: passt vermutlich')}</span>` : '';
   return `<li><button type="button" class="item" data-id="${p.id}">${badge(p)}
-    <span><h3>${esc(p.name)}${p.f.tipp ? ` <span class="tipdot" title="${tl('Djuu-Tipp')}">${svg('star', '')}</span>` : ''}</h3><span class="meta">${esc(CAT_LABEL[p.cat] || '')}${ot ? ' · ' + ot : ''}</span>${yes ? `<span class="mini">${yes}</span>` : ''}</span>
+    <span><h3>${esc(p.name)}${p.f.tipp ? ` <span class="tipdot" title="${tl('Djuu-Tipp')}">${svg('star', '')}</span>` : ''}</h3><span class="meta">${esc(CAT_LABEL[p.cat] || '')}${ot ? ' · ' + ot : ''}</span>${yes || maybe ? `<span class="mini">${yes}${maybe}</span>` : ''}</span>
     <span class="dist">${fmtDist(d)}</span></button></li>`;
 }
 
@@ -1187,11 +1303,21 @@ const CUISINE = { italian: tl('Italienisch'), pizza: tl('Pizza'), pasta: tl('Pas
 const SPORT = { soccer: tl('Fußball'), basketball: tl('Basketball'), multi: tl('Mehrere Sportarten'), table_tennis: tl('Tischtennis'), tennis: tl('Tennis'), swimming: tl('Schwimmen'), climbing: tl('Klettern'), equestrian: tl('Reiten'), gymnastics: tl('Turnen'), handball: tl('Handball'), volleyball: tl('Volleyball'), beachvolleyball: tl('Beachvolleyball'), athletics: tl('Leichtathletik'), hockey: tl('Hockey'), skateboard: tl('Skaten'), rowing: tl('Rudern'), sailing: tl('Segeln'), canoe: tl('Kanu') };
 const sportText = v => (v || '').split(';').map(c => SPORT[c.trim().toLowerCase()]).filter(Boolean).join(', ');
 const cuisineText = v => (v || '').split(';').map(c => CUISINE[c.trim().toLowerCase()]).filter(Boolean).join(', ');
+// photos: ids in this phone's photo store, or addresses of approved photos on the Djuu server (community.js checks them);
+// those of others can be reported ("Melden"), a reported one is gone on this phone at once
 async function photoTags(ids) {
   const out = [];
-  for (const id of ids || []) { try { const d = await photoDB.get(id); if (d) out.push(`<img src="${d}" alt="${tl('Foto von Nutzer')}" loading="lazy">`); } catch (e) { /* ignore */ } }
+  for (const id of ids || []) {
+    if (/^https?:\/\//.test(id)) {
+      if (store.reports.some(x => x.targetId === id)) continue;
+      out.push(`<figure class="uphoto"><img src="${esc(id)}" alt="${tl('Foto von Nutzer')}" loading="lazy"><button type="button" class="linkbtn" data-reportphoto="${esc(id)}">${tl('Melden')}</button></figure>`); continue;
+    }
+    try { const d = await photoDB.get(id); if (d) out.push(`<img src="${d}" alt="${tl('Foto von Nutzer')}" loading="lazy">`); } catch (e) { /* ignore */ }
+  }
   return out.join('');
 }
+// reviews show the month only, never a name
+const fmtMonth = t => new Date(t).toLocaleDateString(LOCALE, { month: 'long', year: 'numeric' });
 async function detailView(id) {
   const p = byId.get(id), f = p.f;
   const d = dist(origin(), [p.lat, p.lon]);
@@ -1209,21 +1335,22 @@ async function detailView(id) {
   const liftLine = lifts.length || p.liftSum ? `<b>${tl('Aufzüge hier:')}</b> ${tl('{n} in Betrieb', { n: nOk })}${broken.length ? `, <span class="badtext">${tl('{n} außer Betrieb', { n: broken.length })}</span> (${broken.map(x => esc(x.name)).join(', ')})` : ''}${cabin} <span class="muted">(${tl('laut hvv')})</span>` : '';
   const phone = f.phone?.[0] ? f.phone[0].split(/[;,]/)[0].trim() : '', tel = phone.replace(/[^+\d]/g, '');
   const dog = dogChip(dogOf(p));
-  const reviews = store.reviews.filter(r => r.placeId === id && !store.reports.some(x => x.targetId === r.id));
+  const reviews = reviewsOf(id).filter(r => !store.reports.some(x => x.targetId === r.id)), mine = contribsOf(id);
   const avg = reviews.filter(r => r.stars).length ? (reviews.reduce((s, r) => s + (r.stars || 0), 0) / reviews.filter(r => r.stars).length).toFixed(1).replace('.', ',') : null;
-  const ages = [...new Set(store.contributions.filter(c => c.placeId === id).flatMap(c => c.ages || []))];
+  const ages = [...new Set(mine.flatMap(c => c.ages || []))];
   const addr = f.address?.[0] || [f.street?.[0], f.housenumber?.[0]].filter(Boolean).join(' ');
-  const webRaw = f.website?.[0], web = webRaw && /^(https?:\/\/|www\.)\S+$|^\S+\.[a-z]{2,}(\/\S*)?$/i.test(webRaw) ? webRaw : null;
+  const web = placeSite(p); // never a host Djuu does not link (hamburg.de, Facebook …)
   const cm = (f.image?.[0] || '').match(/commons(?:\.m)?\.wikimedia\.org\/wiki\/(?:Special:FilePath\/|File:)(.+)$/i) || (f.image?.[0] || '').match(/^File:(.+)$/);
   const stars = f.rating ? Math.round(+f.rating[0] / 2) / 10 : null;
-  const photos = await photoTags(store.contributions.filter(c => c.placeId === id).flatMap(c => c.photoIds || []).concat(reviews.flatMap(r => r.photoIds || [])));
+  const photos = await photoTags(mine.flatMap(c => c.photoIds || [])); // review photos stay with their review
   const extra = [
     f.description && esc(f.description[0]),
     hasDog() && f.dog_rule && `<b>${esc(f.dog_rule[0])}</b>`,
     f.water_status && `<b>${tl('Wasserqualität:')}</b> ${esc(f.water_status[0])}`,
-    f.age_groups && `<b>${tl('Für Altersgruppen:')}</b> ${esc(f.age_groups[0])} ${tl('Jahre')}`,
+    f.age_groups && !f.krippe && !f.elementar && `<b>${tl('Für Altersgruppen:')}</b> ${esc(f.age_groups[0])} ${tl('Jahre')}`, // a Kita says it with Krippe / Elementar
     f.care_types && !f.krippe && !f.elementar && `${tl('Betreuung:')} ${esc(f.care_types[0])}`,
-    f.baby_swimming_courses && `<b>${tl('Babyschwimmen:')}</b> ${esc(f.baby_swimming_courses[0]).slice(0, 280)}`,
+    f.baby_swimming_courses && `<b>${tl('Babyschwimmen:')}</b> ${esc(String(f.baby_swimming_courses[0]).slice(0, 280))}`,
+    f.ekiz && truthy(f.ekiz[0]) === 'yes' && tl('Mit Eltern-Kind-Zentrum'),
     hasDog() && f.dog_offleash && `<b>${f.dog_offleash[0] === 'alle' ? tl('Freilauf für alle Hunde') : f.dog_offleash[0] === 'gepruefte' ? tl('Freilauf nur für geprüfte Hunde (§ 9)') : tl('Nur an der Leine')}</b>`,
     f.services && esc(f.services[0]).slice(0, 280),
     f.transit && p.cat === 'haltestelle' && `<b>${tl('Linien:')}</b> ${esc(f.transit[0])}`,
@@ -1273,23 +1400,24 @@ async function detailView(id) {
     ${extra.length ? `<div class="sec">${extra.map(x => `<p class="text">${x}</p>`).join('')}</div>` : ''}
     <div class="sec"><h4>${tl('Kontakt')}</h4>${addr ? `<p class="text"><a class="contact" href="https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lon}" target="_blank" rel="noopener">${svg('pin')}${esc(addr)}</a></p>` : ''}
       ${phone && tel.length >= 5 ? `<p class="text"><a class="contact" href="tel:${esc(tel)}">${svg('phone')}${esc(phone)}</a></p>` : phone ? `<p class="text">${tl('Telefon:')} ${esc(phone)}</p>` : ''}
-      ${web ? `<p class="text"><a class="contact" href="${esc(web.startsWith('http') ? web : 'https://' + web)}" target="_blank" rel="noopener">${svg('globe')}${tl('Webseite öffnen')}</a></p>` : ''}
+      ${web ? `<p class="text"><a class="contact" href="${esc(web)}" target="_blank" rel="noopener">${svg('globe')}${tl('Webseite öffnen')}</a></p>` : ''}
       <button type="button" class="btn" data-onlyplace="${p.id}">${svg('pin')}${tl('Auf der Karte zeigen')}</button></div>
-    ${p.hoursRaw ? `<details class="fold"><summary>${tl('Öffnungszeiten')}</summary>${!p.oh ? `<p>${esc(p.hoursRaw)}</p>` : p.oh.always ? `<p>${tl('Rund um die Uhr')}</p>` :
-      '<table class="hours">' + p.oh.week.map((r, i) => `<tr class="${i === today ? 'today' : ''}"><td>${DAY_DE[i]}</td><td>${r.length ? r.map(([a, b]) => fmtMin(a) + '–' + fmtMin(b)).join(', ') : tl('geschlossen')}</td></tr>`).join('') + '</table>' + (p.oh.ph ? `<p class="note">${tl('An Feiertagen:')} ${p.oh.ph.length ? p.oh.ph.map(([a, b]) => fmtMin(a) + '–' + fmtMin(b)).join(', ') : tl('geschlossen')}</p>` : `<p class="note">${tl('An Feiertagen wie sonntags, soweit nichts anderes bekannt ist.')}</p>`)}</details>` : ''}
+    ${p.hoursRaw ? `<details class="fold"><summary>${tl('Öffnungszeiten')}</summary>${!p.oh ? `<p>${esc(ohReadable(p.hoursRaw)).replace(/\n/g, '<br>')}</p><p class="note">${tl('So steht es in den Kartendaten.')}</p>` : p.oh.always ? `<p>${tl('Rund um die Uhr')}</p>` :
+      '<table class="hours">' + p.oh.week.map((r, i) => `<tr class="${i === today ? 'today' : ''}"><td>${DAY_DE[i]}</td><td>${r.length ? r.map(([a, b]) => fmtMin(a) + '–' + fmtMin(b)).join(', ') : tl('geschlossen')}</td></tr>`).join('') + '</table>' + (p.hoursUser ? `<p class="note">${tl('Von Eltern eingetragen und geprüft.')}</p>` : '') + (p.oh.ph ? `<p class="note">${tl('An Feiertagen:')} ${p.oh.ph.length ? p.oh.ph.map(([a, b]) => fmtMin(a) + '–' + fmtMin(b)).join(', ') : tl('geschlossen')}</p>` : `<p class="note">${tl('An Feiertagen wie sonntags, soweit nichts anderes bekannt ist.')}</p>`)}</details>` : ''}
     <details class="fold"${reviews.length ? ' open' : ''}><summary>${tl('Bewertungen')}${reviews.length ? ` (${reviews.length})` : ''}</summary>
       <div style="margin-top:8px">${reviews.length ? '' : `<p class="muted text">${tl('Noch keine Bewertung.')}</p>`}
-      ${(await Promise.all(reviews.sort((a, b) => b.at - a.at).map(async r => `<div class="review">${r.stars ? `<b class="stars-read">${'★'.repeat(r.stars)}${'☆'.repeat(5 - r.stars)}</b> ` : ''}<span class="muted">${fmtDate(r.at)}</span>
+      ${(await Promise.all(reviews.sort((a, b) => b.at - a.at).map(async r => `<div class="review">${r.stars ? `<b class="stars-read">${'★'.repeat(r.stars)}${'☆'.repeat(5 - r.stars)}</b> ` : ''}<span class="muted">${esc(fmtMonth(r.at))}</span>
         ${r.text ? `<div>${esc(r.text)}</div>` : ''}${r.photoIds?.length ? `<div class="photos">${await photoTags(r.photoIds)}</div>` : ''}
         <button type="button" class="linkbtn" data-report="${r.id}">${tl('Melden')}</button></div>`))).join('')}
       <button type="button" class="btn" data-rate="${id}" style="margin-top:8px">${tl('Bewerten')}</button></div></details>
     <details class="fold"><summary>${tl('Woher stammen die Infos?')}</summary><div style="margin-top:8px">
       ${known.map(([a, r]) => `<div class="srcrow"><b>${esc(a.label)}</b><span>${r.v === 'yes' ? tl('Ja') : r.v === 'no' ? tl('Nein') : tl('Eingeschränkt')}</span>
-        <span class="s">${r.method === 'user' ? tl('Von Nutzern bestätigt ({n}×, zuletzt {date}, auf diesem Gerät)', { n: r.confirmations.length, date: fmtDate(r.confirmations[0].at) }) : r.method === 'website' ? `${tl('Webseite des Ortes, automatisch gelesen (')}${Math.round((r.conf || .6) * 100)} % sicher)` : r.method === 'computed' ? tl('Aus Kartendaten berechnet') : esc(r.src || '')}</span>
+        <span class="s">${r.method === 'user' ? (r.confirmations[0].remote ? tl('Von Eltern eingetragen und geprüft ({n}×, zuletzt {date})', { n: r.confirmations.length, date: fmtDate(r.confirmations[0].at) }) : tl('Von Nutzern bestätigt ({n}×, zuletzt {date}, auf diesem Gerät)', { n: r.confirmations.length, date: fmtDate(r.confirmations[0].at) })) : r.method === 'website' ? `${tl('Webseite des Ortes, automatisch gelesen (')}${Math.round((r.conf || .6) * 100)} % sicher)` : r.method === 'computed' ? tl('Aus Kartendaten berechnet') : esc(r.src || '')}</span>
         ${r.evidence ? `<q>${esc(r.evidence)}</q>` : ''}</div>`).join('')}
-      ${f.near_name ? `<p class="note">${tl('Der Name ist nur eine Orientierung: abgeleitet aus dem Park oder der nächsten Straße.')}</p>` : ''}<p class="note">${tl('Datensätze:')} ${p.srcs.map(i => esc(SOURCES[i]?.[1]) + ' (' + esc(SOURCES[i]?.[2]) + ')').join(' · ') || tl('von dir eingetragen')}</p></div></details>
-    ${CONTACT.email ? `<button type="button" class="linkbtn" data-reportplace="${id}" style="margin-top:16px">${tl('Stimmt etwas nicht? Ort melden')}</button>` : ''}
-    <p class="note" style="margin-top:12px">${tl('Was du hier einträgst, bleibt bisher auf diesem Gerät.')}</p>`;
+      ${f.near_name ? `<p class="note">${tl('Der Name ist nur eine Orientierung: abgeleitet aus dem Park oder der nächsten Straße.')}</p>` : ''}<p class="note">${tl('Datensätze:')} ${p.srcs.map(i => esc(SOURCES[i]?.[1]) + ' (' + esc(SOURCES[i]?.[2]) + ')').join(' · ') || (p.user && !p.mine ? tl('von Eltern eingetragen und geprüft') : p.pending ? tl('von dir eingetragen, wartet auf Prüfung') : tl('von dir eingetragen'))}</p></div></details>
+    ${typeof commPlaceHtml === 'function' ? commPlaceHtml(id) : ''}
+    ${CONTACT.email || (typeof commSignedIn === 'function' && commSignedIn()) ? `<button type="button" class="linkbtn" data-reportplace="${esc(id)}" style="margin-top:16px">${tl('Stimmt etwas nicht? Ort melden')}</button>` : ''}
+    <p class="note" style="margin-top:12px">${typeof commFootNote === 'function' ? commFootNote() : tl('Was du hier einträgst, bleibt auf diesem Gerät.')}</p>`;
 }
 // events, groups and courses at a place: what is over today is gone, one row per series (a cinema shows a film many times)
 function placeOffersHtml(id) {
@@ -1297,7 +1425,7 @@ function placeOffersHtml(id) {
   if (!list.length) return '';
   const by = new Map();
   for (const x of list) { const k = crossKey(x[1]); (by.get(k) || by.set(k, []).get(k)).push(x); }
-  const groups = [...by.values()].sort((a, b) => (offerFits(b[0][1]) === true) - (offerFits(a[0][1]) === true) || a[0][0] - b[0][0]);
+  const groups = [...by.values()].sort((a, b) => (offerFits(b[0][1]) === true) - (offerFits(a[0][1]) === true) || undated(a[0][1]) - undated(b[0][1]) || a[0][0] - b[0][0]); // without known dates: last
   const kinds = new Set(list.map(([, o]) => o.kind === 'termin' ? 't' : 'k'));
   const title = kinds.size > 1 ? tl('Termine, Gruppen & Kurse') : kinds.has('t') ? tl('Termine') : tl('Gruppen & Kurse');
   return `<div class="sec"><h4>${title}</h4><ol class="list">${groups.slice(0, 8).map(g => offerItem(g[0][1], g[0][0], { more: g.length - 1 })).join('')}</ol>
@@ -1323,14 +1451,27 @@ function bindRate(id) {
     e.preventDefault();
     const err = $('#revErr');
     if (!stars) { err.textContent = tl('Bitte vergib 1 bis 5 Sterne.'); err.hidden = false; return; }
-    const photoIds = [], file = $('#revPhoto').files[0];
+    const photoIds = [], file = $('#revPhoto').files[0], text = $('#revText').value.trim();
+    let photo = null;
     if (file) {
       if (!file.type.startsWith('image/')) { err.textContent = tl('Bitte wähle ein Bild aus (JPG oder PNG).'); err.hidden = false; return; }
-      try { const pid = uid('ph_'); await photoDB.put(pid, await compressPhoto(file)); photoIds.push(pid); }
-      catch (x) { err.textContent = tl('Das Foto konnte nicht gespeichert werden. Versuch es ohne Foto.'); err.hidden = false; return; }
+      try { photo = await compressPhoto(file); } catch (x) { err.textContent = tl('Das Foto konnte nicht gelesen werden. Versuch ein anderes.'); err.hidden = false; return; }
     }
-    store.reviews.push({ id: uid('r_'), placeId: id, stars, text: $('#revText').value.trim(), photoIds, at: Date.now() });
-    save(); toast(tl('Bewertung gespeichert.')); back();
+    // signed in: to the Djuu server, checked before others see it; without an account (or when that fails) on this phone
+    const btn = e.submitter || $('#rateForm [type=submit]'); if (btn) btn.disabled = true;
+    let why = '';
+    if (typeof commSignedIn === 'function' && commSignedIn()) {
+      try { await commSendEntry(id, null, { stars, text, photos: photo ? [photo] : [] }); toast(tl('Danke! Wird kurz geprüft.')); back(); return; }
+      catch (x) { why = x.why || ''; }
+    }
+    if (photo) {
+      try { const pid = uid('ph_'); await photoDB.put(pid, photo); photoIds.push(pid); }
+      catch (x) { err.textContent = tl('Das Foto konnte nicht gespeichert werden. Versuch es ohne Foto.'); err.hidden = false; if (btn) btn.disabled = false; return; }
+    }
+    store.reviews.push({ id: uid('r_'), placeId: id, stars, text, photoIds, at: Date.now() });
+    save();
+    const once = !why && typeof commLocalHint === 'function' && commLocalHint(), hint = why ? `${why} ${tl('Auf diesem Gerät gespeichert.')}` : once ? `${tl('Bewertung auf diesem Gerät gespeichert.')} ${once}` : '';
+    if (hint) { back(); setTimeout(() => toastLong(hint), 50); } else { toast(tl('Bewertung gespeichert.')); back(); }
   };
 }
 
@@ -1342,13 +1483,25 @@ function reportView(id) {
     <div class="fgrid">${REPORT_REASONS.map(r => `<button type="button" class="chip${v.reason === r ? ' on' : ''}" data-reason="${esc(r)}">${esc(r)}</button>`).join('')}</div>
     <div class="field"><label for="repText">${tl('Was stimmt nicht? (freiwillig)')}</label><textarea id="repText" maxlength="500"></textarea></div>
     <p class="error" id="repErr" hidden>${tl('Bitte wähle aus, was nicht stimmt.')}</p>
-    <p class="note">${tl('Dein E-Mail-Programm öffnet sich. Du siehst alles, bevor du es abschickst.')}</p>
-    <div class="sticky-bar"><button type="button" class="btn big primary" data-reportsend="1">${tl('E-Mail vorbereiten')}</button></div>`;
+    ${reportOnline() ? `<p class="note">${tl('Djuu sieht sich das an und korrigiert den Eintrag.')}</p>
+    <div class="sticky-bar"><button type="button" class="btn big primary" data-reportsend="1">${tl('Melden')}</button></div>`
+    : `<p class="note">${tl('Dein E-Mail-Programm öffnet sich. Du siehst alles, bevor du es abschickst.')}</p>
+    <div class="sticky-bar"><button type="button" class="btn big primary" data-reportsend="1">${tl('E-Mail vorbereiten')}</button></div>`}`;
 }
-function sendPlaceReport() {
+// signed in, a report goes to the moderators on the Djuu server; otherwise an e-mail draft
+const reportOnline = () => typeof commSignedIn === 'function' && commSignedIn();
+async function sendPlaceReport() {
   const v = view(), p = byId.get(v.id);
   if (!v.reason) { $('#repErr').hidden = false; return; }
-  const body = [`${tl('Ort:')} ${p.name}`, `${tl('Kennung:')} ${p.id}`, `${tl('Grund:')} ${v.reason}`, $('#repText').value.trim()].filter(Boolean).join('\n');
+  const text = $('#repText').value.trim();
+  if (reportOnline()) {
+    const b = $('[data-reportsend]'); if (b) b.disabled = true;
+    if (await commReportPlace(p.id, [v.reason, text].filter(Boolean).join(': '))) { toast(tl('Danke! Wird kurz geprüft.')); back(); }
+    else if (b) b.disabled = false;
+    return;
+  }
+  if (!CONTACT.email) return;
+  const body = [`${tl('Ort:')} ${p.name}`, `${tl('Kennung:')} ${p.id}`, `${tl('Grund:')} ${v.reason}`, text].filter(Boolean).join('\n');
   location.href = `mailto:${CONTACT.email}?subject=${encodeURIComponent('Djuu: Ort melden')}&body=${encodeURIComponent(body)}`;
   back();
 }
@@ -1728,8 +1881,15 @@ function firstIn(o, a, b) {
   for (let d = new Date(a), i = 0; d <= b && i < 200; d.setDate(d.getDate() + 1), i++) if (occursOn(o, d)) return new Date(d);
   return null;
 }
-// weekly offers with more than one date (a group that meets once is not recurring)
-const isRecurring = o => o.kind !== 'termin' && o.weekday != null && !(o.start_date && o.start_date === o.end_date);
+// series with more than one date: weekly, every 2 weeks or monthly (a group that meets once, or whose rhythm is not known, is not)
+const isRecurring = o => o.kind !== 'termin' && seriesRepeat(repeatOf(o));
+// "jeden Mittwoch", "alle 2 Wochen mittwochs", "jeden letzten Samstag im Monat", "jeden 1. Mittwoch im Monat"
+function rhythmText(o) {
+  const rp = repeatOf(o), day = WD_LONG[o.weekday];
+  if (rp === 'biweekly') return tl('alle 2 Wochen am {day}', { day });
+  if (rp === 'monthly') { const r = monthRule(o); return r.last ? tl('jeden letzten {day} im Monat', { day }) : tl('jeden {n}. {day} im Monat', { n: r.n, day }); }
+  return tl('jeden {day}', { day });
+}
 const hourOf = o => o.time_from ? +o.time_from.slice(0, 2) : null;
 const ageIs = (x, y) => o => (o.age_min_m != null || o.age_max_m != null) && (o.age_min_m ?? 0) < y && (o.age_max_m ?? 999) > x;
 const fitNames = () => familyAges().filter(k => k.months >= 0).map(k => `${k.name} (${ageText(k).replace(' Jahre', ' J.').replace(' Jahr', ' J.').replace(' Monate', tl(' Mon.'))})`).join(', ');
@@ -1742,7 +1902,7 @@ const EV_SECTIONS = [
     ['nachmittag', tl('Nachmittag'), o => hourOf(o) >= 15 && hourOf(o) < 18], ['abend', tl('Abend'), o => hourOf(o) >= 18]] },
   { id: 'aud', title: tl('Für wen'), any: true, items: [['kinder', tl('Für Kinder'), o => o.audience === 'kinder'], ['erwachsene', tl('Für Erwachsene'), o => o.audience === 'erwachsene'],
     ['hund', tl('Mit Hund'), o => ['auch', 'ja', 'leine'].includes(offerDog(o)), () => hasDog()]] },
-  { id: 'age', title: tl('Alter'), any: true, two: true, note: tl('Nur Termine, bei denen der Anbieter ein Alter nennt.'),
+  { id: 'age', title: tl('Alter'), any: true, two: true, note: tl('Nur Termine mit Altersangabe, auch geschätzter.'),
     items: [['fit', () => tl('Passt zu ') + fitNames(), o => offerFits(o) === true, () => hasFamily() && familyAges().some(k => k.months >= 0)],
       ['a0', tl('bis 1'), ageIs(0, 12)], ['a1', '1–2', ageIs(12, 36)], ['a3', '3–5', ageIs(36, 72)], ['a6', '6–9', ageIs(72, 120)], ['a10', '10+', ageIs(120, 216)]] },
   { id: 'price', title: tl('Preis & Anmeldung'), items: [['frei', tl('kostenlos'), o => o.free === 1]] },
@@ -1802,9 +1962,16 @@ function queryTerms(q) {
   const { tokens } = parseQuery(q || '');
   const typoKeys = t => { const m = typoMax(t); return m && !SYN[t] ? Object.keys(SYN).filter(k => typoDist(t, k, m) <= m).flatMap(k => SYN[k]) : []; };
   const stem = t => { const m = t.match(/^(.{4,}?)(kurse?|gruppen?|treffs?|angebote?|termine?|stunden?)$/); return m ? [m[1]] : []; };
-  return tokens.map(t => [t, ...(SYN[t] || []), ...typoKeys(t), ...stem(t)]);
+  // words without a wish of their own ("meine", "für", "Kinder", "my", ask.js FILLER) never filter the list
+  return tokens.filter(t => typeof FILLER === 'undefined' || !FILLER.has(t)).map(t => [t, ...(SYN[t] || []), ...typoKeys(t), ...stem(t)]);
 }
-const offerText = o => o._t || (o._t = norm([o.title, titleOf(o), TOPIC_LABEL[o.topic], o.venue, o.provider].filter(Boolean).join(' ')));
+// the text an offer is searched in: titles, topic, venue, provider, its Stadtteil and Bezirk ("Krabbelgruppe Altona")
+function offerText(o) {
+  if (o._t) return o._t;
+  const d = offerDistrict(o), t = norm([o.title, titleOf(o), TOPIC_LABEL[o.topic], o.venue, o.provider, d, d && GEO_BEZ[d]].filter(Boolean).join(' '));
+  if (GEO.stadtteile.length) o._t = t; // kept once the Bezirke are known
+  return t;
+}
 // offers of the current page as [date, offer]: day pages one row per date in the range (or next 8 weeks), card pages one card per offer.
 // raw = without Wann/Wochentag, Ort and search (for which topics exist on this page at all). Cached per minute and state.
 const EVB = new Map();
@@ -1821,13 +1988,13 @@ function evBase(raw = false, skipPlace = false) {
     if (p === 'einmalig' ? o.kind !== 'termin' : o.kind !== 'kurs' && o.kind !== 'gruppe') continue;
     let d = r ? firstIn(o, r[0], r[1]) : nextDate(o);
     // what is over today moves to its next date (a weekly group, a show that runs for weeks), a single event drops out
-    if (d && +d === +t && endMin(o) <= nowMin) d = r ? (r[1] >= tomorrow ? firstIn(o, tomorrow, r[1]) : null) : nextDate(o, tomorrow);
+    if (d && +d === +t && endMin(o) <= nowMin && !undated(o)) d = r ? (r[1] >= tomorrow ? firstIn(o, tomorrow, r[1]) : null) : nextDate(o, tomorrow);
     if (!d || (!r && d - t >= win)) continue;
     list.push([d, o]);
   }
   if (!raw) {
     if (card && EV.days.size) list = list.filter(([, o]) => EV.days.has(o.weekday));
-    if (card && EV.today) list = list.filter(([d]) => +d === +t);
+    if (card && EV.today) list = list.filter(([d, o]) => +d === +t && !undated(o)); // "Nur heute": what really meets today
     if (A) list = list.filter(([, o]) => evPlaceOk(o, A));
     const terms = queryTerms(EV.q);
     if (terms.length) list = list.filter(([, o]) => { const n = offerText(o); return terms.every(ts => ts.some(w => n.includes(w))); });
@@ -1853,8 +2020,8 @@ function evPersonal(o) {
   if (o.own) return 'in';
   if (o.status === 'ausgebucht') return 'out';
   if (!store.ev.onlyFit || !hasFamily()) return 'in';
-  if (o.audience === 'erwachsene') return o.for_parents && babyOrExpecting() ? 'in' : 'out';
-  const f = offerFits(o);
+  if (allAges(o)) return 'in'; // a family event for all ages
+  const f = offerFits(o); // parents' courses and other adult offers: see offerFits
   return f === true ? 'in' : f === false ? 'out' : 'unk';
 }
 // 1 = in the list, a heading = folded at the end (a detail is not given), 0 = out. What the family hid is out in both views.
@@ -1876,7 +2043,6 @@ function evMissing() {
 function evCtx() {
   const A = evArea(), savedProv = new Set();
   for (const s of store.savedOffers) { const o = OFFER_BY_ID.get(s.id) || s.snap; if (o?.provider) savedProv.add(o.provider); }
-  for (const id of Object.keys(store.visits || {})) { const o = OFFER_BY_ID.get(id); if (o?.provider) savedProv.add(o.provider); }
   return { kids: familyAges().filter(k => k.months >= 0), c: A.c || radiusOrigin() || state.me, savedProv, savedPlace: new Set(store.favorites),
     likeT: new Set(store.ev.like.topics), likeP: new Set(store.ev.like.providers), t: today0() };
 }
@@ -1886,13 +2052,14 @@ function seriesN(o) {
   if (!SERIES_N) {
     SERIES_N = new Map();
     const e = addDays(today0(), 29);
-    for (const x of OFFERS) { const d = nextDate(x); if (d && d <= e) SERIES_N.set(crossKey(x), (SERIES_N.get(crossKey(x)) || 0) + (x.kind === 'termin' ? 1 : 4)); }
+    const per = { weekly: 4, biweekly: 2, monthly: 1 };
+    for (const x of OFFERS) { const d = nextDate(x); if (d && d <= e) SERIES_N.set(crossKey(x), (SERIES_N.get(crossKey(x)) || 0) + (per[repeatOf(x)] || (x.kind === 'termin' ? 1 : 2))); }
   }
   return SERIES_N.get(crossKey(o)) || 1;
 }
 // 1 = an age band that fits, 0.6 = open "ab X" within 3 years, 0.4 = open and far, 0.3 = no age given, 0 = fits none
 function ageScore(o, kids) {
-  if (noAge(o)) return o.for_parents ? 0.6 : 0.3;
+  if (noAge(o) || allAges(o)) return o.for_parents ? 0.6 : 0.3; // "für alle Altersgruppen" counts like no age
   let best = 0;
   for (const k of kids) {
     const lo = o.age_min_m ?? 0, hi = o.age_max_m ?? 999;
@@ -1907,7 +2074,7 @@ function evScore(o, X) {
   let s = 0;
   if (X.kids.length) {
     const a = ageScore(o, X.kids); s += 3 * a;
-    const k = a >= 0.6 && !noAge(o) && X.kids.find(k => ageIn(k, o.age_min_m ?? 0, o.age_max_m ?? 999));
+    const k = a >= 0.6 && !noAge(o) && !allAges(o) && X.kids.find(k => ageIn(k, o.age_min_m ?? 0, o.age_max_m ?? 999));
     if (k) why.push(tl('passt zu {name}', { name: k.name }));
   } else s += 1.5;
   const p = offerPos(o);
@@ -1918,7 +2085,7 @@ function evScore(o, X) {
   if (o.tip) { s += 1; why.push(tl('Djuu-Tipp')); }
   const n = seriesN(o); s += 0.8 / n;
   if (o.kind === 'termin' && n <= 2 && !o.own) why.push(tl('selten'));
-  if (o.first_seen && X.t - new Date(o.first_seen) < 7 * 864e5) { s += 0.5; why.push(tl('neu')); }
+  if (isNewOffer(o)) { s += 0.5; why.push(tl('neu')); }
   if (X.likeT.has(o.topic) || X.likeP.has(o.provider)) { s += 0.7; why.push(tl('mehr davon')); }
   if (started(o)) s -= 2;
   if (o.status === 'ausgebucht') s -= 3;
@@ -2014,11 +2181,12 @@ function eventsView() {
   const nf_ = evActiveCount(), mode = evMode(), r = rangeOf();
   const dateChip = !cardPage() && EV.when === 'datum' && r ? `<button type="button" class="chip on" data-evwhen="datum" aria-pressed="true" aria-label="${tl('Zeitraum entfernen')}">${svg('cal')}${esc(rangeText(r))} ${svg('close')}</button>` : '';
   const quick = cardPage()
-    ? `<div class="row evquick">${EV.today ? `<button type="button" class="chip on" data-evtodayx="1" aria-label="${tl('Nur heute entfernen')}">${svg('check')}${tl('Nur heute')} ${svg('close')}</button>` : ''}${FORMATS.map(([id, l]) => `<button type="button" class="chip${EV.fmt.has(id) ? ' on' : ''}" data-evfmt="${id}" aria-pressed="${EV.fmt.has(id)}">${EV.fmt.has(id) ? svg('check') : ''}${l}</button>`).join('')}</div>${regHtml()}`
+    ? `<div class="row evquick">${EV.today ? `<button type="button" class="chip on" data-evtodayx="1" aria-label="${tl('Nur heute entfernen')}">${svg('check')}${tl('Nur heute')} ${svg('close')}</button>` : ''}${FORMATS.map(([id, l]) => `<button type="button" class="chip${EV.fmt.has(id) ? ' on' : ''}" data-evfmt="${id}" aria-pressed="${EV.fmt.has(id)}">${EV.fmt.has(id) ? svg('check') : ''}${l}</button>`).join('')}${EV.reg ? `<button type="button" class="chip on" data-evreg="alle" aria-label="${tl('Anmeldung: Auswahl entfernen')}">${svg('check')}${EV.reg === 'ohne' ? tl('Ohne Anmeldung') : tl('Mit Anmeldung')} ${svg('close')}</button>` : ''}</div>`
     : `<div class="row evquick">${WHEN_CHIPS.map(([id, l]) => `<button type="button" class="chip${EV.when === id ? ' on' : ''}" data-evwhen="${id}" aria-pressed="${EV.when === id}">${EV.when === id ? svg('check') : ''}${l}</button>`).join('')}${dateChip}</div>`;
   const modes = `<div class="segs evmode" role="tablist" aria-label="${tl('Ansicht')}">${[['fuer', tl('Für euch')], ['alle', tl('Alle')]].map(([id, l]) => `<button type="button" role="tab" aria-selected="${mode === id}" class="${mode === id ? 'on' : ''}" data-evmode="${id}">${l}</button>`).join('')}</div>`;
   const where = mode === 'fuer' ? evStatusHtml() : `<button type="button" class="placechip" data-open="evplace">${svg('pin')}<span>${esc(evPlaceLabel())}</span><small>${tl('Ändern')}</small></button>`;
-  return `<div class="ph"><h2>${tl('Termine')}<span class="sub">${cardPage() ? tl('Kurse, Gruppen und Treffs in Hamburg') : tl('Events mit Datum in Hamburg')}</span></h2>
+  // compact: title, the two pages, Für euch / Alle with its line, search and filter, quick chips – then the first event
+  return `<div class="ph evhead"><h2>${tl('Termine')}</h2>
       <button type="button" class="pillbtn" data-evmap="1">${svg('map')}${tl('Karte')}</button></div>
     <div class="evtabs two" role="tablist">${EV_PAGES.map(([id, l]) => `<button type="button" role="tab" aria-selected="${EV.page === id}" class="${EV.page === id ? 'on' : ''}" data-evpage="${id}">${l}</button>`).join('')}</div>
     ${modes}${where}
@@ -2047,39 +2215,61 @@ function evAreaText() {
 function evListHtml() {
   const fy = forYou(), list = evResults(), t = today0(), r = rangeOf();
   const fresh = DATA_AT.offers ? ` · <span class="freshinline">${svg('check')}${esc(tl('{when} aktualisiert', { when: freshText() }))}</span>` : '';
-  const hol = schoolHoliday(r?.[0] || t);
-  let body;
+  const hol = cardPage() && schoolHoliday(r?.[0] || t);
+  let body, count = list.length;
   if (fy) {
     const X = evCtx(), gs = evGroups(list, X);
     if (cardPage()) gs.sort((a, b) => b.sc - a.sc || a.d - b.d); else gs.sort((a, b) => a.d - b.d || b.sc - a.sc);
-    // highlights only when the list is long enough to need them (else they repeat it)
-    const shown = gs.slice(0, EV.limit), hl = !cardPage() && !EV.q && gs.length > 6 ? evHighlights(X) : [];
+    // highlights only when the list is long enough to need them; what they show is left out of the list below (never twice)
+    const hl = !cardPage() && !EV.q && gs.length > 6 ? evHighlights(X) : [], hk = new Set(hl.map(g => crossKey(g.o)));
+    const rest = hk.size ? gs.filter(g => !hk.has(crossKey(g.o))) : gs, shown = rest.slice(0, EV.limit);
+    count = gs.length; // one entry per series, as shown
     const alle = evWith({ mode: 'alle' }, () => evResults().length);
     body = hlHtml(hl) + (gs.length ? (cardPage() ? `<ol class="list evcards">${shown.map(g => evCardHtml(g.o, g.d, g)).join('')}</ol>` : groupDayList(shown))
-      + (gs.length > EV.limit ? `<button type="button" class="more" data-emore="1">${tl('Mehr anzeigen')}</button>` : '')
+      + (rest.length > EV.limit ? `<button type="button" class="more" data-emore="1">${tl('Mehr anzeigen')}</button>` : '')
       : `<div class="empty"><b>${tl('Für euch ist hier gerade nichts dabei.')}</b>${tl('Probier eine längere Zeit, ein größeres Gebiet oder „Alle“.')}</div>`)
       + (alle > list.length ? `<button type="button" class="btn wide evall" data-evmode="alle">${tl('Alle {n} {unit} zeigen', { n: nf.format(alle), unit: unitOf(alle) })}</button>` : '');
   } else {
     const o0 = origin();
     const near = o => { const p = offerPos(o); return p ? dist(o0, p) : 9e9; };
-    list.sort((a, b) => byDayTime(a, b) || near(a[1]) - near(b[1]));
-    const shown = list.slice(0, EV.limit);
-    body = list.length ? (cardPage() ? `<ol class="list evcards">${shown.map(([d, o]) => evCardHtml(o, d)).join('')}</ol>` : dayListHtml(shown))
-      + (list.length > EV.limit ? `<button type="button" class="more" data-emore="1">${tl('Mehr anzeigen')}</button>` : '')
+    list.sort((a, b) => undated(a[1]) - undated(b[1]) || byDayTime(a, b) || near(a[1]) - near(b[1])); // without known dates: last
+    // Wiederkehrend: the same offer at the same place at several times is one card with its times in one line
+    const cards = cardPage() ? alleCards(list) : null, n = cards ? cards.length : list.length;
+    count = n;
+    body = list.length ? (cards ? `<ol class="list evcards">${cards.slice(0, EV.limit).map(g => evCardHtml(g.o, g.d, g.times ? g : undefined)).join('')}</ol>` : dayListHtml(list.slice(0, EV.limit)))
+      + (n > EV.limit ? `<button type="button" class="more" data-emore="1">${tl('Mehr anzeigen')}</button>` : '')
       : `<div class="empty"><b>${OFFERS.length ? tl('Nichts gefunden.') : tl('Noch keine Termine geladen.')}</b>${OFFERS.length ? tl('Probier eine andere Suche oder weniger Filter.') : ''}</div>`;
     const H = store.ev.hide, nh = H.topics.length + H.providers.length + H.series.length;
     if (nh) body += `<p class="note">${esc(tl('{n} ausgeblendet', { n: nh }))} · <button type="button" class="linkbtn" data-evsettings="1">${tl('Verwalten')}</button></p>`;
   }
   // today's groups and courses on the Heute page (the map card counts the same)
   const wkToday = !cardPage() && EV.when === 'heute' ? evWith({ page: 'wiederkehrend', today: true }, () => evResults().length) : 0;
-  return `<p class="evcount">${nf.format(list.length)} ${unitOf(list.length)}${fresh}</p>
-    ${cardPage() ? '' : ferienCard(14, true)}
+  // the first event comes right after one count line; the holiday card waits at the end of the list
+  return `<p class="evcount">${nf.format(count)} ${unitOf(count)}${fresh}</p>
     ${hol ? `<p class="note" style="margin:0 0 10px">${esc(hol)}${tl(': Viele Kurse pausieren, bitte beim Anbieter nachsehen.')}</p>` : ''}
-    ${wkToday ? `<button type="button" class="foldrow" data-evtoday="1">${svg('repeat')}<span>${esc(tl('Heute außerdem: {n} Gruppen und Kurse', { n: nf.format(wkToday) }))}</span>${svg('next')}</button>` : ''}
+    ${wkToday ? `<button type="button" class="foldrow" data-evtoday="1">${svg('repeat')}<span>${esc(wkToday === 1 ? tl('Heute außerdem: 1 Gruppe oder Kurs') : tl('Heute außerdem: {n} Gruppen und Kurse', { n: nf.format(wkToday) }))}</span>${svg('next')}</button>` : ''}
     ${body}
+    ${cardPage() ? '' : ferienCard(14, true)}
     ${[...evMissing()].map(([label, items]) => { const open = EV.open.has(label); items.sort(byDayTime);
       return `<div class="sec missing"><button type="button" class="foldrow" data-evfold="${esc(label)}" aria-expanded="${open}"><span>${esc((FOLD_TEXT[label] || (n => `${label} (${n})`))(items.length))}</span>${svg(open ? 'up' : 'next')}</button>
       ${open ? (cardPage() ? `<ol class="list evcards">${items.slice(0, 60).map(([d, o]) => evCardHtml(o, d)).join('')}</ol>` : dayListHtml(items.slice(0, 60))) + (items.length > 60 ? `<p class="note">${tl('und {n} weitere', { n: nf.format(items.length - 60) })}</p>` : '') : ''}</div>`; }).join('')}`;
+}
+// Alle › Wiederkehrend: one card per offer and place, its times in one line ("Mi 09:30, 11:00 · Do 10:00"); list order kept
+function alleCards(list) {
+  const by = new Map();
+  for (const x of list) { const k = crossKey(x[1]) + '|' + norm(x[1].venue || ''); (by.get(k) || by.set(k, []).get(k)).push(x); }
+  return [...by.values()].map(items => {
+    // series by weekday ("Sa 13:00, 13:40"), single dates by day ("Sa 21.11. 12:00"); one entry only says nothing: no line
+    const days = new Map(), once = [];
+    for (const [d, o] of items) {
+      if (undated(o)) continue;
+      if (isRecurring(o)) (days.get(o.weekday) || days.set(o.weekday, new Set()).get(o.weekday)).add(o.time_from || '');
+      else once.push(`${fmtDay(d)}${o.time_from ? ' ' + o.time_from : ''}`);
+    }
+    const parts = [...days].sort((a, b) => a[0] - b[0]).map(([d, ts]) => `${WD[d]} ${[...ts].filter(Boolean).sort().join(', ')}`.trim()).concat([...new Set(once)]);
+    const n = [...days.values()].reduce((s, ts) => s + Math.max(1, ts.size), 0) + new Set(once).size;
+    return { o: items[0][1], d: items[0][0], items, venues: 1, times: items.length > 1 && n > 1 ? parts.slice(0, 6).join(' · ') + (parts.length > 6 ? ' …' : '') : '' };
+  });
 }
 // Für euch on a day page: a heading per day, ranked inside the day
 function groupDayList(gs) {
@@ -2104,13 +2294,14 @@ function evPlaceView() {
   return `<div class="ph sheethead"><h2>${tl('Ort')}</h2><button type="button" class="round" data-back="1" aria-label="${tl('Schließen')}">${svg('close')}</button></div>${evPlaceHtml(false)}${evSheetFoot()}`;
 }
 // tags under a title: age, recurring, registration, price, status
-function evTags(o, withRecurring, noFit) {
-  const kids = o.audience === 'erwachsene' ? tl('für Erwachsene') : ageLabel(o.age_min_m, o.age_max_m);
-  const fits = !noFit && offerFits(o) === true; // in Für euch the reason line says it
+function evTags(o, withRecurring, why) {
+  const kids = whoTag(o);
+  const fits = !why?.length && offerFits(o) === true; // in Für euch the reason line says it (and "neu")
   return [fits && `<span class="fitchip">${tl('passt zu euch')}</span>`,
+    isNewOffer(o) && !why?.includes(tl('neu')) && `<span class="tag new">${tl('neu')}</span>`,
     o.status === 'ausgebucht' && `<span class="tag reg">${tl('Ausgebucht')}</span>`,
     kids && `<span>${esc(kids)}</span>`,
-    withRecurring && isRecurring(o) && `<span class="tag rec">${svg('repeat')}${o.kind === 'kurs' ? tl('Kurs') : tl('Gruppe')} · ${tl('jeden {day}', { day: WD_LONG[o.weekday] })}</span>`,
+    withRecurring && isRecurring(o) && `<span class="tag rec">${svg('repeat')}${o.kind === 'kurs' ? tl('Kurs') : tl('Gruppe')} · ${esc(rhythmText(o))}</span>`,
     started(o) && `<span class="tag">${esc(tl('läuft seit {date}', { date: fmtD(new Date(o.start_date + 'T00:00')) }))}</span>`,
     rolling(o) ? `<span class="tag ok">${svg('check')}${tl('Einstieg jederzeit')}</span>` : o.registration === 'offen' && `<span class="tag ok">${svg('check')}${tl('ohne Anmeldung')}</span>`,
     o.registration === 'nötig' && `<span class="tag reg">${svg('edit')}${tl('Anmeldung nötig')}</span>`,
@@ -2123,7 +2314,7 @@ const timeRange = o => o.time_from ? `${o.time_from}${o.time_to ? '–' + o.time
 const evMenuBtn = o => o.id ? `<button type="button" class="evmenubtn" data-evmenu="${esc(o.id)}" aria-label="${tl('Mehr Möglichkeiten')}">${svg('more')}</button>` : '';
 // one row in a day list (Einmalig, Gemerkt); g = its series in Für euch (reason line, other dates)
 function evRowHtml(o, d, g, opts = {}) {
-  const fam = topicFam(o.topic), tags = evTags(o, true, !!g?.why?.length), multi = g && g.items.length > 1;
+  const fam = topicFam(o.topic), tags = evTags(o, true, g?.why), multi = g && g.items.length > 1;
   const dx = opts.from && offerPos(o) ? ' · ' + fmtDist(dist(opts.from, offerPos(o))) : g ? '' : evDistText(o);
   const inner = `<span class="evtime">${o.time_from ? esc(o.time_from) : `<small>${tl('ganztags')}</small>`}</span>
     <span><h3>${esc(titleOf(o))}</h3><span class="meta"><span class="ticon" style="--c:${fam[2]}">${svg(fam[1])}</span>${esc(TOPIC_LABEL[o.topic] || tl('Angebot'))}${o.venue ? ' · ' + esc(o.venue) : ''}${dx}</span>
@@ -2135,7 +2326,9 @@ function evRowHtml(o, d, g, opts = {}) {
 // one card on the Wiederkehrend page
 function evCardHtml(o, nd, g) {
   const fam = topicFam(o.topic), time = timeRange(o), multi = g && g.items.length > 1;
-  const rec = isRecurring(o) ? `${tl('Jeden')} ${WD_LONG[o.weekday]}${time ? ' · ' + time : ''}`
+  const rd = rhythmText(o), un = undated(o);
+  const rec = isRecurring(o) ? `${rd.charAt(0).toUpperCase() + rd.slice(1)}${time ? ' · ' + time : ''}`
+    : un ? (o.schedule ? tl('Laut Anbieter: {text}', { text: o.schedule }) : tl('Termine beim Anbieter'))
     : o.start_date && o.end_date && o.start_date !== o.end_date ? `${fmtShort(new Date(o.start_date + 'T00:00'))} ${tl('bis')} ${fmtShort(new Date(o.end_date + 'T00:00'))}${time ? ' · ' + time : ''}`
     : `${tl('Einmal')}${time ? ' · ' + time : ''}`;
   const act = multi ? `data-evseries="${esc(crossKey(o))}"` : `data-offer="${esc(o.id)}"`;
@@ -2144,9 +2337,10 @@ function evCardHtml(o, nd, g) {
       <span class="evcbody"><h3>${esc(titleOf(o))}</h3><span class="meta">${esc(TOPIC_LABEL[o.topic] || tl('Angebot'))}${o.venue ? ' · ' + esc(o.venue) : ''}${g ? '' : evDistText(o)}</span>
         ${g?.why?.length ? `<span class="why">${esc(g.why.join(' · '))}</span>` : ''}
         <span class="rec">${svg('repeat')}${esc(rec)}</span>
-        ${multi ? `<span class="serline">${esc(seriesText(g))}</span>` : ''}
-        <span class="next">${tl('Nächster Termin:')} ${esc(fmtShort(nd))}${o.sessions ? ` · ${o.sessions} ${tl('Termine')}` : ''}</span>
-        <span class="mini">${evTags(o, false, !!g?.why?.length)}</span></span></button>${saveBtn(o)}${evMenuBtn(o)}</li>`;
+        ${multi && !g.times ? `<span class="serline">${esc(seriesText(g))}</span>` : ''}
+        ${un ? '' : `<span class="next">${tl('Nächster Termin:')} ${esc(fmtShort(nd))}${o.sessions > 1 ? ` · ${tl('{n} Termine', { n: o.sessions })}` : ''}</span>`}
+        ${g?.times ? `<span class="serline">${svg('clock')}${esc(g.times)}</span>` : ''}
+        <span class="mini">${evTags(o, false, g?.why)}</span></span></button>${saveBtn(o)}${evMenuBtn(o)}</li>`;
 }
 // all dates of one series (same provider and title), nearest venue first in its day
 function evSeriesView(key) {
@@ -2420,9 +2614,8 @@ function todayCounts() {
   return TODAY_C;
 }
 
-// Merken and "waren wir schon" for offers; a snapshot keeps a saved offer readable after it leaves the data.
+// Merken for offers; a snapshot keeps a saved offer readable after it leaves the data.
 const isSaved = id => store.savedOffers.some(x => x.id === id);
-const visitsOf = id => store.visits[id] || [];
 function toggleSaved(id) {
   const i = store.savedOffers.findIndex(x => x.id === id);
   if (i >= 0) store.savedOffers.splice(i, 1);
@@ -2443,18 +2636,26 @@ function offerView(id) {
   if (!o) {
     const s = store.savedOffers.find(x => x.id === id);
     return `${head(tl('Termin'))}<div class="empty"><b>${tl('Diesen Termin finden wir nicht mehr.')}</b>${tl('Vielleicht ist er vorbei oder wurde abgesagt.')}</div>
-      ${s ? `<p class="text">${esc(s.snap.title)}</p><a class="btn" href="${esc(s.snap.url)}" target="_blank" rel="noopener">${tl('Beim Anbieter nachsehen')}</a>
+      ${s ? `<p class="text">${esc(s.snap.title)}</p>${safeUrl(s.snap.url) ? `<a class="btn" href="${esc(safeUrl(s.snap.url))}" target="_blank" rel="noopener">${tl('Beim Anbieter nachsehen')}</a>` : ''}
       <button type="button" class="btn" data-saveoffer="${esc(id)}" style="margin-top:8px">${tl('Nicht mehr merken')}</button>` : ''}`;
   }
-  const v = view(), place = o.place_id && byId.get(o.place_id), dates = upcoming(o), saved = isSaved(id), visits = visitsOf(id), fits = offerFits(o);
+  const v = view(), place = o.place_id && byId.get(o.place_id), dates = upcoming(o), saved = isSaved(id), fits = offerFits(o);
   const d = state.me && (place || o.lat) ? dist(origin(), place ? [place.lat, place.lon] : [o.lat, o.lon]) : null;
   const time = o.time_from ? `${o.time_from}${o.time_to ? '–' + o.time_to : ''} ${tl('Uhr')}` : tl('Uhrzeit beim Anbieter');
-  const who = o.audience === 'erwachsene' ? tl('Für Erwachsene') : ageLabel(o.age_min_m, o.age_max_m) ? tl('Für Kinder ') + ageLabel(o.age_min_m, o.age_max_m) : tl('Alter beim Anbieter nachsehen');
+  const who = allAges(o) ? tl('Für alle Altersgruppen') : o.audience === 'erwachsene' ? (o.for_parents && ageLabel(o.age_min_m, o.age_max_m) ? tl('Für Eltern, Kind {age}', { age: offerAge(o) }) : tl('Für Erwachsene')) : offerAge(o) ? tl('Für Kinder ') + offerAge(o) : tl('Alter beim Anbieter nachsehen');
+  const un = undated(o), rd = rhythmText(o);
+  // no usable link of the offer (none, relative, or a host Djuu never links): the place's website, its phone, or the place page
+  const pWeb = placeSite(place), pTel = placePhone(place).replace(/[^+\d]/g, '');
+  const go_ = safeUrl(o.url) ? `<a class="btn big primary" href="${esc(safeUrl(o.url))}" target="_blank" rel="noopener" style="margin-top:16px">${tl('Zum Anbieter')}${o.registration === 'nötig' ? tl(' und anmelden') : ''}</a>`
+    : pWeb ? `<a class="btn big primary" href="${esc(pWeb)}" target="_blank" rel="noopener" style="margin-top:16px">${tl('Webseite des Ortes')}</a><p class="note">${esc(tl('Anmeldung und Infos direkt bei {name}.', { name: o.provider || o.venue || place.name }))}</p>`
+    : pTel.length >= 5 ? `<a class="btn big primary" href="tel:${esc(pTel)}" style="margin-top:16px">${svg('phone')}${tl('Anrufen')}</a><p class="note">${esc(tl('Anmeldung und Infos direkt bei {name}.', { name: o.provider || o.venue || place.name }))}</p>`
+    : place ? `<button type="button" class="btn big primary" data-id="${esc(place.id)}" style="margin-top:16px">${svg('pin')}${tl('Zum Ort')}</button><p class="note">${esc(tl('Anmeldung und Infos direkt bei {name}.', { name: o.provider || o.venue || place.name }))}</p>`
+    : `<p class="text" style="margin-top:16px">${tl('Anmeldung und Infos direkt beim Anbieter:')} <b>${esc(o.provider || o.venue || '')}</b></p>`;
   return `<div class="ph"><button type="button" class="round" data-back="1" aria-label="${tl('Zurück')}">${svg('back')}</button><span style="flex:1"></span>
       <button type="button" class="round" data-home="1" aria-label="${tl('Schließen')}">${svg('close')}</button></div>
-    <div class="hero"><span class="datebox"><b>${dates[0] ? esc(fmtDay(dates[0])) : '–'}</b><span>${esc(o.time_from || '')}</span></span><div style="min-width:0">
+    <div class="hero"><span class="datebox"><b>${dates[0] && !un ? esc(fmtDay(dates[0])) : '–'}</b><span>${esc(o.time_from || '')}</span></span><div style="min-width:0">
       <h2 style="margin:0;font:600 23px/1.15 var(--font-display);text-wrap:balance">${esc(titleOf(o))}</h2>${titleOf(o) !== o.title ? `<p class="note orig" lang="de">${esc(o.title)}</p>` : ''}
-      <div class="status-line"><span>${esc(TOPIC_LABEL[o.topic] || '')}${o.provider ? ' · ' + esc(o.provider) : ''}</span></div></div></div>
+      <div class="status-line"><span>${esc(TOPIC_LABEL[o.topic] || '')}${o.provider ? ' · ' + esc(o.provider) : ''}</span>${isNewOffer(o) ? `<span class="newmark">${tl('neu')}</span>` : ''}</div></div></div>
     <div class="acts">
       <button type="button" class="act${saved ? ' on' : ''}" data-saveoffer="${id}">${svg('heart')}${saved ? tl('Gemerkt') : tl('Merken')}</button>
       <button type="button" class="act${v.cal ? ' on' : ''}" data-calmenu="1">${svg('cal')}${tl('Kalender')}</button>
@@ -2463,34 +2664,79 @@ function offerView(id) {
     </div>
     ${o.status === 'ausgebucht' ? `<p class="note">${tl('Laut Anbieter ausgebucht. Manchmal gibt es eine Warteliste.')}</p>` : ''}
     ${started(o) ? `<p class="note">${esc(tl('Der Kurs läuft seit {date}. Ob ein Einstieg noch geht, weiß der Anbieter.', { date: fmtD(new Date(o.start_date + 'T00:00')) }))}</p>` : ''}
-    ${v.cal ? `<div class="calmenu">${typeof calEdit === 'function' && calSee() && calEdit() ? `<button type="button" class="btn primary" data-calfromoffer="${esc(id)}">${svg('cal')}${tl('In unseren Familienkalender')}</button>` : ''}<button type="button" class="btn" data-ics="${id}">${svg('cal')}${tl('Kalender-Datei (iPhone, Outlook, Android)')}</button>
+    ${v.cal ? `<div class="calmenu">${un ? `<p class="note">${tl('Die Termine stehen nur beim Anbieter. Djuu trägt keine erfundenen Termine ein.')}</p>` : `${typeof calEdit === 'function' && calSee() && calEdit() ? `<button type="button" class="btn primary" data-calfromoffer="${esc(id)}">${svg('cal')}${tl('In unseren Familienkalender')}</button>` : ''}<button type="button" class="btn" data-ics="${id}">${svg('cal')}${tl('Kalender-Datei (iPhone, Outlook, Android)')}</button>
       <a class="btn" href="${esc(gcalUrl(o))}" target="_blank" rel="noopener">${svg('cal')}${tl('Google Kalender')}</a>
-      <p class="note">${tl('Tipp: Lege in deinem Kalender einen Kalender „Familie“ an und wähle ihn beim Eintragen aus. Djuu speichert dabei nichts.')}</p></div>` : ''}
-    <div class="sec"><h4>${tl('Wann')}</h4><p class="text"><b>${esc(time)}</b>${o.kind === 'gruppe' ? (isRecurring(o) ? tl(' · regelmäßige Gruppe') : tl(' · offenes Treffen')) : o.kind === 'kurs' ? ` ${tl('· Kurs')}${o.sessions ? ', ' + o.sessions + tl(' Termine') : ''}` : ''}</p>
-      ${dates.length ? `<p class="text">${dates.map(x => esc(fmtLong(x))).join('<br>')}${o.kind !== 'termin' && dates.length === 6 ? `<br>${tl('und weitere')}` : ''}</p>` : `<p class="muted text">${tl('Keine weiteren Termine bekannt.')}</p>`}
-      ${o.schedule ? `<p class="note">${tl('Laut Anbieter:')} ${esc(o.schedule)}</p>` : ''}</div>
+      <p class="note">${tl('Tipp: Lege in deinem Kalender einen Kalender „Familie“ an und wähle ihn beim Eintragen aus. Djuu speichert dabei nichts.')}</p>`}</div>` : ''}
+    <div class="sec"><h4>${tl('Wann')}</h4><p class="text"><b>${esc(time)}</b>${isRecurring(o) ? ' · ' + esc(rd) : ''}${o.kind === 'gruppe' ? (isRecurring(o) ? tl(' · Gruppe') : un ? '' : tl(' · offenes Treffen')) : o.kind === 'kurs' ? ` ${tl('· Kurs')}${o.sessions > 1 ? ', ' + tl('{n} Termine', { n: o.sessions }) : ''}` : ''}</p>
+      ${un ? `<p class="text">${o.schedule ? `${tl('Laut Anbieter:')} <b>${esc(o.schedule)}</b>` : tl('Die genauen Termine stehen beim Anbieter.')}</p>`
+      : `${dates.length ? `<p class="text">${dates.map(x => esc(fmtLong(x))).join('<br>')}${isRecurring(o) && dates.length === 6 ? `<br>${tl('und weitere')}` : ''}</p>` : `<p class="muted text">${tl('Keine weiteren Termine bekannt.')}</p>`}
+      ${o.schedule ? `<p class="note">${tl('Laut Anbieter:')} ${esc(o.schedule)}</p>` : ''}`}</div>
     <div class="sec"><h4>${tl('Wo')}</h4><p class="text">${o.online ? `<b>${tl('Online')}</b><br>` : ''}${esc(o.venue || '')}${o.address ? `<br>${esc(o.address)}` : ''}${d != null ? `<br><span class="muted">${fmtDist(d)} ${tl('von dir')}</span>` : ''}</p>
       ${place ? `<button type="button" class="btn" data-onlyplace="${place.id}">${svg('pin')}${tl('Auf der Karte')}</button>` : ''}</div>
-    <div class="sec"><h4>${tl('Für wen')}</h4><p class="text">${esc(who)}${fits === true ? ` · <b class="yes">${tl('passt zu euch')}</b>` : ''}</p>${dogChip(offerDog(o)) ? `<div class="facts">${dogChip(offerDog(o))}</div>` : ''}</div>
+    <div class="sec"><h4>${tl('Für wen')}</h4><p class="text">${esc(who)}${fits === true ? ` · <b class="yes">${tl('passt zu euch')}</b>` : ''}</p>${o.age_guess === 1 && ageLabel(o.age_min_m, o.age_max_m) ? `<p class="note">${tl('Alter geschätzt nach Anbieter und Art des Angebots. Genaues beim Anbieter.')}</p>` : ''}${dogChip(offerDog(o)) ? `<div class="facts">${dogChip(offerDog(o))}</div>` : ''}</div>
     <div class="sec"><h4>${tl('Kosten und Anmeldung')}</h4><p class="text">${o.free ? tl('Kostenlos') : o.price ? esc(o.price) : tl('Preis beim Anbieter')}${o.registration ? ' · ' + esc(regText(o)) : ''}</p></div>
-    <a class="btn big primary" href="${esc(o.url)}" target="_blank" rel="noopener" style="margin-top:16px">${tl('Zum Anbieter')}${o.registration === 'nötig' ? tl(' und anmelden') : ''}</a>
-    <p class="note">${tl('Angaben vom Anbieter, ohne Gewähr. Änderungen und Absagen erfährst du dort.')}</p>`;
+    ${go_}
+    <p class="note">${tl('Angaben vom Anbieter, ohne Gewähr. Änderungen und Absagen erfährst du dort.')}</p>
+    ${similarHtml(o)}`;
+}
+// "Ähnliches in der Nähe": the same topic for a fitting age within 5 km (online: other online offers), in the next 14 days,
+// one per series, at most 5, nearest first. Hidden topics, providers and series stay hidden; running courses are left out.
+function similarNearby(o, max = 5) {
+  const pos = offerPos(o);
+  if (o.topic === 'sonstiges' || (!pos && !o.online)) return [];
+  const t = today0(), end = addDays(t, 14), own = crossKey(o), fam = hasFamily();
+  const ageOk = c => fam ? offerFits(c) !== false
+    : noAge(o) || noAge(c) || ((c.age_min_m ?? 0) < (o.age_max_m ?? 999) && (c.age_max_m ?? 999) > (o.age_min_m ?? 0));
+  const out = [];
+  for (const c of OFFERS) {
+    if (c.topic !== o.topic || c.id === o.id || crossKey(c) === own || !!c.online !== !!o.online) continue;
+    if (c.status === 'abgesagt' || c.status === 'ausgebucht' || isHidden(c) || started(c) || (c.audience || '') !== (o.audience || '') || !ageOk(c)) continue;
+    const cp = offerPos(c), m = o.online ? 0 : cp ? dist(pos, cp) : Infinity;
+    if (m > 5000) continue;
+    const d = nextAfterNow(c);
+    if (!d || d > end) continue;
+    out.push([m, d, c]);
+  }
+  out.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const seen = new Set(), res = [];
+  for (const x of out) { const k = crossKey(x[2]); if (seen.has(k)) continue; seen.add(k); res.push(x); if (res.length >= max) break; }
+  return res;
+}
+function similarHtml(o) {
+  const list = similarNearby(o);
+  return list.length ? `<div class="sec similar"><h4>${tl('Ähnliches in der Nähe')}</h4><ol class="list">${list.map(([, d, c]) => offerItem(c, d)).join('')}</ol></div>` : '';
 }
 
 // Calendar: a file any calendar app can import, or Google's own form. Weekly groups repeat, at most 12 weeks.
 const BYDAY = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'];
 const icsText = s => String(s || '').replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/([,;])/g, '\\$1');
 const compact = d => ymd(d).replace(/-/g, '');
+// An event over several days is one entry over all its days (from today on while it runs). A series repeats in its own rhythm
+// (weekly, every 2 weeks, monthly) up to its end, its known number of sessions (COUNT), else 12 weeks (monthly: 6 months).
+// Offers without known dates get no calendar entry at all (the offer page says so).
 function calParts(o) {
-  const day = nextAfterNow(o) || today0(), hm = s => s.replace(':', '') + '00';
+  const day = nextAfterNow(o) || today0(), hm = s => s.replace(':', '') + '00', rp = repeatOf(o), where = [o.venue, o.address].filter(Boolean).join(', ');
   const end = o.time_to && o.time_to > (o.time_from || '') ? o.time_to : o.time_from ? `${String(Math.min(23, +o.time_from.slice(0, 2) + 1)).padStart(2, '0')}${o.time_from.slice(2)}` : null;
-  let rrule = null;
-  if (isRecurring(o)) {
-    const cap = addDays(day, 7 * 11), until = o.end_date && new Date(o.end_date + 'T00:00') < cap ? new Date(o.end_date + 'T00:00') : cap;
-    rrule = `FREQ=WEEKLY;BYDAY=${BYDAY[o.weekday]};UNTIL=${compact(until)}${o.time_from ? 'T225959Z' : ''}`;
+  const info = note => [o.provider, o.free ? tl('Kostenlos') : o.price, regText(o), safeUrl(o.url), note, tl('Ohne Gewähr, bitte beim Anbieter prüfen.')].filter(Boolean).join('\n');
+  if (multiDay(o)) {
+    const last = new Date(o.end_date + 'T00:00'), times = timeRange(o);
+    return { day, start: compact(day), end: compact(addDays(last, 1)), timed: false, rrule: null, desc: info(times ? tl('Täglich {time} Uhr', { time: times }) : ''), where };
   }
-  const desc = [o.provider, o.free ? tl('Kostenlos') : o.price, regText(o), o.url, rrule && !o.end_date ? tl('Wiederholung von Djuu auf 12 Wochen begrenzt.') : '', tl('Ohne Gewähr, bitte beim Anbieter prüfen.')].filter(Boolean).join('\n');
-  return { day, start: o.time_from ? `${compact(day)}T${hm(o.time_from)}` : compact(day), end: end ? `${compact(day)}T${hm(end)}` : compact(addDays(day, 1)), timed: !!o.time_from, rrule, desc, where: [o.venue, o.address].filter(Boolean).join(', ') };
+  let rrule = null, note = '';
+  if (isRecurring(o)) {
+    const by = rp === 'monthly' ? (monthRule(o).last ? '-1' : monthRule(o).n) + BYDAY[o.weekday] : BYDAY[o.weekday];
+    let limit;
+    if (o.sessions > 1 && !o.end_date && rp !== 'monthly') {
+      const step = rp === 'biweekly' ? 14 : 7, passed = o.start_date ? Math.max(0, Math.round((day - firstOcc(o)) / 864e5 / step)) : 0;
+      limit = `COUNT=${Math.max(1, o.sessions - passed)}`;
+    } else {
+      const cap = rp === 'monthly' ? addDays(day, 183) : addDays(day, 7 * 11), e = o.end_date ? new Date(o.end_date + 'T00:00') : null, capped = !(e && e < cap);
+      if (capped) note = rp === 'monthly' ? tl('Wiederholung von Djuu auf 6 Monate begrenzt.') : tl('Wiederholung von Djuu auf 12 Wochen begrenzt.');
+      limit = `UNTIL=${compact(capped ? cap : e)}${o.time_from ? 'T225959Z' : ''}`;
+    }
+    rrule = `FREQ=${rp === 'monthly' ? 'MONTHLY' : 'WEEKLY'}${rp === 'biweekly' ? ';INTERVAL=2' : ''};BYDAY=${by};${limit}`;
+  }
+  return { day, start: o.time_from ? `${compact(day)}T${hm(o.time_from)}` : compact(day), end: end ? `${compact(day)}T${hm(end)}` : compact(addDays(day, 1)), timed: !!o.time_from, rrule, desc: info(note), where };
 }
 function gcalUrl(o) {
   const c = calParts(o), q = new URLSearchParams({ action: 'TEMPLATE', text: titleOf(o), dates: `${c.start}/${c.end}`, details: c.desc, location: c.where });
@@ -2509,7 +2755,7 @@ function icsFile(list, alarm) {
   for (const o of list) {
     const c = calParts(o), tz = c.timed ? ';TZID=Europe/Berlin' : ';VALUE=DATE';
     lines.push('BEGIN:VEVENT', `UID:${o.id}@djuu`, `DTSTAMP:${stamp}`, `DTSTART${tz}:${c.start}`, `DTEND${tz}:${c.end}`, `SUMMARY:${icsText(titleOf(o))}`,
-      `LOCATION:${icsText(c.where)}`, `DESCRIPTION:${icsText(c.desc)}`, `URL:${o.url}`);
+      `LOCATION:${icsText(c.where)}`, `DESCRIPTION:${icsText(c.desc)}`, ...(safeUrl(o.url) ? [`URL:${safeUrl(o.url)}`] : []));
     if (c.rrule) lines.push('RRULE:' + c.rrule);
     if (alarm) lines.push('BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${icsText(titleOf(o))}`, `TRIGGER:-${alarm}`, 'END:VALARM');
     lines.push('END:VEVENT');
@@ -2523,18 +2769,38 @@ function downloadIcs(list, name, alarm) {
   setTimeout(() => URL.revokeObjectURL(url), 5000);
   toast(tl('Kalender-Datei erstellt. Öffne sie, um die Termine einzutragen.'));
 }
+// only http(s) links of the providers; anything else (empty, relative, javascript:, data:) is not shown as a link, and hosts
+// Djuu never links (hamburg.de and all its subdomains, hamburg-tourism.de, Facebook, Instagram, TikTok, X/Twitter) neither
+const BLOCKED_HOST = /(^|\.)(hamburg\.de|hamburg-tourism\.de|facebook\.com|fb\.com|fb\.me|instagram\.com|tiktok\.com|twitter\.com|x\.com)\.?$/i;
+const blockedUrl = u => { try { return BLOCKED_HOST.test(new URL(u).hostname); } catch (e) { return true; } };
+function safeUrl(u) { return typeof u === 'string' && /^https?:\/\/[^\s"'<>]+$/i.test(u) && !blockedUrl(u) ? u : ''; }
+// a place's own website ("www.x.de" too), only when it may be linked
+function placeSite(p) {
+  const w = p?.f?.website?.[0];
+  return w && /^(https?:\/\/|www\.)\S+$|^\S+\.[a-z]{2,}(\/\S*)?$/i.test(w) ? safeUrl(/^https?:/i.test(w) ? w : 'https://' + w) : '';
+}
+const placePhone = p => (p?.f?.phone?.[0] || '').split(/[;,]/)[0].trim();
 function shareOffer(id) {
   const o = OFFER_BY_ID.get(id), d = nextAfterNow(o), url = location.origin + location.pathname + '#o=' + id;
-  const text = `${titleOf(o)}${d ? ', ' + fmtDay(d) : ''}${o.time_from ? ' ' + o.time_from + tl(' Uhr') : ''}${o.venue ? ', ' + o.venue : ''}`;
+  // a real date ("Sa, 21. Nov."), not "Heute": the message may be read tomorrow
+  const text = `${titleOf(o)}${d && !undated(o) ? ', ' + fmtShort(d) : ''}${o.time_from ? ' ' + o.time_from + tl(' Uhr') : ''}${o.venue ? ', ' + o.venue : ''}`;
   if (navigator.share) navigator.share({ title: titleOf(o), text, url }).catch(() => {});
   else navigator.clipboard?.writeText(text + ' ' + url).then(() => toast(tl('Link kopiert.')), () => toast(url));
 }
 // does the offer take place on this day? (single date, weekly group within its run, or course period)
+// (a weekly, fortnightly or monthly series within its run; a course period day by day in older data; an offer whose rhythm
+// is not known only on the provider's first date)
 function occursOn(o, day) {
-  const k = ymd(day), s = o.start_date, e = o.end_date;
-  if (o.kind === 'termin') return s === k || (!!e && s <= k && k <= e);
-  if (o.weekday != null) return o.weekday === dayIdx(day) && (!s || s <= k) && (!e || k <= e);
-  return !!s && s <= k && (!e ? s === k : k <= e);
+  const k = ymd(day), s = o.start_date, e = o.end_date, rp = repeatOf(o);
+  if (rp === 'once') return s === k || (!!e && !!s && s <= k && k <= e);
+  if (seriesRepeat(rp)) {
+    if (o.weekday !== dayIdx(day) || (s && k < s)) return false;
+    const last = lastSession(o, rp); if (last && day > last) return false;
+    if (rp === 'biweekly') return Math.round((day - firstOcc(o)) / 6048e5) % 2 === 0;
+    return rp === 'monthly' ? monthHit(o, day) : true;
+  }
+  if (rp === 'period') return !!s && s <= k && (!e ? s === k : k <= e);
+  return !!s && s === k;
 }
 function favsView() {
   const o = origin();
@@ -2576,14 +2842,14 @@ function ferienView() {
   if (!b) return `${head(tl('Ferien'))}<div class="empty"><b>${breaksFailed ? tl('Die Ferientermine ließen sich gerade nicht laden.') : tl('Keine Ferientermine bekannt.')}</b></div>`;
   const kids = familyAges().filter(k => k.months >= 0), school = kids.filter(k => k.months >= 72), small = kids.filter(k => k.months < 72);
   const state = STATES[store.profile.state || 'DE-HH'];
-  const range = `${fmtD(b.from)} bis ${fmtD(b.to)}`;
+  const range = `${fmtD(b.from)} ${tl('bis')} ${fmtD(b.to)}`;
   const offers = OFFERS.filter(o => (o.kind === 'termin' || o.kind === 'kurs') && o.audience !== 'erwachsene' && offerFits(o) !== false && offerInArea(o)).map(o => {
     for (let d = new Date(Math.max(b.from, today0())); d <= b.to; d.setDate(d.getDate() + 1)) if (occursOn(o, d)) return [new Date(d), o];
     return null;
   }).filter(Boolean).sort((x, y) => x[0] - y[0]);
   const sections = SEASON_IDEAS(b.from.getMonth()).map(([title, ...pairs]) => [title, ideaPlaces(pairs, kids)]).filter(([, l]) => l.length);
   return `${head(esc(b.name), `${esc(range)} · ${esc(state)}`)}
-    ${school.length ? `<p class="text">${tl('Schulfrei für')} ${esc(school.map(k => k.name).join(', '))}.${small.length ? ` ${esc(small.map(k => k.name).join(', '))} ${small.length === 1 ? 'ist' : 'sind'} ${tl('noch nicht in der Schule: Prüft die Schließzeiten eurer Kita.')}` : ''}</p>` : small.length ? `<p class="text">${tl('Noch kein Schulkind dabei, aber Ausflugsziele werden voller und viele Kurse pausieren. Prüft die Schließzeiten eurer Kita.')}</p>` : ''}
+    ${school.length ? `<p class="text">${tl('Schulfrei für')} ${esc(school.map(k => k.name).join(', '))}.${small.length ? ` ${esc(small.length === 1 ? tl('{names} ist noch nicht in der Schule: Prüft die Schließzeiten eurer Kita.', { names: small[0].name }) : tl('{names} sind noch nicht in der Schule: Prüft die Schließzeiten eurer Kita.', { names: small.map(k => k.name).join(', ') }))}` : ''}</p>` : small.length ? `<p class="text">${tl('Noch kein Schulkind dabei, aber Ausflugsziele werden voller und viele Kurse pausieren. Prüft die Schließzeiten eurer Kita.')}</p>` : ''}
     <div class="sec"><h4>${tl('Termine in dieser Zeit')}</h4>${offers.length ? `<ol class="list">${offers.slice(0, 6).map(([d, o]) => offerItem(o, d)).join('')}</ol>${offers.length > 6 ? `<p class="note">${tl('und {n} weitere', { n: nf.format(offers.length - 6) })}</p>` : ''}` : `<p class="muted text">${tl('Noch keine Termine bekannt. Viele Anbieter veröffentlichen ihr Ferienprogramm erst kurz vorher.')}</p>`}</div>
     ${sections.map(([title, list]) => `<div class="sec"><h4>${esc(title)}</h4><ol class="list">${list.map(([d, p]) => itemHtml(p, d)).join('')}</ol></div>`).join('')}
     <p class="note">${state === 'Hamburg' ? '' : tl('Die Ferien gelten für euer Bundesland, die Orte liegen in Hamburg. ')}${tl('Sortiert nach Djuu-Tipps und Entfernung')}${kids.length ? tl(', passend zum Alter, soweit bekannt') : ''}.</p>`;
@@ -2615,6 +2881,13 @@ const COMMON_ATTRS = ['drinnen', 'kinderwagen', 'hund', 'kostenlos'];
 const EXTRA_ATTR = { sonntag_user: { id: 'sonntag_user', label: tl('Sonntags geöffnet') } };
 const wizAttr = id => ATTR[id] || EXTRA_ATTR[id];
 const wiz = { step: 1, data: null, map: null };
+// "Ergänzen" on a place: no type grid, the questions that fit its group (only those the server takes: a question, no computed,
+// counted or live value; pool questions only at bathing places). A new place: the questions of the chosen type.
+function infoAttrs(p) {
+  const g = groupOf(p).id, pool = p.cat === 'baden' || p.tags.has('baden');
+  return ATTRS.filter(a => a.q && (!a.groups || a.groups.includes(g)) && !a.live && !a.count && !['wc_nahe', 'hst_nahe'].includes(a.id) && !COMMON_ATTRS.includes(a.id) && (!a.pool || pool)).map(a => a.id);
+}
+const wizOwnAttrs = d => !d.isNew && byId.get(d.placeId) ? infoAttrs(byId.get(d.placeId)) : WIZ_TYPES.find(t => t.id === d.type)?.attrs || [];
 
 function startWizard({ place, type } = {}) {
   clearSel();
@@ -2654,8 +2927,8 @@ function renderWizard() {
     html = `${head(d.isNew ? tl('Ort hinzufügen') : tl('Infos ergänzen'), d.isNew ? '' : esc(d.name))}${wizHeader()}
       ${d.isNew ? `<div class="minimap" id="wizMap" aria-label="${tl('Position auf der Karte')}"></div>
         <p class="note" id="wizLocNote">${d.locating ? tl('Suche deine Position …') : tl('Zieh den Pin an die richtige Stelle.')}</p>` : ''}
-      <div class="sec"><h4>${tl('Was ist es?')}</h4>
-      <div class="typegrid">${WIZ_TYPES.filter(t => d.isNew || t.id !== 'event').map(t => `<button type="button" class="typebtn${d.type === t.id ? ' on' : ''}" data-type="${t.id}">${svg(t.icon)}<span>${esc(t.label)}</span></button>`).join('')}</div></div>
+      ${d.isNew ? `<div class="sec"><h4>${tl('Was ist es?')}</h4>
+      <div class="typegrid">${WIZ_TYPES.map(t => `<button type="button" class="typebtn${d.type === t.id ? ' on' : ''}" data-type="${t.id}">${svg(t.icon)}<span>${esc(t.label)}</span></button>`).join('')}</div></div>` : ''}
       ${d.isNew ? `<div class="field"><label for="wizName">${tl('Name')}</label><input id="wizName" autocomplete="off" value="${esc(d.name)}" placeholder="${tl('z. B. Spielplatz am Weiher')}" maxlength="80">
         <div class="suggest" id="wizSuggest"></div></div>` : ''}
       ${d.type === 'event' ? `<div class="row2"><div class="field"><label for="wizDate">${tl('Datum')}</label><input id="wizDate" type="date" value="${esc(d.eventDate)}"></div>
@@ -2663,9 +2936,9 @@ function renderWizard() {
       <div class="field"><label for="wizPhoto">${tl('Foto (optional)')}</label><input id="wizPhoto" type="file" accept="image/*" capture="environment">
         ${d.photo ? `<img class="preview" src="${d.photo}" alt="${tl('Vorschau')}">` : ''}<p class="hint-kids">${tl('Bitte keine Gesichter von Kindern zeigen.')}</p></div>`;
   } else if (wiz.step === 2) {
-    const own = type?.attrs || [];
+    const own = wizOwnAttrs(d), place = !d.isNew && byId.get(d.placeId);
     html = `${head(tl('Was gibt es hier?'), tl('Nur antippen, was du sicher weißt'))}${wizHeader()}
-      ${own.length ? `<div class="sec"><h4>${esc(type.label)}</h4>${own.map(triRow).join('')}</div>` : ''}
+      ${own.length ? `<div class="sec"><h4>${esc(place ? CAT_LABEL[place.cat] || place.name : type.label)}</h4>${own.map(triRow).join('')}</div>` : ''}
       <div class="sec"><h4>${tl('Für alle Orte')}</h4>${COMMON_ATTRS.filter(a => !own.includes(a)).map(triRow).join('')}</div>`;
   } else if (wiz.step === 3) {
     html = `${head(tl('Noch etwas?'), tl('Alles freiwillig'))}${wizHeader()}
@@ -2681,7 +2954,7 @@ function renderWizard() {
       <dl class="summary">
         <dt>${tl('Art')}</dt><dd>${esc(type?.label || '–')}</dd><dt>${tl('Name')}</dt><dd>${esc(d.name || '–')}</dd>
         ${d.type === 'event' ? `<dt>${tl('Termin')}</dt><dd>${esc(d.eventDate)} ${esc(d.eventTime)}</dd>` : ''}
-        <dt>${tl('Angaben')}</dt><dd>${ans.length ? ans.map(([k, v]) => `${esc(wizAttr(k).label)}: <b>${v === 'yes' ? tl('Ja') : tl('Nein')}</b>`).join('<br>') : tl('keine')}</dd>
+        <dt>${tl('Angaben')}</dt><dd>${ans.length ? ans.map(([k, v]) => `${esc(wizAttr(k).label)}: <b>${v === 'yes' ? tl('Ja') : v === 'leashed' ? tl('Leine') : tl('Nein')}</b>`).join('<br>') : tl('keine')}</dd>
         ${d.ages.length ? `<dt>${tl('Alter')}</dt><dd>${d.ages.map(a => esc(AGES.find(x => x.id === a).label)).join(', ')}</dd>` : ''}
         ${d.stars ? `<dt>${tl('Bewertung')}</dt><dd>${'★'.repeat(d.stars)}</dd>` : ''}
         ${d.comment ? `<dt>${tl('Kommentar')}</dt><dd>${esc(d.comment)}</dd>` : ''}
@@ -2746,7 +3019,7 @@ function wizNext() {
   if (wiz.step === 1) {
     if (!d.type) return wizError(tl('Bitte wähle aus, was für ein Ort es ist.'));
     if (d.isNew && d.name.trim().length < 2) return wizError(tl('Bitte gib einen Namen ein (mindestens 2 Zeichen).'));
-    if (d.isNew && !(d.lat > 53.39 && d.lat < 53.75 && d.lon > 9.72 && d.lon < 10.33)) return wizError(tl('Der Pin liegt außerhalb von Hamburg. Bitte verschieb ihn.'));
+    if (d.isNew && !inAreaBox(d.lat, d.lon)) return wizError(tl('Der Pin liegt außerhalb von Hamburg und Umgebung. Bitte verschieb ihn.'));
     if (d.type === 'event') {
       if (!d.eventDate) return wizError(tl('Bitte gib das Datum der Veranstaltung an.'));
       if (new Date(d.eventDate) < new Date(new Date().toDateString())) return wizError(tl('Das Datum liegt in der Vergangenheit.'));
@@ -2758,7 +3031,24 @@ function wizNext() {
 }
 async function saveWizard() {
   const d = wiz.data, type = WIZ_TYPES.find(t => t.id === d.type);
-  for (const a of (type?.attrs || []).concat(COMMON_ATTRS)) if (!d.attrs[a]) d.attrs[a] = 'unknown'; // "Weiß nicht" stored explicitly
+  for (const a of wizOwnAttrs(d).concat(COMMON_ATTRS)) if (!d.attrs[a]) d.attrs[a] = 'unknown'; // "Weiß nicht" stored explicitly
+  // signed in: a place entry goes to the Djuu server and is checked there; the own event stays on this phone (as before)
+  let why = '';
+  if (d.type !== 'event' && typeof commSignedIn === 'function' && commSignedIn()) {
+    const btn = $('#wizNext'); if (btn) btn.disabled = true;
+    const c = { isNew: d.isNew, type: d.type, cat: type.cat, name: d.name.trim(), lat: d.lat, lon: d.lon, attrs: d.attrs, ages: d.ages, hours: d.hours.trim(), photos: d.photo ? [d.photo] : [] };
+    const rv = d.stars || d.comment.trim() ? { stars: d.stars || 0, text: d.comment.trim() } : null;
+    try {
+      const r = commPayloads(c, rv).length ? await commSendEntry(d.placeId, c, rv) : null;
+      return wizThanks(r ? r.placeId || d.placeId : d.placeId, r ? 'sent' : 'nothing');
+    } catch (e) {
+      if (e.partial) { // the place went up, the review did not: the review stays on this phone
+        if (rv) { store.reviews.push({ id: uid('r_'), placeId: e.partial.newId || d.placeId, stars: rv.stars, text: rv.text, photoIds: [], at: Date.now() }); save(); }
+        return wizThanks(e.partial.newId || d.placeId, 'sent', e.why);
+      }
+      why = e.why || '';
+    }
+  }
   const photoIds = [];
   if (d.photo) { try { const id = uid('ph_'); await photoDB.put(id, d.photo); photoIds.push(id); } catch (e) { toast(tl('Foto konnte nicht gespeichert werden.')); } }
   if (d.type === 'event') {
@@ -2769,14 +3059,25 @@ async function saveWizard() {
     if (d.stars || d.comment.trim()) store.reviews.push({ id: uid('r_'), placeId, stars: d.stars || 0, text: d.comment.trim(), photoIds: [], at: Date.now() });
     d.placeId = placeId;
   }
-  save(); addUserPlaces();
-  const p = byId.get(d.placeId), area = p?.district || nearestDistrict(d.lat, d.lon);
+  save();
+  wizThanks(d.placeId, 'local', why);
+}
+// the page after saving: sent (checked before others see it), nothing new to send, or kept on this phone
+function wizThanks(placeId, mode, why = '') {
+  const d = wiz.data;
+  addUserPlaces();
+  const p = placeId && byId.get(placeId), area = p?.district || nearestDistrict(d.lat, d.lon);
   wiz.data = null;
   refresh();
   stack = [{ type: 'list' }];
+  const where = area ? ' ' + tl('in {area}', { area: esc(dLabel(area)) }) : '';
+  const hint = mode === 'local' && !why && typeof commLocalHint === 'function' ? commLocalHint() : '';
+  const text = mode === 'sent' ? `${tl('Wird kurz geprüft. Bis dahin siehst nur du deinen Beitrag.')}${why ? ' ' + esc(why) : ''}`
+    : mode === 'nothing' ? tl('Es gab nichts Neues zu senden.')
+    : `${tl('Dein Eintrag')}${where} ${tl('ist auf diesem Gerät gespeichert.')}${why ? ' ' + esc(why) : ''}${hint ? ' ' + esc(hint) : ''}`;
   go({ type: 'thanks', html: `<div class="thanks">${BALLS_THANKS}<svg viewBox="0 0 24 24" width="64" height="64" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="#0E8F84"/><path d="M7 12.5l3.2 3L17 9" stroke="#FFFFFF" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    <h2>${tl('Gespeichert')}</h2><p>${tl('Dein Eintrag')}${area ? ' ' + tl('in {area}', { area: esc(dLabel(area)) }) : ''} ${tl('ist auf diesem Gerät gespeichert. Andere sehen ihn noch nicht.')}</p>
-    <div style="display:flex;gap:8px;margin-top:10px">${p ? `<button type="button" class="btn primary" data-id="${p.id}">${tl('Ort ansehen')}</button>` : ''}<button type="button" class="btn" data-home="peek">${tl('Fertig')}</button></div></div>` }, desktop() ? 'full' : 'half');
+    <h2>${mode === 'local' ? tl('Gespeichert') : tl('Danke!')}</h2><p>${text}</p>
+    <div style="display:flex;gap:8px;margin-top:10px">${p ? `<button type="button" class="btn primary" data-id="${esc(p.id)}">${tl('Ort ansehen')}</button>` : ''}<button type="button" class="btn" data-home="peek">${tl('Fertig')}</button></div></div>` }, desktop() ? 'full' : 'half');
 }
 function nearestDistrict(la, lo) {
   let best = null, bd = 1500;
@@ -2860,11 +3161,11 @@ document.addEventListener('click', async e => {
     if (list) { list.splice(+i, 1); saveEv(); afterEvChange(); }
   }
   else if (ds.evprefsreset) {
-    const before = JSON.parse(JSON.stringify(store.ev));
+    const before = JSON.parse(JSON.stringify(store.ev)), mode0 = EV.mode, gps0 = EV.place.gps; // undo brings the view back as it was
     Object.assign(store.ev, { mode: '', placeSet: false, onlyFit: true, hide: { topics: [], providers: [], series: [] }, like: { topics: [], providers: [] }, days: [], time: [] });
     EV.mode = ''; Object.assign(EV.place, { mode: 'all', gps: null, km: 5 }); EV.place.districts.clear(); EV.days.clear(); for (const k of EV_TIME_KEYS) EV.f.delete(k);
     saveEv(); afterEvChange();
-    undoToast(tl('Termine-Einstellungen zurückgesetzt.'), () => { Object.assign(store.ev, before); evRestore(); });
+    undoToast(tl('Termine-Einstellungen zurückgesetzt.'), () => { Object.assign(store.ev, before); evRestore(); EV.mode = mode0; EV.place.gps = gps0; });
   }
   else if (ds.evhomex) { store.ev.home = null; saveEv(); afterEvChange(); }
   else if (ds.evseries != null) go({ type: 'evseries', key: ds.evseries }, 'full');
@@ -2925,11 +3226,9 @@ document.addEventListener('click', async e => {
     if (ds.inline) { const on = isSaved(ds.saveoffer); document.querySelectorAll(`.savebtn[data-saveoffer="${ds.saveoffer}"]`).forEach(b => { b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); b.setAttribute('aria-label', on ? tl('Nicht mehr merken') : tl('Merken')); }); }
     else renderPanel();
   }
-  else if (ds.visit) { const k = ymd(today0()), l = store.visits[ds.visit] || (store.visits[ds.visit] = []); if (l[l.length - 1] !== k) l.push(k); save(); toast(tl('Eingetragen: ihr wart dabei.')); renderPanel(); }
-  else if (ds.unvisit) { const l = store.visits[ds.unvisit] || []; l.pop(); if (!l.length) delete store.visits[ds.unvisit]; save(); renderPanel(); }
   else if (ds.calmenu) { view().cal = !view().cal; renderPanel(); }
   else if (ds.calfromoffer) { const o = OFFER_BY_ID.get(ds.calfromoffer), nd = o && nextDate(o); calAddFromOffer(ds.calfromoffer, nd ? `${nd.getFullYear()}-${String(nd.getMonth() + 1).padStart(2, '0')}-${String(nd.getDate()).padStart(2, '0')}` : ''); }
-  else if (ds.ics) { const list = ds.ics === 'saved' ? store.savedOffers.map(s => OFFER_BY_ID.get(s.id)).filter(o => o && nextDate(o)) : [OFFER_BY_ID.get(ds.ics)]; downloadIcs(list, ds.ics === 'saved' ? 'djuu-gemerkte-termine.ics' : 'djuu-termin.ics'); }
+  else if (ds.ics) { const list = ds.ics === 'saved' ? store.savedOffers.map(s => OFFER_BY_ID.get(s.id)).filter(o => o && nextDate(o) && !undated(o)) : [OFFER_BY_ID.get(ds.ics)]; downloadIcs(list, ds.ics === 'saved' ? 'djuu-gemerkte-termine.ics' : 'djuu-termin.ics'); }
   else if (ds.shareoffer) shareOffer(ds.shareoffer);
   else if (ds.clearq) { state.q = ''; state.sq = ''; refresh(); }
   else if (ds.clearsel) { state.evRange = null; state.evIds = null; state.groups.clear(); state.cats.clear(); state.tags.clear(); state.preset = null; state.q = ''; state.sq = ''; state.io = null; state.level = 0; state.listLimit = 40; refresh(); }
@@ -2967,7 +3266,19 @@ document.addEventListener('click', async e => {
   else if (ds.wx) { if (ds.wx === 'rain') { if (state.preset === 'regen') { state.preset = null; state.groups.clear(); state.cats.clear(); state.tags.clear(); state.io = null; refresh(); } else applyPreset('regen'); } else applyPreset('hitze'); }
   else if (ds.addkid) { store.profile.kids.push({ id: pbId(), name: '', ym: '' }); save(); renderPanel(); setTimeout(() => $('#kidYm' + (store.profile.kids.length - 1))?.focus(), 50); }
   else if (ds.delkid) { store.profile.kids.splice(+ds.delkid, 1); save(); renderPanel(); }
-  else if (ds.report) { store.reports.push({ targetType: 'review', targetId: ds.report, at: Date.now() }); save(); toast(tl('Auf diesem Gerät ausgeblendet.')); renderPanel(); }
+  else if (ds.report) {
+    // hidden here at once; a review of others also goes to the moderators when signed in
+    store.reports.push({ targetType: 'review', targetId: ds.report, at: Date.now() }); save(); renderPanel();
+    const sent = typeof commReportReview === 'function' ? commReportReview(ds.report) : Promise.resolve(false);
+    sent.then(ok => { if (ok) toast(tl('Danke! Wird kurz geprüft.')); else if (ok === false) toast(tl('Auf diesem Gerät ausgeblendet.')); });
+  }
+  else if (ds.reportphoto) {
+    // a photo of others: hidden here at once; signed in it also goes to the moderators (community.js)
+    const url = ds.reportphoto;
+    store.reports.push({ targetType: 'photo', targetId: url, at: Date.now() }); save(); renderPanel();
+    const sent = typeof commReportPhoto === 'function' ? commReportPhoto(url) : Promise.resolve(false);
+    sent.then(ok => { if (ok) toast(tl('Danke! Wird kurz geprüft.')); else if (ok === false) toast(tl('Auf diesem Gerät ausgeblendet.')); });
+  }
   else if (ds.sos) go({ type: 'sos', kind: ds.sos });
 });
 document.addEventListener('click', e => { if (e.target.closest('#evmenu [data-saveoffer]')) setTimeout(closeEvMenu); }, true);
@@ -3136,6 +3447,7 @@ $('#panelBody').innerHTML = `<div class="ph"><h2>${tl('Lade Orte …')}</h2></di
     SOURCES = data.sources;
     for (const row of data.places) { const p = buildPlace(row); places.push(p); byId.set(p.id, p); }
     nameLifts();
+    if (typeof commStart === 'function') commStart(); // approved entries of everyone (kept copy at once, news from the server later)
     addUserPlaces();
     if (store.area && store.area.type) { state.area = store.area; drawArea(); if (state.area.center === 'me') locate(false); }
     refresh();

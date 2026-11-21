@@ -352,7 +352,7 @@ def wanted(t):
     if narrowed: return extra_category(t)
     cat = categorize(t)
     if cat in (None, 'wickel'): cat = extra_category(t) or cat  # a dentist with a changing table stays a dentist
-    if cat is None and any(k in t for k in FAMILY_TAGS): cat = 'familienfreundlich'
+    if cat is None and any(t.get(k) not in (None, 'no', 'none') for k in FAMILY_TAGS): cat = 'familienfreundlich'  # 'changing_table=no' is no family place
     return cat
 
 

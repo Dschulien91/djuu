@@ -6,9 +6,9 @@
 'use strict'; // i18n-skip
 
 // ---------- People, groups and access ----------
-const AREAS = [['shop', tl('Einkauf')], ['errands', tl('Besorgungen')], ['cal', tl('Kalender')], ['saved', tl('Gemerkt')]];
+const AREAS = [['shop', tl('Einkauf und Packlisten')], ['errands', tl('Besorgungen und To-dos')], ['cal', tl('Kalender')], ['saved', tl('Gemerkt')], ['care', tl('Notfall-Infos')]];
 const LEVELS = [['none', tl('Kein Zugriff')], ['view', tl('Ansehen')], ['edit', tl('Mitbearbeiten')]];
-const DEFAULT_PERMS = { family: { shop: 'edit', errands: 'edit', cal: 'edit', saved: 'edit' }, helper: { shop: 'view', errands: 'view', cal: 'view', saved: 'none' } };
+const DEFAULT_PERMS = { family: { shop: 'edit', errands: 'edit', cal: 'edit', saved: 'edit', care: 'edit' }, helper: { shop: 'view', errands: 'view', cal: 'view', saved: 'none', care: 'none' } };
 const ROLES_ME = [tl('Mama'), tl('Papa'), tl('Elternteil'), tl('Bezugsperson'), tl('Anderes …'), tl('Lieber nicht sagen')];
 const ROLES_FAMILY = [tl('Partner:in'), tl('Elternteil'), tl('Oma / Opa'), tl('Tante / Onkel'), tl('Anderes …')];
 const ROLES_HELPER = [tl('Babysitter:in'), tl('Tagesmutter / -vater'), tl('Freund:in'), tl('Nachbar:in'), tl('Anderes …')];
@@ -47,7 +47,7 @@ function perm(area) {
   if (!me) return 'none';
   if (me.admin) return 'edit';
   if (expired(me)) return 'none';
-  return me.perms?.[area] || 'edit';
+  return me.perms?.[area] || (area === 'care' ? 'view' : 'edit');
 }
 const W = { onb: 1, add: { grp: 'family', role: '', perms: null, until: '', name: '' }, place: null, fitDraft: null, savedTab: 'orte', savedWho: '', remind: null, busy: false };
 
@@ -102,8 +102,8 @@ function adultSub(a) {
   const parts = [];
   if (a.role) parts.push(tl(a.role));
   if (a.grp === 'helper' && a.until) parts.push(`${tl('bis')} ${fmtUntil(a.until)}`);
-  else if (!a.admin && a.perms && Object.values(a.perms).some(x => x !== 'edit') && seen.length) parts.push(tl('Sieht ') + seen.join(tl(' und ')));
-  if (!parts.length && a.email && (isAdmin() || a.id === meId())) parts.push(a.email); // e-mails only for the admin
+  else if (!a.admin && a.perms && Object.values(a.perms).some(x => x !== 'edit') && seen.length) parts.push(tl('Sieht ') + (seen.length > 1 ? seen.slice(0, -1).join(', ') + tl(' und ') + seen[seen.length - 1] : seen[0]));
+  if (!parts.length && emailOf(a.id) && (isAdmin() || a.id === meId())) parts.push(emailOf(a.id)); // e-mails only for the admin (the server sends no others)
   return parts.join(' · ');
 }
 
@@ -121,8 +121,10 @@ const reloginHint = () => auth?.ended ? `<p class="hintbox">${tl('Bitte melde di
 function goneView() {
   const g = auth.gone || {};
   const d = g.date ? new Date(g.date + 'T12:00').toLocaleDateString(LOCALE, { day: 'numeric', month: 'long', year: 'numeric' }) : '';
-  const title = g.kind === 'expired' ? (d ? tl('Dein Zugang ist am {date} abgelaufen.', { date: d }) : tl('Dein Zugang ist abgelaufen.')) : tl('Euer Wir gibt es nicht mehr.');
+  const title = g.kind === 'expired' ? (d ? tl('Dein Zugang ist am {date} abgelaufen.', { date: d }) : tl('Dein Zugang ist abgelaufen.'))
+    : g.kind === 'left' ? tl('Du hast das Wir verlassen.') : tl('Euer Wir gibt es nicht mehr.');
   const text = g.kind === 'expired' ? tl('Der Admin kann ihn verlängern. Du kannst auch ein eigenes Wir anlegen oder einer neuen Einladung folgen.')
+    : g.kind === 'left' ? tl('Dein Konto bleibt. Du kannst ein neues Wir anlegen oder einer Einladung folgen.')
     : tl('Vielleicht wurde es gelöscht oder du wurdest entfernt. Du kannst ein neues Wir anlegen oder einer Einladung folgen.');
   return `<div class="wirhead guest"><span class="av lg ghost">${svg('user')}</span><h2>${tl('Wir')}</h2></div>
     <div class="empty"><b>${esc(title)}</b>${esc(text)}</div>
@@ -133,6 +135,7 @@ function wirHub() {
   if (!hasToken() && !auth?.ended) return guestHub();
   if (auth.ended && !auth.family) return loginView();
   if (!auth.family) return SY.invite ? joinView() : auth.gone ? goneView() : onboardingView(); // the first step creates the Wir
+  if (!store.onboarded && meAdult() && !meAdult().admin) { store.onboarded = true; saveLocal(); } // the first steps are for the person creating the Wir
   if (!store.onboarded) return onboardingView();
   const ms = members(), kids = ms.filter(m => m.kid), adults = store.profile.adults;
   const fam = adults.filter(a => a.grp !== 'helper').length, help = adults.filter(a => a.grp === 'helper').length;
@@ -148,7 +151,8 @@ function wirHub() {
   const more = over ? [`<button type="button" class="avbtn" data-wir="people" aria-label="${tl('Alle anzeigen')}"><span class="av more">+${all - room}</span></button>`] : [];
   const shown = humans.slice(0, h).concat(dg ? [`<span class="avsep" aria-hidden="true"></span>`].concat(pets.slice(0, dg)) : [], more);
   const shop = perm('shop'), err = perm('errands'), cal = typeof calSee === 'function' && calSee() ? perm('cal') : 'none';
-  const n = openItems().length, e = store.errands.filter(x => x.state !== 'gekauft').length;
+  const n = openItems('').length, e = store.errands.filter(x => x.state !== 'gekauft').length;
+  const lists = typeof listsSee === 'function' && listsSee();
   const tile = (open, icon, title, n_) => `<button type="button" class="tile" data-wir="${open}"><span class="navic">${svg(icon)}</span>${n_ ? `<span class="n">${n_}</span>` : ''}<b>${title}</b><small>${signedIn() ? tl('Gemeinsam') : tl('Auf diesem Gerät')}</small></button>`;
   const placesSub = store.places.filter(p => p.mine !== false).map(p => tl(p.name)).slice(0, 3).join(', ');
   const me = meAdult();
@@ -159,9 +163,10 @@ function wirHub() {
         ${isAdmin() ? `<button type="button" class="avbtn" data-wir="add" aria-label="${tl('Person hinzufügen')}"><span class="av add">${svg('plus')}</span></button>` : ''}</div>
       <p class="note">${count || tl('Noch niemand eingetragen.')}</p></div>
     ${typeof calTodayHtml === 'function' ? calTodayHtml() : ''}
-    ${shop !== 'none' || err !== 'none' || cal !== 'none' ? `<div class="tiles">${shop !== 'none' ? tile('shop', 'cart', tl('Einkauf'), n) : ''}${err !== 'none' ? tile('errands', 'list', tl('Besorgungen'), e) : ''}${cal !== 'none' ? tile('cal', 'cal', tl('Kalender'), 0) : ''}</div>` : ''}
+    ${shop !== 'none' || err !== 'none' || cal !== 'none' ? `<div class="tiles">${shop !== 'none' ? tile('shop', 'cart', tl('Einkauf'), n) : ''}${err !== 'none' ? tile('errands', 'list', tl('Besorgungen'), e) : ''}${cal !== 'none' ? tile('cal', 'cal', tl('Kalender'), 0) : ''}${lists ? tile('lists', 'check', tl('Listen'), 0) : ''}</div>` : ''}
     ${ferienCard(9999, true)}
     <div class="card navlist">
+      ${careSee() && (store.kidCare || []).length ? navRow('carelist', 'heart', tl('Notfall-Infos'), esc(careKidsText())) : ''}
       ${navRow('places', 'pin', tl('Meine Orte'), esc(placesSub ? placesSub + (store.places.length > 3 ? ' …' : '') : tl('Zuhause, Arbeit, Kita …')))}
       ${me?.grp === 'helper' ? '' : navRow('fit', 'star', tl('Was passt zu euch?'), tl('Freiwillig · für passende Vorschläge'))}
       ${navRow('settings', 'gear', tl('Einstellungen'), tl('Benachrichtigungen, Karte, Sprache'))}
@@ -259,11 +264,41 @@ function peopleView() {
     ${group(tl('Kinder'), tl('Nur ein Eintrag, kein Zugang'), kids.map(m => { const k = kidById(m.id); return row(m, kidAgeText(k) + (k.approx && !k.remote ? ` · ${tl('Geburtsdatum ergänzen')}` : ''), null); }))}
     ${canEditFamily() && !isAdmin() ? `<button type="button" class="linkbtn plus" data-addkidpage="1">${svg('plus')}${tl('Kind hinzufügen')}</button>` : ''}
     ${group(tl('Helfer:innen'), tl('Du bestimmst, was sie sehen'), adults.filter(a => a.grp === 'helper').map(adultRow))}
+    ${invitesHtml()}
     ${meAdult()?.grp === 'helper' ? '' : `<div class="sec dogsec"><h4>${tl('Hunde')}<small>${tl('Für Hinweise, wo Hunde erlaubt sind')}</small></h4>
       ${dogs().length ? `<ol class="card plist dogs">${dogs().map(d => `<li><button type="button" class="prow" data-wirdog="${d.id}">${dogAv(d)}<span class="navtx"><b>${esc(dogName(d))}</b></span>${svg('next')}</button></li>`).join('')}</ol>` : ''}
       ${canEditFamily() ? `<button type="button" class="linkbtn plus" data-adddog="1">${svg('plus')}${tl('Hund hinzufügen')}</button>` : ''}</div>`}
     ${moreAboutHtml()}
     ${isAdmin() ? `<div class="stick"><button type="button" class="btn big primary" data-wir="add">${svg('plus')}${tl('Person hinzufügen')}</button></div>` : ''}`;
+}
+// Personen › Eingeladen (admins): invite links that were sent and not used yet; a link can be taken back
+function invitesHtml() {
+  if (!isAdmin()) return '';
+  if (!W.invFresh) { W.invFresh = true; loadInvites(); }
+  const now = Date.now(), list = (W.invites || []).filter(i => i && i.id && !(Date.parse(String(i.expires || '').replace(' ', 'T')) < now));
+  if (!list.length) return '';
+  const day = t => { const d = new Date(String(t || '').replace(' ', 'T')); return isNaN(d) ? '' : d.toLocaleDateString(LOCALE, { day: 'numeric', month: 'short' }); };
+  return `<div class="sec"><h4>${tl('Eingeladen')}<small>${tl('Noch nicht beigetreten')}</small></h4><ol class="card plist">${list.map(i => {
+    const grp = i.group === 'helper' ? tl('Helfer:in') : tl('Familie'), title = i.name || (i.role ? tl(i.role) : grp);
+    const sub = [title !== grp ? grp : '', i.role && i.name ? tl(i.role) : '', i.until && day(i.until) ? tl('Zugang bis {date}', { date: day(i.until) }) : '',
+      day(i.created) && tl('eingeladen am {date}', { date: day(i.created) }), day(i.expires) && tl('Link gilt bis {date}', { date: day(i.expires) })].filter(Boolean).join(' · ');
+    return `<li class="invrow"><span class="navic">${svg('link')}</span><span class="navtx"><b>${esc(title)}</b><small>${esc(sub)}</small></span><button type="button" class="linkbtn" data-invrevoke="${esc(i.id)}"${W.busy ? ' disabled' : ''}>${tl('Link zurückziehen')}</button></li>`;
+  }).join('')}</ol></div>`;
+}
+async function loadInvites() {
+  if (W.invLoading || !isAdmin() || !auth?.token) return;
+  W.invLoading = true;
+  try { const r = await api('GET', '/api/djuu/invites'); W.invites = Array.isArray(r?.invites) ? r.invites : []; }
+  catch (e) { if (e.status === 404 && !e.code) W.invites = []; } // a server without the list: nothing to show; offline: keep what is known
+  W.invLoading = false;
+  if (view().page === 'people') renderPanel();
+}
+async function revokeInvite(id) {
+  if (!confirm(tl('Diesen Einladungslink zurückziehen? Wer ihn hat, kann damit nicht mehr beitreten.'))) return;
+  W.busy = true; renderPanel();
+  try { await api('POST', '/api/djuu/invite-revoke', { id }); W.invites = (W.invites || []).filter(i => i.id !== id); toast(tl('Link zurückgezogen.')); }
+  catch (e) { toast(e.status === 404 && !e.code ? tl('Das geht gerade noch nicht.') : accountError(e)); }
+  W.busy = false; renderPanel();
 }
 // family details that are not people: baby on the way, school holidays (kept from before)
 function moreAboutHtml() {
@@ -297,12 +332,15 @@ function addPersonView() {
   return `${head(tl('Person hinzufügen'))}${seg}
     <p class="muted text">${helper ? tl('Mit eingeschränktem Zugang, den du bestimmst.') : tl('Mit eigenem Zugang. Bearbeitet Einkauf, Besorgungen und Kalender mit.')}</p>
     <div class="field"><label>${helper ? tl('Wer ist das?') : tl('Wer ist das?')}</label>${chipRow(helper ? ROLES_HELPER : ROLES_FAMILY, A.role, 'data-addrole')}</div>
-    ${canInvite ? '' : `<div class="field"><label for="addName">${tl('Name')}</label><input id="addName" maxlength="30" value="${esc(A.name)}"></div>`}
+    ${canInvite ? `<div class="field"><label for="addName">${tl('Name')} <small class="muted">${tl('freiwillig')}</small></label><input id="addName" maxlength="30" value="${esc(A.name)}">
+      <p class="note">${tl('Nur damit du die Einladung unter Personen wiederfindest. Beim Beitreten gibt die Person ihren Namen selbst an.')}</p></div>`
+      : `<div class="field"><label for="addName">${tl('Name')}</label><input id="addName" maxlength="30" value="${esc(A.name)}"></div>`}
     <div class="field"><label>${tl('Was darf er oder sie sehen?')}</label>
       <div class="card perms">${AREAS.map(([k, l]) => `<div class="permrow"><span>${l}</span>${levelSelect('new', k, perms[k])}</div>`).join('')}</div></div>
     ${helper ? toggleRow('data-adduntil="1"', !!A.until, tl('Zugang befristet'), A.until ? `${tl('Endet am')} ${fmtUntil(A.until)}` : tl('Endet automatisch an einem Tag deiner Wahl')) +
       (A.until ? `<div class="field"><input id="addUntil" type="date" value="${esc(A.until)}" min="${ymd(today0())}" aria-label="${tl('Endet am')}"></div>` : '') : ''}
-    <p class="note center">${tl('Orte und Kinderdaten bleiben privat · jederzeit änderbar')}</p>
+    ${!helper && canInvite ? toggleRow('data-addadmin="1"', !!A.admin, tl('Auch Admin'), tl('Darf Personen einladen und den Zugang ändern')) + (A.admin ? `<p class="note">${tl('Das schaltest du ein, sobald die Person beigetreten ist: unter Personen bei ihrem Namen, „Zweiter Admin“.')}</p>` : '') : ''}
+    <p class="note center">${helper ? tl('Von den Kindern sieht er oder sie nur Name und Alter, Notfall-Infos nur mit Freigabe. Meine Orte bleiben privat. Jederzeit änderbar.') : tl('Meine Orte bleiben privat, bis man sie teilt. Jederzeit änderbar.')}</p>
     ${canInvite ? '' : hint(tl('Einladen geht mit einem Konto (Wir › Konto). Bis dahin trägst du die Person hier nur ein.'))}
     <div class="stick"><button type="button" class="btn big primary" data-addsave="${canInvite ? 'invite' : 'local'}"${W.busy ? ' disabled' : ''}>${canInvite ? svg('link') + tl('Einladung senden') : tl('Hinzufügen')}</button></div>`;
 }
@@ -313,28 +351,29 @@ function personView(id) {
   const a = adultById(id);
   if (!a) return `${head(tl('Person'))}<div class="empty"><b>${tl('Diese Person gibt es nicht mehr.')}</b></div>`;
   const m = members().find(x => x.id === id), i = store.profile.adults.indexOf(a), self = id === meId();
-  const admin = isAdmin(), canEditAccess = admin && !a.admin, canEditName = admin || self;
+  const admin = isAdmin(), canEditAccess = admin && !a.admin, canEditName = self || (admin && !isFounder(a)); // the founder's own entry only by the founder
   const invited = a.at ? new Date(a.at).toLocaleDateString(LOCALE, { day: 'numeric', month: 'short' }) : '';
   const access = a.account ? tl('eigener Zugang') : tl('ohne eigenen Zugang');
   return `${head(tl('{name} bearbeiten', { name: esc(a.name || tl('Person')) }), `${esc(a.grp === 'helper' ? tl('Helfer:in') : tl('Familie'))} · ${access}`)}
     ${looksTop(a, 'adult', canEditName ? `<div class="field"><label for="pName">${tl('Vorname oder Spitzname')}</label><input id="pName" data-adult="${i}" data-k="name" maxlength="30" value="${esc(a.name || '')}"></div>` : '')}
-    <p class="note">${[invited && `${a.account ? tl('Eingeladen am') : tl('Eingetragen am')} ${invited}`, (admin || self) && a.email].filter(Boolean).map(esc).join(' · ') || (a.admin ? tl('Admin dieses Wir') : '')}</p>
+    <p class="note">${[invited && `${a.account ? tl('Eingeladen am') : tl('Eingetragen am')} ${invited}`, (admin || self) && emailOf(a.id), isFounder(a) && tl('Hat das Wir angelegt')].filter(Boolean).map(esc).join(' · ') || (a.admin ? tl('Admin dieses Wir') : '')}</p>
     ${canEditName ? `
       <div class="field"><label>${tl('Rolle')} <small class="muted">${tl('Freiwillig')}</small></label>${chipRow(a.grp === 'helper' ? ROLES_HELPER : self ? ROLES_ME : ROLES_FAMILY, a.role, 'data-prole')}</div>
       <div class="field"><label for="pWork">${tl('Arbeitszeiten')} <small class="muted">${tl('Freiwillig')}</small></label><input id="pWork" data-adult="${i}" data-k="work" maxlength="60" placeholder="${tl('z. B. Mo–Fr 8–16')}" value="${esc(a.work || '')}"></div>` : ''}
     <div class="sec"><h4>${tl('Zugang')}<small>${a.admin ? tl('Admins sehen und bearbeiten alles.') : admin ? `${tl('Du bestimmst als Admin, was')} ${esc(a.name || tl('diese Person'))} ${tl('sieht')}` : tl('Nur der Admin kann das ändern.')}</small></h4>
       <div class="card perms">${AREAS.map(([k, l]) => `<div class="permrow"><span>${l}</span>${levelSelect(id, k, a.admin ? 'edit' : a.perms?.[k] || 'edit', !canEditAccess)}</div>`).join('')}</div>
-      <p class="note"><b>${tl('Ansehen')}</b>: ${tl('nur lesen')} · <b>${tl('Mitbearbeiten')}</b>: ${tl('hinzufügen, abhaken, ändern. Orte und Kinderdaten bleiben privat.')}</p></div>
+      <p class="note"><b>${tl('Ansehen')}</b>: ${tl('nur lesen')} · <b>${tl('Mitbearbeiten')}</b>: ${tl('hinzufügen, abhaken, ändern.')} ${a.grp === 'helper' ? tl('Von den Kindern sehen Helfer:innen nur Name und Alter.') : ''} ${tl('Meine Orte bleiben privat, bis man sie teilt.')}</p></div>
     ${canEditAccess ? toggleRow(`data-puntil="${id}"`, !!a.until, tl('Zugang befristet'), a.until ? `${tl('Endet am')} ${fmtUntil(a.until)}${expired(a) ? ` · ${tl('abgelaufen')}` : ''}` : tl('Endet automatisch an einem Tag deiner Wahl')) +
       (a.until ? `<div class="field"><input id="pUntil" data-puntildate="${id}" type="date" value="${esc(a.until)}" aria-label="${tl('Endet am')}"></div>` : '') : ''}
-    ${admin && signedIn() && a.account && a.grp !== 'helper' && !self ? toggleRow(`data-padmin="${id}"`, !!a.admin, tl('Zweiter Admin'), tl('Darf Personen einladen und den Zugang ändern')) : ''}
+    ${admin && signedIn() && a.account && a.grp !== 'helper' && !self && !isFounder(a) ? toggleRow(`data-padmin="${id}"`, !!a.admin, tl('Zweiter Admin'), tl('Darf Personen einladen und den Zugang ändern')) : ''}
     ${signedIn() && a.account && !self && meAdult()?.grp === 'family' && !expired(meAdult()) ? `<button type="button" class="btn wide" data-syask="${id}">${svg('pin')}${tl('Fragen: Wo bist du?')}</button><p class="note">${tl('Die Person entscheidet selbst, ob sie ihren Standort einmal schickt. Er wird nach 24 Stunden gelöscht.')}</p>` : ''}
-    ${admin && !self ? `<button type="button" class="btn wide danger" data-premove="${id}">${tl('Person entfernen')}</button>` : ''}
+    ${self && isFounder(a) ? `<button type="button" class="btn wide" data-wir="founder">${svg('user')}${tl('Wir übergeben')}</button><p class="note">${tl('Du hast dieses Wir angelegt. Niemand sonst kann dich entfernen oder dir die Admin-Rechte nehmen.')}</p>` : ''}
+    ${admin && !self && !isFounder(a) ? `<button type="button" class="btn wide danger" data-premove="${id}">${tl('Person entfernen')}</button>` : ''}
     <div class="stick"><button type="button" class="btn big primary" data-looksave="1">${tl('Speichern')}</button></div>`;
 }
 function kidView(k) {
   const i = store.profile.kids.indexOf(k), m = members().find(x => x.id === k.id);
-  if (k.remote) return `${head(esc(k.name || tl('Kind')), esc(kidAgeText(k)))}<div class="card who">${avatarHtml(m, 'lg')}<span class="navtx"><b>${tl('Kind')}</b><small>${tl('Kinderdaten bleiben in der Familie. Du siehst nur Name und Alter.')}</small></span></div>`;
+  if (k.remote) return `${head(esc(k.name || tl('Kind')), esc(kidAgeText(k)))}<div class="card who">${avatarHtml(m, 'lg')}<span class="navtx"><b>${tl('Kind')}</b><small>${tl('Kinderdaten bleiben in der Familie. Du siehst nur Name und Alter.')}</small></span></div>${careKidHtml(k)}`;
   return `${head(tl('{name} bearbeiten', { name: esc(k.name || tl('Kind')) }), `${tl('Kind')} · ${tl('nur ein Eintrag, kein Zugang')} · ${esc(kidAgeText(k))}`)}
     ${looksTop(k, 'kid', `<div class="field"><label for="kName">${tl('Vorname oder Spitzname')}</label><input id="kName" data-kid="${i}" data-k="name" maxlength="20" value="${esc(k.name || '')}"></div>`)}
     ${k.approx ? hint(tl('Das Alter ist ungefähr. Mit dem Geburtsdatum passen die Vorschläge genauer.')) : ''}
@@ -343,6 +382,7 @@ function kidView(k) {
     <div class="kidline"><div class="field"><label for="kSize">${tl('Kleidergröße')}</label><input id="kSize" data-kid="${i}" data-k="size" maxlength="12" placeholder="104" value="${esc(k.size || '')}"></div>
       <div class="field"><label for="kShoe">${tl('Schuhgröße')}</label><input id="kShoe" data-kid="${i}" data-k="shoe" maxlength="8" placeholder="28" value="${esc(k.shoe || '')}"></div></div>
     <p class="note">${tl('Die Größen stehen bei Besorgungen für dieses Kind.')}</p>
+    ${careKidHtml(k)}
     ${typeof calKidHtml === 'function' ? calKidHtml(k) : ''}
     ${isAdmin() || meAdult()?.grp === 'family' ? `<button type="button" class="btn wide danger" data-kidremove="${k.id}">${tl('Eintrag entfernen')}</button>` : ''}
     <div class="stick"><button type="button" class="btn big primary" data-looksave="1">${tl('Speichern')}</button></div>`;
@@ -423,7 +463,10 @@ function gemerktView() {
   if (perm('saved') === 'none') return `${head(tl('Gemerkt'), '', false)}<div class="empty"><b>${tl('Gemerkt teilt die Familie hier.')}</b>${meAdult()?.grp === 'helper' ? tl('Hier sammelt die Familie Orte und Termine. Wenn der Admin es für dich freigibt, siehst du sie auch.') : tl('Der Admin eures Wir kann es für dich freigeben.')}</div>`;
   const ms = members(), who = W.savedWho, by = id => ms.find(m => m.id === id);
   const placesL = store.favorites.map(id => [byId.get(id), store.favBy[id]]).filter(([p, b]) => p && (!who || b === who));
-  const offers = store.savedOffers.filter(s => !who || s.by === who).map(s => [OFFER_BY_ID.get(s.id), s]).filter(([o]) => o && nextDate(o)).map(([o, s]) => [nextDate(o), o, s]).sort((a, b) => a[0] - b[0] || timeKey(a[1]) - timeKey(b[1]));
+  const nextOf = o => (typeof nextAfterNow === 'function' ? nextAfterNow(o) : nextDate(o)); // a session that is over today moves on
+  const noDate = o => (typeof undated === 'function' && undated(o) ? 1 : 0); // only the provider's schedule text, no computed date
+  const offers = store.savedOffers.filter(s => !who || s.by === who).map(s => [OFFER_BY_ID.get(s.id), s]).map(([o, s]) => [o && nextOf(o), o, s]).filter(([d]) => d)
+    .sort((a, b) => noDate(a[1]) - noDate(b[1]) || a[0] - b[0] || timeKey(a[1]) - timeKey(b[1])); // offers without known dates come last
   const savers = [...new Set(store.savedOffers.map(s => s.by).concat(Object.values(store.favBy)))].map(by).filter(Boolean);
   const tabs = `<div class="segs" role="tablist">${[['orte', tl('Orte')], ['termine', tl('Termine')]].map(([k, l]) => `<button type="button" role="tab" aria-selected="${W.savedTab === k}" class="${W.savedTab === k ? 'on' : ''}" data-savedtab="${k}">${l}</button>`).join('')}</div>`;
   const whoRow = savers.length > 1 ? `<div class="fgrid">${[['', tl('Alle')]].concat(savers.map(m => [m.id, m.name])).map(([id, l]) => `<button type="button" class="chip${who === id ? ' on' : ''}" data-savedwho="${id}">${who === id ? svg('check') : ''}${esc(l)}</button>`).join('')}</div>` : '';
@@ -436,7 +479,7 @@ function gemerktView() {
         <span class="savedside">${ro ? svg('heart') : `<button type="button" class="hearton" data-fav="${p.id}" aria-label="${tl('Nicht mehr merken')}">${svg('heart')}</button>`}${mark(b)}</span></li>`).join('')}</ol>`
       : `<div class="empty"><b>${tl('Noch keine Orte gemerkt.')}</b>${tl('Tippe bei einem Ort auf das Herz. Gemerkte Orte siehst du auch auf der Karte.')}</div>`;
   } else {
-    body = offers.length ? `<ol class="savedlist">${offers.map(([d, o, s]) => `<li class="savedcard ev" style="--c:${by(s.by)?.color || 'transparent'}"><button type="button" class="savedmain" data-offer="${esc(o.id)}"><span class="datebox"><b>${d.getDate()}</b><small>${esc(d.toLocaleDateString(LOCALE, { month: 'short' }))}</small></span><span class="navtx"><b>${esc(titleOf(o))}</b><small>${esc([fmtDay(d), o.time_from && o.time_from + tl(' Uhr'), o.venue].filter(Boolean).join(' · '))}</small></span></button>
+    body = offers.length ? `<ol class="savedlist">${offers.map(([d, o, s]) => `<li class="savedcard ev" style="--c:${by(s.by)?.color || 'transparent'}"><button type="button" class="savedmain" data-offer="${esc(o.id)}">${noDate(o) ? `<span class="datebox">${svg('repeat')}</span>` : `<span class="datebox"><b>${d.getDate()}</b><small>${esc(d.toLocaleDateString(LOCALE, { month: 'short' }))}</small></span>`}<span class="navtx"><b>${esc(titleOf(o))}</b><small>${esc([noDate(o) ? '' : fmtDay(d), o.time_from && o.time_from + tl(' Uhr'), o.venue].filter(Boolean).join(' · '))}</small></span></button>
         <span class="savedside">${ro ? svg('heart') : `<button type="button" class="hearton" data-saveoffer="${esc(o.id)}" aria-label="${tl('Nicht mehr merken')}">${svg('heart')}</button>`}${mark(s.by)}</span>
         <div class="savedacts"><button type="button" class="chip" data-ics="${esc(o.id)}">${svg('cal')}${tl('Zum Kalender')}</button><button type="button" class="chip${W.remind === o.id ? ' on' : ''}" data-remind="${esc(o.id)}">${svg('bell')}${tl('Erinnerung')}</button></div>
         ${W.remind === o.id ? `<div class="savedacts"><span class="muted">${tl('Erinnern:')}</span><button type="button" class="chip" data-remindat="${esc(o.id)}|P1D">${tl('1 Tag vorher')}</button><button type="button" class="chip" data-remindat="${esc(o.id)}|PT1H">${tl('1 Stunde vorher')}</button></div>` : ''}</li>`).join('')}</ol>
@@ -450,7 +493,8 @@ const placeKind = p => CAT_LABEL[p.cat] || '';
 // ---------- Settings, account, about, notifications ----------
 function settingsView() {
   return `${head(tl('Einstellungen'))}<div class="card navlist">
-    ${navRow('bell', 'bell', tl('Benachrichtigungen'), tl('Erinnerungen und Mitteilungen'))}
+    ${navRow('bell', 'bell', tl('Benachrichtigungen'), tl('Neuigkeiten an der Glocke'))}
+    ${signedIn() ? navRow('push', 'phone', tl('Mitteilungen'), tl('Aufs Handy: Kalender, Abholen, Listen')) : ''}
     ${navRow('mapset', 'map', tl('Karte'), esc(mapStyle().label))}
     ${navRow('lang', 'globe', tl('Sprache'), esc(LANGS[LANG]))}
     ${signedIn() && perm('cal') !== 'none' ? navRow('calsub', 'cal', tl('Familienkalender'), tl('In der Kalender-App abonnieren')) : ''}
@@ -466,7 +510,7 @@ function bellView() {
     <div class="card navlist">${topics.map(k => { const [l, ic, c] = NEWS_AREAS[k], on = !off.includes(k);
       return `<label class="navrow switchrow"><span class="newsic" style="--c:${c}">${svg(ic)}</span><span class="navtx"><b>${l}</b><small>${NEWS_DESC()[k]}</small></span>
         <span class="tglr"><small class="${on ? '' : 'off'}">${on ? tl('Ein') : tl('Aus')}</small><span class="tglbox"><input type="checkbox" role="switch" data-newstopic="${k}" aria-label="${esc(l)}"${on ? ' checked' : ''}></span></span></label>`; }).join('')}</div>
-    <p class="note">${tl('Mitteilungen aufs Handy fragt Djuu erst, wenn es Sinn ergibt. Ausgeschaltete Themen erscheinen weder in der Liste noch als Zahl an der Glocke.')}</p>`;
+    <p class="note">${tl('Ausgeschaltete Themen erscheinen weder in der Liste noch als Zahl an der Glocke. Mitteilungen aufs Handy stellst du unter Einstellungen › Mitteilungen ein.')}</p>`;
 }
 const mapSetView = () => `${head(tl('Karte'), tl('Standardansicht'))}<div class="stylegrid">${MAP_STYLES.map(m => m.sec ? `<p class="stylesec">${esc(m.sec)}</p>` : `<button type="button" class="stylecard${mapStyle().id === m.id ? ' on' : ''}" data-mapstyle="${m.id}"><img src="icons/maps/${m.id}.jpg" alt="" loading="lazy" width="150" height="100"><span>${esc(m.label)}</span></button>`).join('')}</div>
   <p class="note">${tl('Alle Kartenstile sind kostenlos und brauchen kein Konto.')}</p>`;
@@ -484,10 +528,11 @@ function aboutView() {
 
 // Einkauf and Besorgungen: the lists themselves are unchanged; "Ansehen" shows them without the controls
 function listView_(kind) {
+  if (kind === 'shop') SH.list = ''; // the main shopping list (more lists: lists.js)
   const p = perm(kind === 'shop' ? 'shop' : 'errands'), title = kind === 'shop' ? tl('Einkauf') : tl('Besorgungen');
   const sub = signedIn() ? (p === 'view' ? tl('Gemeinsam · nur ansehen') : (ownWirName() ? tl('Gemeinsam mit ') + esc(ownWirName()) : tl('Gemeinsam'))) : tl('Bisher nur auf diesem Gerät');
   if (p === 'none') return `${head(title)}<div class="empty"><b>${tl('Diese Liste ist für dich nicht freigegeben.')}</b>${tl('Der Admin eures Wir kann sie für dich freigeben.')}</div>`;
-  return `${head(title, sub)}${reloginHint()}<div class="${p === 'view' ? 'readonly' : ''}">${kind === 'shop' ? shopHtml() : errandHtml()}</div>`;
+  return `${head(title, sub)}${reloginHint()}<div class="${p === 'view' ? 'readonly' : ''}">${kind === 'shop' ? shopHtml() : errandHtml()}</div>${kind === 'shop' && typeof listFootHtml === 'function' && listsSee() ? listFootHtml('') : ''}`;
 }
 
 // ---------- Welcome (first start only) ----------
@@ -506,13 +551,197 @@ function closeWelcome(next) {
   if (next === 'account') openWir('login');
 }
 
+// ---------- The person who created the Wir (families.founder) ----------
+// Nobody can remove the founder or take away their admin rights; the founder can hand this role to another admin.
+function isFounder(a) { return !!store.wirFounder && !!a && a.id === store.wirFounder; }
+function founderView() {
+  const me = meAdult(), others = store.profile.adults.filter(a => a.admin && a.account && a.id !== meId());
+  if (!isFounder(me)) return `${head(tl('Wir übergeben'))}<div class="empty"><b>${tl('Das kann nur die Person, die das Wir angelegt hat.')}</b></div>`;
+  const pick = W.founderPick && others.some(a => a.id === W.founderPick) ? W.founderPick : '';
+  return `${head(tl('Wir übergeben'))}
+    <p class="text">${tl('Du hast dieses Wir angelegt. Darum kann dich niemand entfernen oder dir die Admin-Rechte nehmen. Diese Rolle kannst du an eine andere Person übergeben, die Admin ist. Du bleibst danach Admin.')}</p>
+    ${others.length ? `<div class="radiocards">${others.map(a => `<button type="button" class="radiocard${pick === a.id ? ' on' : ''}" data-founderpick="${esc(a.id)}">${avatarHtml(members().find(m => m.id === a.id) || a)}<span class="navtx"><b>${esc(a.name)}</b><small>${tl('Admin')}</small></span><i class="radio"></i></button>`).join('')}</div>
+      <div class="stick"><button type="button" class="btn big primary" data-founderdo="1"${pick && !W.busy ? '' : ' disabled'}>${tl('Übergeben')}</button></div>`
+    : `<div class="empty"><b>${tl('Dazu braucht es einen zweiten Admin.')}</b>${tl('Mach unter Personen jemanden aus der Familie mit eigenem Zugang zum Admin. Dann kannst du übergeben.')}</div>`}`;
+}
+async function handOver(id) {
+  const a = adultById(id);
+  if (!a || !confirm(tl('Das Wir an {name} übergeben? Danach kann {name} nicht mehr entfernt werden, du schon.', { name: a.name }))) return;
+  W.busy = true; renderPanel();
+  try { await api('POST', '/api/djuu/founder', { member: id }); store.wirFounder = id; saveLocal(); W.founderPick = ''; toast(tl('Übergeben an {name}.', { name: a.name })); back(); }
+  catch (e) { toast(e.status === 404 && !e.code ? tl('Das geht gerade noch nicht.') : accountError(e)); }
+  W.busy = false; renderPanel();
+}
+
+// ---------- Emergency information per child (kid_care): admins write it with consent, everyone active in the Wir reads it ----------
+const CARE_CONSENT = () => tl('Ich willige ein, dass diese Gesundheitsangaben im Wir gespeichert und für die Personen sichtbar sind, denen der Admin die Notfall-Infos freigibt (zum Beispiel Babysitter).');
+// who reads and writes it: admins always, everyone else by "Notfall-Infos" in their access (members.perm_care), while it runs
+function careSee() {
+  const me = meAdult();
+  return signedIn() && !(typeof MISSING !== 'undefined' && MISSING.has('kid_care')) && !!me && !expired(me) && (me.admin || perm('care') !== 'none');
+}
+const careEditOk = () => careSee() && perm('care') === 'edit';
+const careOf = kidId => (store.kidCare || []).find(c => c.kid === kidId);
+function careKidsText() { return (store.kidCare || []).map(c => kidById(c.kid)?.name).filter(Boolean).join(', '); }
+const telOf = p => String(p || '').replace(/[^0-9+]/g, '');
+// a phone number inside a text becomes a link (doctor: "Dr. Weiß, 040 123456")
+const telLinks = t => esc(t).replace(/(\+?\d[\d ()/-]{4,}\d)/g, m => `<a class="tel" href="tel:${telOf(m)}">${m}</a>`);
+function careCard(c, withName) {
+  const kid = kidById(c.kid);
+  const line = (label, html) => html ? `<div class="careline"><small>${label}</small><span>${html}</span></div>` : '';
+  const contacts = (c.contacts || []).map(x => line(esc(x.rel || tl('Notfallkontakt')), `${esc(x.name || '')}${x.phone ? ` <a class="tel" href="tel:${esc(telOf(x.phone))}">${svg('phone')}${esc(x.phone)}</a>` : ''}`)).join('');
+  return `<div class="card carecard">${withName ? `<h4 class="cardtitle">${esc(kid?.name || tl('Kind'))}</h4>` : ''}${line(tl('Allergien'), esc(c.allergies))}${line(tl('Medikamente'), esc(c.meds))}${line(tl('Kinderarzt oder Kinderärztin'), telLinks(c.doctor))}${contacts}${line(tl('Hinweise'), esc(c.notes))}</div>`;
+}
+// on the child's page (also the helper's short child page)
+function careKidHtml(k) {
+  if (!careSee()) return '';
+  const c = careOf(k.id), edit = careEditOk();
+  if (!c && !edit) return '';
+  return `<div class="sec"><h4>${tl('Für Notfälle')}<small>${tl('Sehen alle im Wir, denen der Admin es freigibt')}</small></h4>
+    ${c ? careCard(c, false) : `<p class="muted text">${tl('Noch nichts eingetragen: Allergien, Medikamente, Kinderarzt, Notfallkontakte.')}</p>`}
+    ${edit ? `<button type="button" class="linkbtn plus" data-careedit="${esc(k.id)}">${svg(c ? 'edit' : 'plus')}${c ? tl('Notfall-Infos bearbeiten') : tl('Notfall-Infos eintragen')}</button>` : ''}</div>`;
+}
+// Wir › Notfall-Infos: all children at a glance (for the babysitter)
+function careListView() {
+  if (!careSee()) return `${head(tl('Notfall-Infos'))}<div class="empty"><b>${tl('Die Notfall-Infos sind für dich nicht freigegeben.')}</b></div>`;
+  const list = (store.kidCare || []).filter(c => kidById(c.kid));
+  return `${head(tl('Notfall-Infos'), tl('Allergien, Medikamente, Kontakte'))}
+    ${list.length ? list.map(c => careCard(c, true) + (careEditOk() ? `<p><button type="button" class="linkbtn" data-careedit="${esc(c.kid)}">${svg('edit')}${tl('Bearbeiten')}</button></p>` : '')).join('') : `<div class="empty"><b>${tl('Noch nichts eingetragen.')}</b></div>`}
+    <p class="note">${tl('Im Notfall immer zuerst 112 anrufen.')}</p>`;
+}
+function careEditView() {
+  const k = kidById(view().id);
+  if (!k || !careEditOk()) return `${head(tl('Notfall-Infos'))}<div class="empty"><b>${tl('Dazu fehlt dir die Berechtigung.')}</b></div>`;
+  const c = careOf(k.id);
+  const D = W.care && W.care.kid === k.id ? W.care : (W.care = { kid: k.id, allergies: c?.allergies || '', meds: c?.meds || '', doctor: c?.doctor || '', notes: c?.notes || '', contacts: (c?.contacts || []).map(x => ({ ...x })) });
+  if (!D.contacts.length) D.contacts.push({ name: '', phone: '', rel: '' });
+  const by = c?.consentBy && adultById(c.consentBy)?.name, at = c?.consentAt ? new Date(String(c.consentAt).replace(' ', 'T')).toLocaleDateString(LOCALE, { day: 'numeric', month: 'long', year: 'numeric' }) : '';
+  const area = (id, label, key, max, ph) => `<div class="field"><label for="${id}">${label} <small class="muted">${tl('freiwillig')}</small></label><textarea id="${id}" data-caref="${key}" maxlength="${max}" rows="2" placeholder="${esc(ph)}">${esc(D[key])}</textarea></div>`;
+  return `${head(tl('Notfall-Infos'), esc(k.name || tl('Kind')))}
+    <p class="text">${tl('Damit Babysitter, Großeltern und andere Helfer:innen im Notfall Bescheid wissen. Wer es sieht, bestimmt der Admin unter Personen bei „Notfall-Infos“, solange der Zugang der Person läuft.')}</p>
+    ${area('careAll', tl('Allergien'), 'allergies', 300, tl('z. B. Erdnüsse'))}
+    ${area('careMeds', tl('Medikamente'), 'meds', 300, tl('z. B. Notfallspray, im Rucksack'))}
+    ${area('careDoc', tl('Kinderarzt oder Kinderärztin'), 'doctor', 200, tl('Name und Telefon'))}
+    <div class="field"><label>${tl('Notfallkontakte')} <small class="muted">${tl('bis zu 5')}</small></label>
+      ${D.contacts.map((x, i) => `<div class="carecontact"><input data-carec="${i}|name" maxlength="60" value="${esc(x.name)}" placeholder="${tl('Name')}" aria-label="${tl('Name')}">
+        <input data-carec="${i}|phone" maxlength="30" inputmode="tel" value="${esc(x.phone)}" placeholder="${tl('Telefon')}" aria-label="${tl('Telefon')}">
+        <input data-carec="${i}|rel" maxlength="40" value="${esc(x.rel)}" placeholder="${tl('z. B. Oma')}" aria-label="${tl('Wer ist das?')}">
+        ${D.contacts.length > 1 ? `<button type="button" class="round sm" data-carecdel="${i}" aria-label="${tl('Entfernen')}">${svg('close')}</button>` : ''}</div>`).join('')}
+      ${D.contacts.length < 5 ? `<button type="button" class="linkbtn plus" data-carecadd="1">${svg('plus')}${tl('Weiterer Kontakt')}</button>` : ''}</div>
+    ${area('careNotes', tl('Hinweise'), 'notes', 500, tl('z. B. Mittagsschlaf, Einschlafritual'))}
+    <label class="consent"><input type="checkbox" id="careOk"> <span>${CARE_CONSENT()} <a href="legal.html#datenschutz" target="_blank" rel="noopener">${tl('Datenschutz')}</a></span></label>
+    ${c ? `<p class="note">${by ? tl('Zuletzt gespeichert am {date} von {name}.', { date: at, name: by }) : tl('Zuletzt gespeichert am {date}.', { date: at })}</p>` : ''}
+    <div class="stick"><button type="button" class="btn big primary" data-caresave="1"${W.busy ? ' disabled' : ''}>${tl('Speichern')}</button>${c ? `<button type="button" class="btn ghost" data-caredel="${esc(c.id)}">${tl('Löschen')}</button>` : ''}</div>`;
+}
+// what is typed stays when a contact row is added or removed
+function careRead() {
+  const D = W.care; if (!D) return;
+  for (const el of document.querySelectorAll('[data-caref]')) D[el.dataset.caref] = el.value;
+  for (const el of document.querySelectorAll('[data-carec]')) { const [i, k] = el.dataset.carec.split('|'); if (D.contacts[+i]) D.contacts[+i][k] = el.value; }
+}
+// saved directly (not through the outbox): the consent belongs to this moment, and the server notes its time
+async function saveCare() {
+  careRead();
+  const D = W.care; if (!D) return;
+  if (!$('#careOk')?.checked) return toast(tl('Bitte setz den Haken bei der Einwilligung. Ohne sie speichert Djuu die Angaben nicht.'));
+  const t = (v, n) => String(v || '').trim().slice(0, n);
+  const body = { allergies: t(D.allergies, 300), meds: t(D.meds, 300), doctor: t(D.doctor, 200), notes: t(D.notes, 500), consent_by: auth.member,
+    emergency_contacts: D.contacts.map(x => ({ name: t(x.name, 60), phone: t(x.phone, 30), rel: t(x.rel, 40) })).filter(x => x.name || x.phone).slice(0, 5) };
+  const cur = careOf(D.kid);
+  W.busy = true; renderPanel();
+  try {
+    const rec = cur ? await api('PATCH', `/api/collections/kid_care/records/${cur.id}`, body) : await api('POST', '/api/collections/kid_care/records', { ...body, family: auth.family, kid: D.kid });
+    if (!RECS.kid_care) RECS.kid_care = [];
+    storeRec('kid_care', rec); settle('kid_care'); saveLocal();
+    W.care = null; toast(tl('Gespeichert.')); W.busy = false; back(); return;
+  } catch (e) { toast(accountError(e)); }
+  W.busy = false; renderPanel();
+}
+async function deleteCare(id) {
+  if (!confirm(tl('Die Notfall-Infos für dieses Kind löschen?'))) return;
+  try { await api('DELETE', `/api/collections/kid_care/records/${id}`); storeRec('kid_care', { id, _deleted: true }); settle('kid_care'); saveLocal(); W.care = null; toast(tl('Gelöscht.')); back(); }
+  catch (e) { toast(accountError(e)); }
+}
+
+// ---------- Einstellungen › Mitteilungen: push messages on this phone, per topic, all off until switched on ----------
+const PUSH_TOPICS = () => [['cal', tl('Kalender-Erinnerungen'), tl('Zu Einträgen mit Erinnerung, die dich betreffen')],
+  ['pickup', tl('Abholen und Bringen'), tl('Wenn jemand übernimmt oder sich etwas ändert, das dich betrifft')],
+  ['lists', tl('Listen'), tl('Neue Einträge in Listen, denen du folgst. Folgen schaltest du in der Liste ein.')]];
+const pushOk = () => !!window.djuuPush && window.djuuPush.supported();
+async function loadPushState() {
+  if (W.pushLoading || !pushOk()) return;
+  W.pushLoading = true;
+  try { const st = await window.djuuPush.state(); W.pushState = { on: !!st?.on, topics: Array.isArray(st?.topics) ? st.topics : [] }; }
+  catch (e) { W.pushState = { on: false, topics: [] }; }
+  W.pushLoading = false; if (view().page === 'push') renderPanel();
+}
+function pushView() {
+  const ok = pushOk(), st = W.pushState;
+  if (ok && !st) loadPushState();
+  const on = k => !!st?.on && st.topics.includes(k);
+  return `${head(tl('Mitteilungen'), tl('Aufs Handy'))}
+    <p class="text">${tl('Djuu kann dir eine kurze Mitteilung aufs Handy schicken. Alles ist aus, bis du es einschaltest, und gilt nur für dieses Gerät.')}</p>
+    ${!ok ? `<p class="hintbox">${typeof pushUnsupportedText === 'function' ? pushUnsupportedText(true) : tl('Dieser Browser kann keine Mitteilungen anzeigen.')}</p>`
+      : !st ? `<p class="muted text">${tl('Einen Moment …')}</p>`
+      : `<div class="card navlist">${PUSH_TOPICS().map(([k, l, s]) => `<label class="navrow switchrow"><span class="navtx"><b>${l}</b><small>${s}</small></span>
+        <span class="tglr"><small class="${on(k) ? '' : 'off'}">${on(k) ? tl('Ein') : tl('Aus')}</small><span class="tglbox"><input type="checkbox" role="switch" data-pushtopic="${k}" aria-label="${esc(l)}"${on(k) ? ' checked' : ''}${W.busy ? ' disabled' : ''}></span></span></label>`).join('')}</div>`}
+    ${ok ? `<p class="note">${tl('Beim ersten Einschalten fragt dein Browser, ob Djuu Mitteilungen schicken darf. Ausschalten geht jederzeit hier.')}</p>` : ''}`;
+}
+async function setPushTopic(k, wanted) {
+  const P = window.djuuPush, st = W.pushState || { on: false, topics: [] };
+  const next = wanted ? [...new Set(st.topics.concat(k))] : st.topics.filter(x => x !== k);
+  W.busy = true; renderPanel();
+  try {
+    if (!next.length) await P.disable();
+    else if (!st.on) await P.enable(next);
+    else await P.setTopics(next);
+  } catch (e) {
+    // a refused browser permission is not a network problem
+    toast(e?.code === 'denied' || (typeof Notification !== 'undefined' && Notification.permission === 'denied') ? tl('Mitteilungen sind im Browser blockiert. Du kannst sie in den Einstellungen des Browsers für Djuu erlauben.')
+      : e?.code === 'offline' ? tl('Das hat nicht geklappt. Bitte mit Netz noch einmal versuchen.') : tl('Mitteilungen lassen sich auf diesem Gerät gerade nicht einschalten.'));
+  }
+  W.pushState = null; W.busy = false; await loadPushState(); renderPanel();
+}
+
+document.addEventListener('click', e => {
+  const t = e.target.closest('button'); if (!t) return;
+  const d = t.dataset;
+  if (d.founderpick) { W.founderPick = d.founderpick; renderPanel(); }
+  else if (d.founderdo && W.founderPick) handOver(W.founderPick);
+  else if (d.careedit) { W.care = null; go({ type: 'wir', page: 'care', id: d.careedit }); }
+  else if (d.carecadd) { careRead(); if (W.care.contacts.length < 5) W.care.contacts.push({ name: '', phone: '', rel: '' }); renderKeep(); }
+  else if (d.carecdel) { careRead(); W.care.contacts.splice(+d.carecdel, 1); renderKeep(); }
+  else if (d.caresave) saveCare();
+  else if (d.caredel) deleteCare(d.caredel);
+  else if (d.mydata) {
+    W.busy = true; renderPanel();
+    downloadMyData().then(() => toast(tl('Die Datei „djuu-daten.json“ ist heruntergeladen.')),
+      x => toast(x.status === 404 && !x.code ? tl('Das geht gerade noch nicht.') : accountError(x))).finally(() => { W.busy = false; renderPanel(); });
+  }
+});
+document.addEventListener('change', e => { if (e.target.dataset?.pushtopic) setPushTopic(e.target.dataset.pushtopic, e.target.checked); });
+// links into the Wir (push messages): #wir=shop, #wir=cal, #wir=lists, #wir=list-<id>
+function openDeepLink() {
+  const m = location.hash.match(/^#wir=([a-z]+)(?:-([a-z0-9]{15}))?$/);
+  if (!m) return;
+  history.replaceState(null, '', location.pathname + location.search);
+  store.welcomed = true; save();
+  setTimeout(() => {
+    $('#welcome')?.remove();
+    if (!auth?.family) return openWir(hasToken() ? null : 'login');
+    if (m[1] === 'list' && m[2]) { openWir(null); go({ type: 'wir', page: 'list', id: m[2] }); }
+    else openWir(['shop', 'errands', 'cal', 'lists', 'push', 'carelist'].includes(m[1]) ? m[1] : null);
+  }, 900);
+}
+window.addEventListener('hashchange', openDeepLink);
+
 // ---------- Rendering ----------
 const WIR_PAGES = { news: () => newsView(), wirname: wirNameView, dog: dogView, guest: guestInfoView, register: registerView, verify: verifyView, verifyfail: verifyFailView, login: loginView, forgot: forgotView, newpw: newPwView, invite: inviteView, join: joinView,
-  pwchange: pwChangeView, emailchange: emailChangeView, emailconfirm: emailConfirmView, delete: deleteView, people: peopleView, add: addPersonView, places: placesView, place: placeEditView, fit: fitView, settings: settingsView, bell: bellView, mapset: mapSetView, lang: langView, calsub: calSubView, account: accountView, about: aboutView, shop: () => listView_('shop'), errands: () => listView_('errands') };
+  pwchange: pwChangeView, emailchange: emailChangeView, emailconfirm: emailConfirmView, delete: deleteView, people: peopleView, add: addPersonView, places: placesView, place: placeEditView, fit: fitView, settings: settingsView, bell: bellView, mapset: mapSetView, lang: langView, calsub: calSubView, account: accountView, about: aboutView, push: pushView, founder: founderView, care: careEditView, carelist: careListView, shop: () => listView_('shop'), errands: () => listView_('errands') };
 // every page fills the sheet, so the main button sits at the bottom like on the phone screens
 function wirRender(v) {
   // pages that need an account show the sign-in instead (for example after signing out on another page)
-  const needsAccount = v.type === 'person' || ['news', 'wirname', 'dog', 'people', 'add', 'places', 'place', 'fit', 'shop', 'errands', 'calsub', 'cal', 'calentry', 'calplan', 'pwchange', 'emailchange', 'delete'].includes(v.page);
+  const needsAccount = v.type === 'person' || ['news', 'wirname', 'dog', 'people', 'add', 'places', 'place', 'fit', 'shop', 'errands', 'calsub', 'cal', 'calentry', 'calplan', 'pwchange', 'emailchange', 'delete', 'lists', 'list', 'listnew', 'listedit', 'push', 'founder', 'care', 'carelist'].includes(v.page);
   const html = needsAccount && !auth?.family && !(hasToken() && ['pwchange', 'emailchange', 'delete'].includes(v.page)) ? loginView()
     : v.type === 'me' ? wirHub() : v.type === 'favs' ? gemerktView() : v.type === 'person' ? personView(v.id) : (WIR_PAGES[v.page] || wirHub)();
   return `<div class="pagewrap">${html}</div>`;
@@ -522,36 +751,44 @@ function wirRender(v) {
 async function setAccess(id, body) {
   const a = adultById(id);
   if (!a) return;
+  // the other areas go along unchanged, so changing one never resets the others
+  if (body.perms) body = { ...body, perms: { ...Object.fromEntries(Object.entries(a.perms || {}).filter(([k, v]) => PERM_KEY[k] && ['none', 'view', 'edit'].includes(v)).map(([k, v]) => [PERM_KEY[k], v])), ...body.perms } };
   if (signedIn() && a.account !== undefined && isPbId(id)) {
     try { await api('POST', '/api/djuu/member', { id, ...body }); }
-    catch (e) { toast(e.data?.message || tl('Das hat nicht geklappt. Bitte mit Netz noch einmal versuchen.')); return renderPanel(); }
+    catch (e) {
+      // taking the admin rights from the founder has its own words (removing has others)
+      toast(!e.status ? tl('Das hat nicht geklappt. Bitte mit Netz noch einmal versuchen.') : e.code === 'founder' && 'admin' in body ? tl('Die Person, die das Wir angelegt hat, bleibt Admin. Sie kann das Wir zuerst übergeben.') : accountError(e));
+      return renderPanel();
+    }
   }
   if (body.perms) a.perms = { ...a.perms, ...Object.fromEntries(Object.entries(body.perms).map(([k, v]) => [k.replace('perm_', ''), v])) };
   if ('until' in body) a.until = body.until || '';
   if ('admin' in body) a.admin = !!body.admin;
   saveLocal ? saveLocal() : save(); renderPanel();
 }
-const PERM_KEY = { shop: 'perm_shop', errands: 'perm_errands', cal: 'perm_cal', saved: 'perm_saved' };
+const PERM_KEY = { shop: 'perm_shop', errands: 'perm_errands', cal: 'perm_cal', saved: 'perm_saved', care: 'perm_care' };
 async function sendInvite() {
   const A = W.add;
+  const name = ($('#addName')?.value ?? A.name ?? '').trim().slice(0, 30); // only for the list of open invites (read before the page redraws)
+  A.name = name;
   W.busy = true; renderPanel();
   try {
     const perms = Object.fromEntries(Object.entries(A.perms).map(([k, v]) => [PERM_KEY[k], v]));
-    const r = await api('POST', '/api/djuu/invite', { grp: A.grp, role: A.role, perms, until: A.grp === 'helper' ? A.until : '' });
+    const r = await api('POST', '/api/djuu/invite', { grp: A.grp, role: A.role, perms, until: A.grp === 'helper' ? A.until : '', ...(name ? { name } : {}) });
     const url = `${location.origin}${location.pathname}#join=${r.token}`;
     const who = meAdult()?.name || '';
     const text = A.grp === 'helper' ? tl('{name} lädt dich ins Wir bei Djuu ein. Der Link gilt 7 Tage.', { name: who }) : tl('Komm in unser Wir bei Djuu: gemeinsamer Einkauf, Besorgungen und Kalender. Der Link gilt 7 Tage.');
     if (navigator.share) await navigator.share({ title: tl('Einladung zu Djuu'), text, url }).catch(() => {});
     else await navigator.clipboard?.writeText(text + ' ' + url).then(() => toast(tl('Einladungslink kopiert.')), () => toast(url));
-    W.add = { grp: 'family', role: '', perms: null, until: '', name: '' }; back();
-  } catch (e) { toast(e.data?.message || tl('Einladen hat nicht geklappt. Bitte mit Netz noch einmal versuchen.')); }
+    W.add = { grp: 'family', role: '', perms: null, until: '', name: '' }; W.invFresh = false; back();
+  } catch (e) { toast(e.status ? accountError(e) : tl('Einladen hat nicht geklappt. Bitte mit Netz noch einmal versuchen.')); }
   W.busy = false; renderPanel();
 }
 async function removePerson(id) {
   const a = adultById(id);
   if (!a || !confirm(tl('{name} aus eurem Wir entfernen? Das Konto der Person bleibt bestehen.', { name: a.name || tl('Diese Person') }))) return;
   if (signedIn() && a.account) {
-    try { await api('POST', '/api/djuu/remove', { id }); } catch (e) { return toast(e.data?.message || tl('Entfernen hat nicht geklappt.')); }
+    try { await api('POST', '/api/djuu/remove', { id }); } catch (e) { return toast(e.status ? accountError(e) : tl('Entfernen hat nicht geklappt.')); }
   }
   store.profile.adults = store.profile.adults.filter(x => x.id !== id);
   save(); back();
@@ -566,6 +803,7 @@ document.addEventListener('click', e => {
     if (['register', 'login', 'forgot', 'verify'].includes(d.wir)) { W.err = ''; if (d.wir !== 'verify') W.notice = ''; }
     if (d.wir === 'add') { W.add = { grp: 'family', role: '', perms: null, until: '', name: '' }; }
     if (d.wir === 'shop' || d.wir === 'errands') SH.menu = SH.pending = SH.editing = null;
+    if (d.wir === 'people') W.invFresh = false; // the open invites are fetched again
     go({ type: 'wir', page: d.wir });
   }
   else if (d.wirperson) go({ type: 'person', id: d.wirperson });
@@ -576,7 +814,7 @@ document.addEventListener('click', e => {
     const [key, c] = d.color.split('|'), dog = dogs().find(y => y.id === key), x = key === 'me' ? ensureMe() : adultById(key) || kidById(key) || dog;
     if (x && (key === 'me' || (dog ? isAdmin() : canEditLooks(x)))) { x.color = c; save(); renderPanel(); }
   }
-  else if (d.looksave) { back(); toast(tl('Gespeichert.')); }
+  else if (d.looksave) saveLooksPage();
   else if (d.wirdog) go({ type: 'wir', page: 'dog', id: d.wirdog });
   else if (d.adddog) {
     if (d.adddog === 'inline') { store.profile.dogList.push({ id: pbId(), name: '' }); save(); renderPanel(); }
@@ -611,7 +849,7 @@ document.addEventListener('click', e => {
   }
   else if (d.onbpick) { W.onbPick = true; W.add.grp = d.onbpick; renderPanel(); }
   else if (d.addgrp) { W.add = { grp: d.addgrp, role: '', perms: null, until: '', name: W.add.name }; renderPanel(); }
-  else if (d.addrole) { W.add.role = W.add.role === d.addrole ? '' : d.addrole; renderPanel(); }
+  else if (d.addrole) { W.add.name = $('#addName')?.value.trim() ?? W.add.name; W.add.role = W.add.role === d.addrole ? '' : d.addrole; renderPanel(); }
   else if (d.addsave) {
     const A = W.add, name = $('#addName')?.value.trim() || '';
     if (d.addsave === 'kid') {
@@ -628,6 +866,7 @@ document.addEventListener('click', e => {
   }
   else if (d.prole) { const a = adultById(view().id); if (a) { a.role = a.role === d.prole ? '' : d.prole; save(); renderPanel(); } }
   else if (d.premove) removePerson(d.premove);
+  else if (d.invrevoke) revokeInvite(d.invrevoke);
   else if (d.kidremove) { if (!confirm(tl('Diesen Eintrag entfernen?'))) return; store.profile.kids = store.profile.kids.filter(k => k.id !== d.kidremove); save(); back(); }
   else if (d.placeedit) {
     const p = store.places.find(x => x.id === d.placeedit);
@@ -659,6 +898,15 @@ document.addEventListener('click', e => {
   else if (d.remindat) { const [id, at] = d.remindat.split('|'); downloadIcs([OFFER_BY_ID.get(id)], 'djuu-erinnerung.ics', at); W.remind = null; renderPanel(); }
   else if (d.setlang) { store.lang = d.setlang; save(); location.reload(); }
 });
+// "Speichern" on a person's or child's page: takes what is in the fields (also when a field still has the focus), then back
+function saveLooksPage() {
+  for (const el of document.querySelectorAll('#panelBody input[data-adult][data-k], #panelBody input[data-kid][data-k]')) {
+    const x = el.dataset.adult != null ? store.profile.adults[+el.dataset.adult] : store.profile.kids[+el.dataset.kid], v = el.value.trim();
+    if (!x || (el.dataset.k === 'name' && !v)) continue;
+    x[el.dataset.k] = v;
+  }
+  save(); if (typeof renderTop === 'function') renderTop(); back(); toast(tl('Gespeichert.'));
+}
 // the photo sheet for the Wir, my own entry (first step) or a person, child or dog
 function openLooksPhoto(key) {
   const [kind, id] = key.split('|');
@@ -708,7 +956,8 @@ document.addEventListener('change', e => {
     if (id === 'new') { W.add.perms[area] = el.value; return; }
     setAccess(id, { perms: { [PERM_KEY[area]]: el.value } });
   }
-  else if (d.adduntil) { W.add.until = el.checked ? ymd(addDays(today0(), 14)) : ''; renderPanel(); }
+  else if (d.adduntil) { W.add.name = $('#addName')?.value.trim() ?? W.add.name; W.add.until = el.checked ? ymd(addDays(today0(), 14)) : ''; renderPanel(); }
+  else if (d.addadmin) { W.add.name = $('#addName')?.value.trim() ?? W.add.name; W.add.admin = el.checked; renderPanel(); }
   else if (el.id === 'addUntil') W.add.until = el.value;
   else if (d.puntil) setAccess(d.puntil, { until: el.checked ? ymd(addDays(today0(), 14)) : '' });
   else if (d.puntildate) setAccess(d.puntildate, { until: el.value });
@@ -853,6 +1102,9 @@ function accountSignedIn() {
       <button type="button" class="navrow" data-wir="emailchange"><span class="navic">${svg('mail')}</span><span class="navtx"><b>${tl('E-Mail ändern')}</b></span>${svg('next')}</button>
       <button type="button" class="navrow" data-wir="pwchange"><span class="navic">${svg('gear')}</span><span class="navtx"><b>${tl('Passwort ändern')}</b></span>${svg('next')}</button></div>
     ${auth.family ? `<p class="note">${SY.online ? `<span class="syok">●</span> ${tl('Verbunden mit')} ${esc(ownWirName() || tl('eurem Wir'))}` : `<span class="syoff">●</span> ${tl('Offline, Änderungen werden nachgereicht')}`}${n ? ` · ${tl('{n} noch nicht gesendet', { n })}` : ''}</p>` : ''}
+    <div class="card navlist"><button type="button" class="navrow" data-mydata="1"${W.busy ? ' disabled' : ''}><span class="navic">${svg('share')}</span><span class="navtx"><b>${tl('Meine Daten herunterladen')}</b><small>${tl('Alles, was Djuu über dich speichert, als Datei')}</small></span></button>
+      ${typeof WIR_PAGES.mycontrib === 'function' ? navRow('mycontrib', 'edit', tl('Meine Beiträge'), tl('Was du zu Orten geschickt hast')) : ''}</div>
+    ${typeof commIsMod === 'function' && commIsMod() ? `<div class="card navlist"><a class="navrow" href="mod.html"><span class="navic">${svg('check')}</span><span class="navtx"><b>${tl('Beiträge prüfen')}</b><small>${tl('Ergänzungen, neue Orte und Bewertungen freigeben')}</small></span></a></div>` : ''}
     <button type="button" class="btn big wide" data-sylogout="1">${tl('Abmelden')}</button>
     <p class="center"><button type="button" class="linkbtn" data-logoutall="1">${tl('Auf allen anderen Geräten abmelden')}</button></p>
     ${auth.family && canLeave() ? `<p class="center"><button type="button" class="linkbtn" data-leavewir="1">${tl('Wir verlassen')}</button></p>` : ''}
@@ -881,7 +1133,7 @@ function deleteView() {
   // the Wir goes only with its last admin; everyone else leaves it, and what they entered stays for the others
   const text = !auth?.family || !others.length ? tl('Dein Konto und alle deine Daten werden gelöscht. Das lässt sich nicht rückgängig machen.')
     : me?.admin && !otherAdmin
-      ? tl('Du bist der letzte Admin: das ganze Wir wird gelöscht für {names}, mit Einkauf, Besorgungen, Gemerktem, Orten und Einträgen. Das lässt sich nicht rückgängig machen.', { names: others.map(m => m.name).join(', ') })
+      ? tl('Du bist der letzte Admin: das ganze Wir wird gelöscht für {names}, mit Einkauf, Listen, Besorgungen, Kalender, Notfall-Infos, Gemerktem und Orten. Das lässt sich nicht rückgängig machen.', { names: others.map(m => m.name).join(', ') })
       : tl('Dein Konto wird gelöscht. Du verlässt das Wir; eure gemeinsamen Einträge bleiben. Das lässt sich nicht rückgängig machen.');
   return `${head(tl('Konto löschen'))}<p class="warnbox">${svg('info')} ${esc(text)}</p>
     <form id="delForm" novalidate>${pwField('delPw', tl('Passwort zur Bestätigung'), 'current-password')}${errHtml()}
@@ -934,9 +1186,13 @@ const ROUTE_ERRORS = () => ({
   no_calendar_access: tl('Kein Zugriff auf den Kalender.'), calendar_not_found: tl('Diesen Kalender gibt es nicht mehr.'), member_not_found: tl('Diese Person gibt es nicht mehr.'),
   kid_no_access: tl('Kinder haben keinen Zugang.'), admin_not_helper: tl('Ein Admin gehört immer zur Familie.'),
   admin_needs_account: tl('Admin kann nur ein Erwachsener aus der Familie mit eigenem Zugang sein.'), last_admin: tl('Es muss immer mindestens einen Admin geben.'),
-  cannot_remove_self: tl('Du kannst dich nicht selbst entfernen. Lösche dazu dein Konto.'), wrong_password: tl('Das Passwort stimmt nicht.'),
+  cannot_remove_self: tl('Du kannst dich nicht selbst entfernen. Dafür gibt es „Wir verlassen“ unter Konto.'), wrong_password: tl('Das Passwort stimmt nicht.'),
   too_many_attempts: tl('Zu viele falsche Versuche. Bitte warte eine Viertelstunde.'), upstream: tl('Die KI-Suche ist gerade nicht erreichbar.'),
   limit_reached: tl('Das Limit für diesen Bereich ist erreicht.'), invalid_date: tl('Ungültiges Datum.'), entry_not_found: tl('Diesen Eintrag gibt es nicht mehr.'),
+  founder: tl('Die Person, die das Wir angelegt hat, kann nicht entfernt werden.'), founder_only: tl('Das kann nur die Person, die das Wir angelegt hat.'),
+  not_allowed: tl('Dazu fehlt dir die Berechtigung.'),
+  founder_needs_admin: tl('Übergeben geht nur an einen Admin mit eigenem Zugang.'), already_founder: tl('Das Wir gehört schon dir.'),
+  invite_revoked: tl('Diese Einladung wurde zurückgezogen. Bitte um eine neue.'), invite_not_found: tl('Diese Einladung gibt es nicht mehr.'),
 });
 // German texts from the server are shown as they are; English technical messages never reach the page
 const looksGerman = m => /[äöüß]|\b(bitte|nicht|kein|keine|ist|der|die|das|du|dein|deine)\b/i.test(m);
@@ -1089,7 +1345,7 @@ document.addEventListener('click', async e => {
   else if (d.signkeep) { W.otherUser = null; SY.pendingSignIn = null; renderPanel(); }
   else if (d.leavewir) {
     if (!confirm(tl('Das Wir verlassen? Dein Konto bleibt. Was du gemerkt und eingetragen hast, bleibt für die anderen.'))) return;
-    try { await leaveWir(); store.onboarded = false; W.onb = 1; openWir(); toast(tl('Du hast das Wir verlassen.')); }
+    try { await leaveWir(); store.onboarded = false; W.onb = 1; openWir(); } // the Wir page says it (no toast on top)
     catch (x) { toast(x.code === 'last_admin' ? tl('Du bist der einzige Admin. Mach zuerst jemand anderen zum Admin.') : accountError(x)); }
   }
   else if (d.logoutall) {
@@ -1131,4 +1387,5 @@ setInterval(async () => {
   }, 900);
 })();
 
+openDeepLink();
 showWelcome();

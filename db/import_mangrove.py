@@ -6,6 +6,7 @@ structured attributes to the text: '... | kfo:changing_table=yes,play_corner=yes
 """
 import json
 import re
+from urllib.parse import unquote_plus
 
 from common import connect, fetch, register_source, replace_records, save_raw
 
@@ -47,7 +48,7 @@ def run():
                     k, v = kv.strip().split('=', 1)
                     if k in KFO_KEYS: attrs[KFO_KEYS[k]] = (v, 'user', 0.8)
         facts = {'rating': p.get('rating'), 'review_text': text.strip() or None, **attrs}
-        recs.append({'ref': f"{label or 'geo'}#{r['signature'][:16]}", 'category': cat, 'name': None if om else label.replace('+', ' '),
+        recs.append({'ref': f"{label or 'geo'}#{r['signature'][:16]}", 'category': cat, 'name': None if om else unquote_plus(label),  # 'Caf%C3%A9%20N%C3%A4scherei' -> 'Café Näscherei'
                      'lat': la, 'lon': lo, 'url': f"https://mangrove.reviews/search?q={label}", 'raw': p,
                      'facts': facts, 'observed_at': __import__('datetime').datetime.utcfromtimestamp(p.get('iat', 0)).strftime('%Y-%m-%dT%H:%M:%SZ')})
     print(f'mangrove: {len(reviews)} reviews around lat 53, {replace_records(con, "mangrove", recs)} in Hamburg')

@@ -1,0 +1,8 @@
+[Unit]
+Description=Djuu failure alert for %i (mail to the PocketBase superuser address, see /opt/djuu/alert.py)
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/djuu/alert.py unit %i
+TimeoutStartSec=2min

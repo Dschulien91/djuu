@@ -2,7 +2,7 @@
 # Nightly: refresh the events, translate new titles, publish them at https://api.djuu.de/data/.
 # tools/refresh.py keeps the previous files when a run looks broken, so copying afterwards is always safe.
 # One lock with live.sh (pipeline/.lock): both write the same SQLite database. The exit code is the refresh's own,
-# so systemd marks a broken night as failed.
+# so systemd marks a broken night as failed (and djuu-alert@.service mails the admin, see OnFailure= in the unit).
 cd /opt/djuu || exit 1
 exec 9>pipeline/.lock
 flock -w 1800 9 || { echo "== $(date -Is) lock busy, skipped" >> pipeline/data/cron.log; exit 75; }
@@ -33,9 +33,12 @@ export ANTHROPIC_API_KEY
 docker compose -p djuu --profile jobs run --rm -e ANTHROPIC_API_KEY --entrypoint python refresh db/translate_offers.py >> pipeline/data/cron.log 2>&1
 unset ANTHROPIC_API_KEY
 mkdir -p public/data
+# what was published until now (yesterday's files): alert.py mails when far fewer offers or places come out tonight
+prev=$(python3 /opt/djuu/alert.py count public/data 2>>pipeline/data/cron.log || echo '{}')
 for f in offers.json sources.json places.json; do
   [ -s "pipeline/data/$f" ] && cp "pipeline/data/$f" "public/data/$f.tmp" && mv "public/data/$f.tmp" "public/data/$f"
 done
 echo "== $(date -Is) published (refresh exit $rc)" >> pipeline/data/cron.log
+python3 /opt/djuu/alert.py compare "$prev" public/data >> pipeline/data/cron.log 2>&1 || true
 tail -n 400 pipeline/data/cron.log > pipeline/data/cron.log.tmp && mv pipeline/data/cron.log.tmp pipeline/data/cron.log
 exit $rc

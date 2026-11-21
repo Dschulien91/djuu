@@ -1,6 +1,6 @@
 /* Djuu sync: the shared family on the Djuu server (PocketBase at window.DJUU_API).
-   Sign in with e-mail and password (confirmed by a link), create or join a Wir, then the family profile, shopping list, errands, saved offers and places
-   and visits are the same on every phone, live. Changes without network wait in an outbox and go out later.
+   Sign in with e-mail and password (confirmed by a link), create or join a Wir, then the family profile, shopping list, errands, saved offers and places,
+   the lists, the calendar and the emergency information are the same on every phone, live. Changes without network wait in an outbox and go out later.
    How it works: RECS holds the records as the server last confirmed them, the "shadow" the same state in the app's own shape.
    Every save() compares the local data with shadow plus what is still waiting, and queues only the fields that changed
    (the last change of a field wins). Changes from others arrive over the realtime connection; the local data is then
@@ -20,7 +20,7 @@ let auth = readJson(AUTH_KEY, null);
 let outbox = readJson(OUT_KEY, []);
 let shadow = readJson(SHADOW_KEY, {});
 let unsaved = readJson(UNSAVED_KEY, {}); // coll -> id -> { data, reason }: new entries the server refused, kept on this phone
-const SY = { busy: false, error: '', calToken: '', pings: [], online: true, invite: null, live: false, userRec: null, pendingSignIn: null };
+const SY = { busy: false, error: '', calToken: '', pings: [], online: true, invite: null, live: false, userRec: null, pendingSignIn: null, emails: {} };
 const when = t => Date.parse(String(t || '').replace(' ', 'T')) || Date.now();
 const isPbId = id => typeof id === 'string' && /^[a-z0-9]{15}$/.test(id);
 // stable JSON (sorted keys), so the same content always compares equal
@@ -62,16 +62,40 @@ const SPECS = {
       const kid = r => ({ id: r.id, name: r.name, ym: r.birth_ym, d: r.birth_day ? String(r.birth_day) : '', approx: !!r.birth_approx, school: r.school, size: r.size, shoe: r.shoe, color: r.color || '', photo: r.photo || '' });
       const lvl = v => v || 'edit';
       store.profile.adults = rs.filter(r => r.kind === 'adult').map(r => ({ id: r.id, name: r.name, work: r.work, role: r.role || '', color: r.color || '', photo: r.photo || '', account: !!r.user, user: r.user || '', grp: r.grp || 'family', admin: !!r.is_admin,
-        perms: { shop: lvl(r.perm_shop), errands: lvl(r.perm_errands), cal: lvl(r.perm_cal), saved: lvl(r.perm_saved) }, until: r.access_until ? String(r.access_until).slice(0, 10) : '', email: r.email || '', at: when(r.created) }));
+        perms: { shop: lvl(r.perm_shop), errands: lvl(r.perm_errands), cal: lvl(r.perm_cal), saved: lvl(r.perm_saved), care: careLevel(r) }, until: r.access_until ? String(r.access_until).slice(0, 10) : '', email: r.email || '', at: when(r.created) }));
       store.profile.kids = rs.filter(r => r.kind === 'kid').map(kid).concat(store.profile.kids.filter(k => k.remote)); // helpers: ages from helperKids()
       store.profile.dogList = rs.filter(r => r.kind === 'dog').map(r => ({ id: r.id, name: r.name || '', photo: r.photo || '', color: r.color || '' })); // helpers get none
     },
     shadowExtra: r => ({ account: !!r.user }),
   },
+  // more lists (lists.js): shopping lists besides the main one, to-do lists, packing lists
+  lists: {
+    local: () => store.lists || [], key: x => x.id, newId: x => x.id,
+    payload: x => ({ name: (x.name || '').slice(0, 40) || tl('Liste'), kind: x.kind || 'shop', sort: +x.sort || 0, archived: !!x.archived }),
+    setAll(rs) { store.lists = rs.map(r => ({ id: r.id, name: r.name || '', kind: r.kind || 'shop', sort: r.sort || 0, archived: !!r.archived, at: when(r.created), ...(r._unsaved ? { unsaved: r._unsaved } : {}) })); },
+    area: p => (p.kind === 'todo' ? 'errands' : 'shop'),
+  },
+  // the entries of all lists: the main shopping list (no list), more shopping lists, to-dos (assignee, due) and packing lists
   shop_items: {
     local: () => store.shop.items, key: x => x.id, newId: x => x.id,
-    payload: x => ({ name: x.name, qty: x.qty || '', cat: x.cat || 'sonst', added_by: memberRef(x.by), done_by: memberRef(x.doneBy), done: !!x.done, later: !!x.later }),
-    setAll(rs) { store.shop.items = rs.map(r => ({ id: r.id, name: r.name, qty: r.qty, cat: r.cat, by: r.added_by, doneBy: r.done_by, done: r.done, later: r.later, at: when(r.created), ...(r._unsaved ? { unsaved: r._unsaved } : {}) })); resortSonst(); },
+    payload: x => ({ name: x.name, qty: x.qty || '', cat: x.cat || 'sonst', added_by: memberRef(x.by), done_by: memberRef(x.doneBy), done: !!x.done, later: !!x.later,
+      list: isPbId(x.list) ? x.list : '', assignee: memberRef(x.assignee), due: /^\d{4}-\d{2}-\d{2}$/.test(x.due || '') ? x.due : '' }),
+    setAll(rs) {
+      store.shop.items = rs.map(r => ({ id: r.id, name: r.name, qty: r.qty, cat: r.cat, by: r.added_by, doneBy: r.done_by, done: r.done, later: r.later,
+        ...(r.list ? { list: r.list } : {}), ...(r.assignee ? { assignee: r.assignee } : {}), ...(r.due ? { due: r.due } : {}), at: when(r.created), ...(r._unsaved ? { unsaved: r._unsaved } : {}) }));
+      resortSonst();
+    },
+    // to-dos belong to "Besorgungen", everything else to "Einkauf"
+    area: p => (listKindOf(p.list) === 'todo' ? 'errands' : 'shop'),
+  },
+  // emergency information per child: only admins write it, directly with the consent box (wir.js saveCare); everyone allowed reads it here
+  kid_care: {
+    local: () => store.kidCare || [], key: x => x.id, readOnly: true,
+    payload: x => ({ kid: x.kid }),
+    setAll(rs) {
+      store.kidCare = rs.map(r => ({ id: r.id, kid: r.kid, allergies: r.allergies || '', meds: r.meds || '', doctor: r.doctor || '', notes: r.notes || '',
+        contacts: Array.isArray(r.emergency_contacts) ? r.emergency_contacts.filter(c => c && typeof c === 'object') : [], consentBy: r.consent_by || '', consentAt: r.consent_at || '', at: when(r.updated) }));
+    },
   },
   errands: {
     local: () => store.errands, key: x => x.id, newId: x => x.id,
@@ -89,13 +113,6 @@ const SPECS = {
     payload: x => ({ place_id: x.id, saved_by: memberRef(store.favBy?.[x.id]) }),
     setAll(rs) { store.favorites = rs.map(r => r.place_id); store.favBy = Object.fromEntries(rs.map(r => [r.place_id, r.saved_by])); },
     recordKey: r => r.place_id,
-  },
-  visits: {
-    local: () => Object.entries(store.visits).flatMap(([id, days]) => days.map(day => ({ id, day }))), key: x => x.id + '|' + x.day,
-    payload: x => ({ offer_id: x.id, day: x.day, added_by: memberRef(meId()) }),
-    setAll(rs) { store.visits = {}; for (const r of rs.slice().sort((a, b) => a.day.localeCompare(b.day))) (store.visits[r.offer_id] || (store.visits[r.offer_id] = [])).push(r.day); },
-    recordKey: r => r.offer_id + '|' + r.day,
-    same: (a, b) => a.offer_id === b.offer_id && a.day === b.day, // who added it does not matter
   },
   // Meine Orte: my own places (private or shared with the Wir) plus the places others shared; only my own ones go up
   places: {
@@ -118,21 +135,35 @@ const SPECS = {
     local: () => store.cal || [], key: x => x.id, newId: x => x.id,
     payload: x => ({ kind: x.kind || 'event', title: (x.title || '').slice(0, 80), date: x.date || '', end_date: x.end || '', time_from: x.from || '', time_to: x.to || '',
       repeat: x.repeat || '', until: x.until || '', who: (x.who || []).filter(isPbId), kids: (x.kids || []).filter(isPbId), overrides: x.overrides || {}, plan: x.plan || '',
-      place: (x.place || '').slice(0, 80), alarm: x.alarm || '', note: (x.note || '').slice(0, 200), offer_id: x.offer || '', added_by: memberRef(x.by) }),
+      place: (x.place || '').slice(0, 80), alarm: x.alarm || '', note: (x.note || '').slice(0, 200), offer_id: x.offer || '', added_by: memberRef(x.by), changes: x.changes || {} }),
     setAll(rs) {
       const arr = v => (Array.isArray(v) ? v.filter(x => typeof x === 'string') : []);
       const obj = v => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
       store.cal = rs.map(r => ({ id: r.id, kind: r.kind || 'event', title: r.title || '', date: r.date || '', end: r.end_date || '', from: r.time_from || '', to: r.time_to || '', repeat: r.repeat || '', until: r.until || '',
-        who: arr(r.who), kids: arr(r.kids), overrides: obj(r.overrides), plan: r.plan || '', place: r.place || '', alarm: r.alarm || '', note: r.note || '', offer: r.offer_id || '', by: r.added_by || '', at: when(r.created), ...(r._unsaved ? { unsaved: r._unsaved } : {}) }));
+        who: arr(r.who), kids: arr(r.kids), overrides: obj(r.overrides), changes: obj(r.changes), plan: r.plan || '', place: r.place || '', alarm: r.alarm || '', note: r.note || '', offer: r.offer_id || '', by: r.added_by || '', at: when(r.created), ...(r._unsaved ? { unsaved: r._unsaved } : {}) }));
     },
   },
 };
 const COLLS = Object.keys(SPECS);
-// the access area of a collection: without "Mitbearbeiten" this phone never writes there (members and places: the rules decide)
-const AREA_OF_COLL = { shop_items: 'shop', shop_memory: 'shop', errands: 'errands', saved_offers: 'saved', saved_places: 'saved', visits: 'cal', cal_entries: 'cal' };
+// access to the emergency information (members.perm_care): a server without the field still lets every active adult read it
+// (only admins write); an empty value is the default of the group (family edits, helpers see nothing)
+function careLevel(r) {
+  if (!r || r.perm_care === undefined) return 'view';
+  return ['none', 'view', 'edit'].includes(r.perm_care) ? r.perm_care : r.grp === 'helper' ? 'none' : 'edit';
+}
+// the access area of a collection: without "Mitbearbeiten" this phone never writes there (members and places: the rules decide).
+// shop_items and lists decide per record (spec.area), so the collection is written when either area may be changed.
+const AREA_OF_COLL = { shop_memory: 'shop', errands: 'errands', saved_offers: 'saved', saved_places: 'saved', cal_entries: 'cal' };
 // collections the server does not have (yet, e.g. before an update): nothing is written there, the phone keeps its own data
 const MISSING = new Set();
-const canWrite = coll => !MISSING.has(coll) && (!AREA_OF_COLL[coll] || typeof perm !== 'function' || perm(AREA_OF_COLL[coll]) === 'edit');
+const canEditArea = a => typeof perm !== 'function' || perm(a) === 'edit';
+const canWrite = coll => !MISSING.has(coll) && !SPECS[coll].readOnly
+  && (SPECS[coll].area ? canEditArea('shop') || canEditArea('errands') : !AREA_OF_COLL[coll] || canEditArea(AREA_OF_COLL[coll]));
+// the kind of a list ('' for the main shopping list)
+const listKindOf = id => (id && (store.lists || []).find(l => l.id === id)?.kind) || '';
+// empty values count as the same ('' = missing = {} = []), so fields added later never look changed
+const blank = v => v == null || v === '' || (Array.isArray(v) ? !v.length : typeof v === 'object' && !Object.keys(v).length);
+const sameVal = (a, b) => (blank(a) && blank(b)) || canon(a) === canon(b);
 const recKey = (spec, r) => (spec.recordKey ? spec.recordKey(r) : r.id);
 
 // ---------- Outbox ----------
@@ -167,6 +198,7 @@ function diffAll() {
     const local = new Map(spec.local().map(x => [spec.key(x), x]));
     for (const [k, x] of local) {
       const p = spec.payload(x), s = sh[k];
+      if (spec.area && !canEditArea(spec.area(p))) continue; // e.g. a helper who may change to-dos but not the shopping list
       if (!s) {
         const id = spec.newId && isPbId(spec.newId(x)) ? spec.newId(x) : pbId();
         sh[k] = { id, p: null };
@@ -185,12 +217,14 @@ function diffAll() {
       const base = { ...(s.p ? JSON.parse(s.p) : {}), ...(waiting || {}) };
       if (spec.same && s.p && spec.same(base, p)) continue;
       const changed = {};
-      for (const f of Object.keys(p)) if (canon(p[f]) !== canon(base[f])) changed[f] = p[f];
-      // taken-over days are merged day by day with what others did meanwhile: remember what they were based on
-      if (Object.keys(changed).length) queue({ coll, op: 'update', id: s.id, data: changed, ...(changed.overrides && s.p ? { base: { overrides: base.overrides || {} } } : {}) });
+      for (const f of Object.keys(p)) if (!sameVal(p[f], base[f])) changed[f] = p[f];
+      // taken-over days and single occurrences are merged day by day with what others did meanwhile: remember what they were based on
+      const byDay = (changed.overrides || changed.changes) && s.p;
+      if (Object.keys(changed).length) queue({ coll, op: 'update', id: s.id, data: changed, ...(byDay ? { base: { overrides: base.overrides || {}, changes: base.changes || {} } } : {}) });
     }
     for (const k of Object.keys(sh)) if (!local.has(k)) {
       if (spec.keep && spec.keep(sh[k])) continue;
+      if (spec.area && sh[k].p && !canEditArea(spec.area(JSON.parse(sh[k].p)))) continue;
       const s = sh[k]; delete sh[k];
       dropUnsaved(coll, s.id);
       if (s.p == null && !outbox.some(o => o.coll === coll && o.id === s.id)) continue; // never reached the server
@@ -241,7 +275,7 @@ async function flush() {
       try {
         let rec = null;
         if (o.op === 'create') rec = await api('POST', path, o.data);
-        else if (o.op === 'update' && o.coll === 'cal_entries' && o.base && o.data.overrides) rec = await takeOver(o);
+        else if (o.op === 'update' && o.coll === 'cal_entries' && o.base && (o.data.overrides || o.data.changes)) rec = await takeOver(o);
         else if (o.op === 'update') rec = await api('PATCH', `${path}/${o.id}`, o.coll === 'shop_memory' ? await mergeMemory(o) : o.data);
         else await api('DELETE', `${path}/${o.id}`);
         SY.online = true;
@@ -281,6 +315,8 @@ async function refused(o, e) {
   try { cur = await api('GET', `/api/collections/${o.coll}/records/${o.id}`); } catch (x) { if (!x.status) throw x; }
   if (o.op === 'create') {
     if (cur) { storeRec(o.coll, cur); return ''; } // an earlier try got through
+    // an entry for a list that was deleted meanwhile (on another phone): it goes with the list, without a word
+    if (o.coll === 'shop_items' && isPbId(o.data.list) && !(await listExists(o.data.list))) { dropOrphan(o.id); return ''; }
     if (spec.recordKey) { // the same thing, saved by someone else under another id
       try {
         const rs = await listAll(o.coll, `family='${auth.family}'`);
@@ -300,6 +336,24 @@ async function refused(o, e) {
   storeRec(o.coll, cur); // refused update or delete: the server's state comes back
   return reasonOf(e);
 }
+// does this list still exist on the server? (only "not found" counts as gone; no network is decided later)
+async function listExists(id) {
+  try { await api('GET', `/api/collections/lists/records/${id}`); return true; }
+  catch (x) { if (!x.status) throw x; return x.status !== 404; }
+}
+// forget a new entry that will never reach the server (its list is gone)
+function dropOrphan(id) {
+  dropUnsaved('shop_items', id);
+  const sh = shadow.shop_items || {};
+  for (const [k, s] of Object.entries(sh)) if (s.id === id) delete sh[k];
+  store.shop.items = store.shop.items.filter(i => i.id !== id);
+}
+// entries kept as "nicht gespeichert" whose list is gone (refused before this version): they go too
+function dropOrphanUnsaved() {
+  if (!RECS.lists) return;
+  const ids = new Set(RECS.lists.map(l => l.id));
+  for (const [id, u] of Object.entries(unsaved.shop_items || {})) if (isPbId(u.data?.list) && !ids.has(u.data.list)) dropOrphan(id);
+}
 // the shop memory is one record for the whole Wir: merge with what the server has instead of overwriting it
 async function mergeMemory(o) {
   let cur;
@@ -314,27 +368,34 @@ async function mergeMemory(o) {
   if (o.data.trips != null) out.trips = Math.max(+o.data.trips || 0, +cur.trips || 0);
   return out;
 }
-// taken-over days of a calendar entry: only the days this phone changed go on top of the server's (two people taking over
-// different days at once both stay; a day given back here is removed)
+// day-keyed fields of a calendar entry (taken-over days, single occurrences): only the days this phone changed go on top of
+// the server's (two people changing different days at once both stay; a day taken back here is removed)
 function overridesDelta(server, mine, base) {
   const out = { ...(server && typeof server === 'object' && !Array.isArray(server) ? server : {}) }, b = base || {}, m = mine || {};
-  for (const [k, v] of Object.entries(m)) if (b[k] !== v) out[k] = v;
+  for (const [k, v] of Object.entries(m)) if (canon(b[k]) !== canon(v)) out[k] = v;
   for (const k of Object.keys(b)) if (!(k in m)) delete out[k];
   return out;
 }
+// [days set or changed here, days removed here]
+function dayDelta(base, mine) {
+  const b = base || {}, m = mine || {};
+  return [Object.fromEntries(Object.entries(m).filter(([k, v]) => canon(b[k]) !== canon(v))), Object.keys(b).filter(k => !(k in m))];
+}
 // the changed days go through /api/djuu/cal-take (one transaction on the server), the other fields as a normal change
 async function takeOver(o) {
-  const b = o.base.overrides || {}, m = o.data.overrides || {}, path = `/api/collections/cal_entries/records/${o.id}`;
-  const set = Object.fromEntries(Object.entries(m).filter(([k, v]) => b[k] !== v)), del = Object.keys(b).filter(k => !(k in m));
-  const { overrides, ...rest } = o.data;
+  const path = `/api/collections/cal_entries/records/${o.id}`, body = { id: o.id };
+  if (o.data.overrides) [body.set, body.del] = dayDelta(o.base.overrides, o.data.overrides);
+  if (o.data.changes) [body.chg, body.chgdel] = dayDelta(o.base.changes, o.data.changes);
+  const { overrides, changes, ...rest } = o.data;
   let rec = null;
-  try { rec = await api('POST', '/api/djuu/cal-take', { id: o.id, set, del }); }
+  try { rec = await api('POST', '/api/djuu/cal-take', body); }
   catch (e) {
     if (e.status !== 404 || e.code) throw e;
     // a server without the route: merge here with what it has
-    const cur = await api('GET', path);
-    rec = await api('PATCH', path, { ...rest, overrides: overridesDelta(cur.overrides, m, b) });
-    return rec;
+    const cur = await api('GET', path), merged = { ...rest };
+    if (overrides) merged.overrides = overridesDelta(cur.overrides, overrides, o.base.overrides);
+    if (changes) merged.changes = overridesDelta(cur.changes, changes, o.base.changes);
+    return api('PATCH', path, merged);
   }
   if (Object.keys(rest).length) rec = await api('PATCH', path, rest);
   return rec;
@@ -360,10 +421,13 @@ async function loadAll() {
   if (data.members && (!mine || endedOn(mine)) && !(await checkMembership())) return;
   if (!auth?.family || auth.family !== fam) return; // the Wir changed or was wiped while loading: this data is stale
   diffAll();
-  for (const coll of COLLS) if (data[coll]) { RECS[coll] = data[coll]; settle(coll); }
+  for (const coll of COLLS) if (data[coll]) RECS[coll] = data[coll];
+  dropOrphanUnsaved();
+  for (const coll of COLLS) if (data[coll]) settle(coll);
   store.profile.me = auth.member;
   await helperKids();
-  try { const fr = await api('GET', `/api/collections/families/records/${auth.family}`); auth.familyName = fr.name; store.wirPhoto = fr.photo || ''; writeJson(AUTH_KEY, auth); } catch (e) { /* keep */ }
+  try { const fr = await api('GET', `/api/collections/families/records/${auth.family}`); auth.familyName = fr.name; store.wirPhoto = fr.photo || ''; store.wirFounder = fr.founder || ''; writeJson(AUTH_KEY, auth); } catch (e) { /* keep */ }
+  await loadEmails();
   // news: what others created since this phone last looked (the first time only remembers the moment)
   if (store.newsSince) for (const coll of ['shop_items', 'errands', 'saved_offers', 'members']) for (const r of (data[coll] || [])) if (when(r.created) > store.newsSince) newsFromRecord(coll, r);
   store.newsSince = Date.now(); holidayNews(); courseBlockNews(); assignColors();
@@ -397,7 +461,7 @@ function connectRealtime() {
     const { action, record } = JSON.parse(e.data);
     if (record.id !== auth?.family) return;
     if (action === 'delete') return wirGone('gone');
-    if (action === 'update') { auth.familyName = record.name; store.wirPhoto = record.photo || ''; writeJson(AUTH_KEY, auth); saveLocal(); rerender(); }
+    if (action === 'update') { auth.familyName = record.name; store.wirPhoto = record.photo || ''; store.wirFounder = record.founder || ''; writeJson(AUTH_KEY, auth); saveLocal(); rerender(); }
   });
   es.addEventListener('pings', e => { const { action, record } = JSON.parse(e.data); SY.pings = SY.pings.filter(p => p.id !== record.id); if (action !== 'delete') SY.pings.unshift(record); showPingBar(); });
 }
@@ -409,7 +473,11 @@ function withPending(coll) {
     if (o.coll !== coll) continue;
     const i = recs.findIndex(r => r.id === o.id);
     if (o.op === 'delete') { if (i >= 0) recs.splice(i, 1); }
-    else if (i >= 0) { const server = recs[i].overrides; Object.assign(recs[i], o.data); if (o.base && o.data.overrides) recs[i].overrides = overridesDelta(server, o.data.overrides, o.base.overrides); }
+    else if (i >= 0) {
+      const server = { overrides: recs[i].overrides, changes: recs[i].changes };
+      Object.assign(recs[i], o.data);
+      if (o.base) for (const f of ['overrides', 'changes']) if (o.data[f]) recs[i][f] = overridesDelta(server[f], o.data[f], o.base[f]);
+    }
     else recs.push({ created: new Date().toISOString(), ...o.data });
   }
   return recs;
@@ -417,8 +485,13 @@ function withPending(coll) {
 function applyRemote(coll, { action, record }) {
   if (!auth?.family || !RECS[coll]) return;
   if (coll === 'members' && action === 'delete' && record.id === auth.member) { checkMembership(); return; }
+  // my own access ended (the admin set an end date in the past): the family data leaves this phone at once
+  if (coll === 'members' && action !== 'delete' && record.id === auth.member && endedOn(record)) { wirGone('expired', endedOn(record)); return; }
   // own changes from the last moment (still waiting for the 250 ms pause) go into the outbox first
   if (syncTimer) { clearTimeout(syncTimer); syncTimer = null; diffAll(); flush(); }
+  // my own access changed: load again, so what I may no longer see leaves this phone (and what I may see now arrives)
+  const before = coll === 'members' && record.id === auth.member ? (RECS.members || []).find(m => m.id === record.id) : null;
+  if (before && action === 'update' && ['perm_shop', 'perm_errands', 'perm_cal', 'perm_saved', 'perm_care', 'grp', 'is_admin'].some(k => (before[k] ?? '') !== (record[k] ?? ''))) setTimeout(() => { if (auth?.family && auth.token) loadAll().then(rerender).catch(() => {}); }, 300);
   storeRec(coll, action === 'delete' ? { id: record.id, _deleted: true } : record);
   diffAll(); settle(coll); // field by field: the other phone's change, with own fields still on the way on top
   if (action === 'create') newsFromRecord(coll, record);
@@ -464,6 +537,13 @@ async function enterSession() {
   const ok = await Promise.race([SY.connected, new Promise(res => setTimeout(() => res(false), 6000))]);
   if (!ok && auth?.family) await loadAll(); // no realtime (yet): load anyway, realtime catches up when it connects
 }
+// the end date of my access passes while the app is open (also offline): the same as an ended access
+function checkOwnEnd() {
+  if (!auth?.family || SY.leaving) return;
+  const mine = (RECS.members || []).find(m => m.id === auth.member);
+  if (mine && endedOn(mine)) wirGone('expired', endedOn(mine));
+}
+setInterval(checkOwnEnd, 60000);
 // the day an access ended ('YYYY-MM-DD', local), or '' while it runs
 function endedOn(m) {
   const t = m?.access_until ? Date.parse(String(m.access_until).replace(' ', 'T')) : NaN;
@@ -475,7 +555,8 @@ async function findFamily() {
   if (ms[0] && endedOn(ms[0])) { if (auth.gone?.kind !== 'expired' && !auth.wasGone) { auth.member = ms[0].id; wirGone('expired', endedOn(ms[0])); } return; } // ended access: no Wir on this phone
   if (ms[0]) {
     auth.family = ms[0].family; auth.member = ms[0].id; delete auth.gone; delete auth.wasGone;
-    const f = await api('GET', `/api/collections/families/records/${auth.family}`); auth.familyName = f.name; writeJson(AUTH_KEY, auth);
+    store.onboarded = true; // an existing person (back after an extended access, a second phone): no first steps
+    const f = await api('GET', `/api/collections/families/records/${auth.family}`); auth.familyName = f.name; writeJson(AUTH_KEY, auth); saveLocal();
   }
 }
 // Am I still in my Wir? Checks the session first, so an invalid token is never taken for "Wir gone".
@@ -489,7 +570,7 @@ async function checkMembership() {
   try { ms = await listAll('members', `user='${auth.userId}'`); } catch (e) { return true; }
   const mine = ms.find(m => m.id === auth.member) || ms[0];
   if (mine && endedOn(mine)) { wirGone('expired', endedOn(mine)); return false; }
-  if (mine) { if (mine.family !== auth.family) { auth.family = mine.family; auth.member = mine.id; writeJson(AUTH_KEY, auth); } return true; }
+  if (mine) { if (mine.family !== auth.family) { auth.family = mine.family; auth.member = mine.id; store.onboarded = true; writeJson(AUTH_KEY, auth); saveLocal(); } return true; }
   // the account still points to its person record only while it exists: then the access has ended, else the Wir or the person is gone
   wirGone(rec?.member ? 'expired' : 'gone');
   return false;
@@ -517,14 +598,35 @@ function wirGone(kind, date) {
 // everything of the family on this phone (lists, people, places, news); map, language, area and filters stay
 function wipeFamilyData() {
   Object.assign(store.shop, { items: [], history: {}, learned: {}, rank: {}, trips: 0, seq: [] });
-  store.errands = []; store.savedOffers = []; store.favorites = []; store.favBy = {}; store.visits = {}; store.places = []; store.fit = null; store.cal = [];
+  store.errands = []; store.savedOffers = []; store.favorites = []; store.favBy = {}; store.places = []; store.fit = null; store.cal = []; store.lists = []; store.kidCare = []; store.wirFounder = '';
   store.profile.adults = []; store.profile.kids = []; store.profile.dogList = []; store.profile.me = null; store.profile.expecting = '';
   store.wirPhoto = ''; store.news = []; store.newsSince = 0; store.newsOff = []; store.blocksSeen = {}; store.onboarded = false;
   outbox = []; shadow = {}; unsaved = {}; for (const k of Object.keys(RECS)) delete RECS[k];
-  SY.pings = []; SY.calToken = '';
+  SY.pings = []; SY.calToken = ''; SY.emails = {};
   writeJson(OUT_KEY, null); writeJson(SHADOW_KEY, null); writeJson(UNSAVED_KEY, null);
   saveLocal();
   if (typeof updateBell === 'function') updateBell();
+}
+// E-mail addresses of the people (members.email is hidden): admins get everyone's, everyone else only their own.
+// A server without the route still has members.email in the records (setAll keeps it).
+async function loadEmails() {
+  try { const r = await api('GET', '/api/djuu/emails'); SY.emails = r?.emails && typeof r.emails === 'object' ? r.emails : {}; }
+  catch (e) { if (e.status === 401) throw e; } // offline or missing route: keep what is known
+}
+const emailOf = id => (typeof SY.emails?.[id] === 'string' ? SY.emails[id] : '') || store.profile.adults.find(a => a.id === id)?.email || '';
+// Konto › "Meine Daten herunterladen": everything the server keeps about me, as one JSON file
+async function downloadMyData() {
+  let r;
+  try { r = await fetch(API + '/api/djuu/export', { headers: { Authorization: auth.token } }); } catch (e) { const err = new Error('offline'); err.status = 0; throw err; }
+  if (!r.ok) {
+    if (r.status === 401) sessionEnd();
+    const err = new Error(String(r.status)); err.status = r.status;
+    try { err.data = await r.json(); err.code = err.data?.code || ''; } catch (x) { /* not json */ }
+    throw err;
+  }
+  const url = URL.createObjectURL(await r.blob()), a = document.createElement('a');
+  a.href = url; a.download = 'djuu-daten.json'; a.rel = 'noopener'; document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 2000);
 }
 // Helpers do not see the children's records (birth dates stay in the family); the server tells them name and age only.
 async function helperKids() {
@@ -646,7 +748,7 @@ async function enterFamily(r, myName, keepMembers) {
   // the server already has: my member (with the role chosen when joining) and the shop memory record
   const myRec = await api('GET', `/api/collections/members/records/${r.member}`);
   const me = store.profile.adults.find(a => a.id === r.member);
-  const rights = { account: true, user: auth.userId, grp: myRec.grp || 'family', admin: !!myRec.is_admin, perms: { shop: myRec.perm_shop || 'edit', errands: myRec.perm_errands || 'edit', cal: myRec.perm_cal || 'edit', saved: myRec.perm_saved || 'edit' } };
+  const rights = { account: true, user: auth.userId, grp: myRec.grp || 'family', admin: !!myRec.is_admin, perms: { shop: myRec.perm_shop || 'edit', errands: myRec.perm_errands || 'edit', cal: myRec.perm_cal || 'edit', saved: myRec.perm_saved || 'edit', care: careLevel(myRec) } };
   if (me) { Object.assign(me, rights); me.name = me.name || myName; me.role = me.role || myRec.role || ''; } else store.profile.adults.unshift({ id: r.member, name: myName, role: myRec.role || '', ...rights });
   const mem = (await listAll('shop_memory', `family='${r.family}'`))[0];
   shadow = {}; outbox = []; unsaved = {}; saveOutbox(); saveUnsaved();
@@ -661,6 +763,7 @@ async function enterFamily(r, myName, keepMembers) {
 function logout(silent) {
   if (es) { es.close(); es = null; }
   clearTimeout(retryTimer);
+  try { if (auth?.token) window.djuuPush?.disable?.(auth.token)?.catch?.(() => {}); } catch (e) { /* push not loaded */ }
   wipeFamilyData();
   auth = null; SY.pings = []; SY.userRec = null;
   writeJson(AUTH_KEY, null);
@@ -674,7 +777,8 @@ async function leaveWir() {
   try { await api('POST', '/api/djuu/leave', {}); } catch (e) { SY.leaving = false; startSession(); throw e; }
   SY.leaving = false;
   wipeFamilyData();
-  auth.family = null; auth.member = null; auth.familyName = ''; delete auth.gone; delete auth.wasGone;
+  auth.family = null; auth.member = null; auth.familyName = ''; delete auth.wasGone;
+  auth.gone = { kind: 'left' }; // the Wir page says so; a new Wir only with a clear tap (never by the next "Weiter")
   writeJson(AUTH_KEY, auth); showPingBar(); rerender();
 }
 // sign out on every device: all sessions end, this phone gets a fresh token and stays signed in
@@ -741,8 +845,11 @@ async function calendarLink(renew) {
   const r = await api('POST', '/api/djuu/calendar', renew ? { renew: true } : {});
   SY.calToken = r.token; renderPanel();
 }
-// with the Hamburg school holidays when chosen (Einstellungen › Familienkalender)
-const calUrl = () => `${API.replace(/^https:/, 'webcal:')}/api/djuu/cal/${encodeURIComponent(SY.calToken)}.ics${store.calFerien ? '?ferien=1' : ''}`;
+// with the Hamburg school holidays when chosen, and in English for English users (the feed's own texts)
+const calUrl = () => {
+  const q = [store.calFerien ? 'ferien=1' : '', typeof LANG !== 'undefined' && LANG === 'en' ? 'lang=en' : ''].filter(Boolean).join('&');
+  return `${API.replace(/^https:/, 'webcal:')}/api/djuu/cal/${encodeURIComponent(SY.calToken)}.ics${q ? '?' + q : ''}`;
+};
 
 // ---------- The "Wir" card ----------
 // the family calendar subscription (Wir › Einstellungen › Familienkalender)
@@ -794,6 +901,7 @@ window.addEventListener('online', () => { SY.online = true; retryDelay = 5000; r
 let hiddenAt = 0;
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') { hiddenAt = Date.now(); return; }
+  checkOwnEnd();
   if (!auth?.token) return;
   if (!es || es.readyState === 2 || !SY.live) return startSession();
   // phones often drop the live connection in the background without telling: after 30 s away, catch up

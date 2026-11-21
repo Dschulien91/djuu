@@ -2,6 +2,8 @@
 Description=Djuu nightly event refresh (see /opt/djuu/refresh.sh)
 After=docker.service network-online.target
 Wants=network-online.target
+# a failed run mails the PocketBase superuser address (server/alert.py)
+OnFailure=djuu-alert@%n.service
 
 [Service]
 Type=oneshot

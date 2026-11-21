@@ -40,10 +40,12 @@ function firstDate(s) {
 }
 function fold(line) { const out = []; while (line.length > 60) { out.push(line.slice(0, 60)); line = " " + line.slice(60); } out.push(line); return out.join("\r\n"); }
 
-function ics(name, items) {
+// lang 'en': English fixed texts (?lang=en on the feed address); titles stay as saved
+function ics(name, items, lang) {
+  const en = lang === "en";
   const stamp = new Date().toISOString().replace(/[-:]/g, "").slice(0, 15) + "Z";
   const L = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Djuu//Familienkalender//DE", "CALSCALE:GREGORIAN", "METHOD:PUBLISH",
-    `X-WR-CALNAME:${esc("Djuu " + (name || "Familie"))}`, "X-WR-TIMEZONE:Europe/Berlin", "REFRESH-INTERVAL;VALUE=DURATION:PT6H",
+    `X-WR-CALNAME:${esc("Djuu " + (name || (en ? "Family" : "Familie")))}`, "X-WR-TIMEZONE:Europe/Berlin", "REFRESH-INTERVAL;VALUE=DURATION:PT6H",
     "BEGIN:VTIMEZONE", "TZID:Europe/Berlin", "BEGIN:DAYLIGHT", "TZOFFSETFROM:+0100", "TZOFFSETTO:+0200", "TZNAME:CEST", "DTSTART:19700329T020000",
     "RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU", "END:DAYLIGHT", "BEGIN:STANDARD", "TZOFFSETFROM:+0200", "TZOFFSETTO:+0100", "TZNAME:CET",
     "DTSTART:19701025T030000", "RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU", "END:STANDARD", "END:VTIMEZONE"];
@@ -58,7 +60,7 @@ function ics(name, items) {
       `DTSTART${tz}:${compact(day)}${timed ? "T" + hm(s.time_from) : ""}`,
       `DTEND${tz}:${timed ? compact(day) + "T" + hm(end) : compact(addDays(day, 1))}`,
       `SUMMARY:${esc(s.title)}`, `LOCATION:${esc([s.venue, s.address].filter(Boolean).join(", "))}`,
-      `DESCRIPTION:${esc([s.provider, s.url, "Ohne Gewähr, bitte beim Anbieter prüfen."].filter(Boolean).join("\n"))}`);
+      `DESCRIPTION:${esc([s.provider, s.url, en ? "No guarantee, please check with the provider." : "Ohne Gewähr, bitte beim Anbieter prüfen."].filter(Boolean).join("\n"))}`);
     if (s.url && /^https?:\/\/\S+$/.test(s.url)) L.push(`URL:${s.url}`); // no line breaks in a raw property
     const recurring = s.kind !== "termin" && s.weekday != null && !(s.start_date && s.start_date === s.end_date);
     if (recurring) {
@@ -75,15 +77,22 @@ function ics(name, items) {
 function parseJson(t) { try { return JSON.parse(t || "{}"); } catch (e) { return {}; } }
 
 // ---------- Wir: access per area ----------
-const PERMS = ["perm_shop", "perm_errands", "perm_cal", "perm_saved"];
-const FULL = { perm_shop: "edit", perm_errands: "edit", perm_cal: "edit", perm_saved: "edit" };
-const HELPER = { perm_shop: "view", perm_errands: "view", perm_cal: "view", perm_saved: "none" };
-// only known areas and levels; missing ones get the default of the group
-function cleanPerms(p, grp) {
+// perm_care: the emergency information of the children (kid_care): 'view' reads, 'edit' writes (with consent)
+const PERMS = ["perm_shop", "perm_errands", "perm_cal", "perm_saved", "perm_care"];
+const FULL = { perm_shop: "edit", perm_errands: "edit", perm_cal: "edit", perm_saved: "edit", perm_care: "edit" };
+const HELPER = { perm_shop: "view", perm_errands: "view", perm_cal: "view", perm_saved: "none", perm_care: "none" };
+const LEVELS = ["none", "view", "edit"];
+// only known areas and levels; missing ones come from `current` (the person's levels now), else the default of the group
+function cleanPerms(p, grp, current) {
   const base = grp === "helper" ? HELPER : FULL, out = {};
-  for (const k of PERMS) { const v = p && p[k]; out[k] = ["none", "view", "edit"].includes(v) ? v : base[k]; }
+  for (const k of PERMS) {
+    const v = p && p[k], cur = current && current[k];
+    out[k] = LEVELS.includes(v) ? v : LEVELS.includes(cur) ? cur : base[k];
+  }
   return out;
 }
+// a person's access levels as they are stored now
+function permsOf(m) { const out = {}; for (const k of PERMS) out[k] = m.getString(k); return out; }
 function makeAccount(m, { grp, role, admin, perms, email }) {
   m.set("grp", grp); m.set("role", String(role || "").slice(0, 30)); m.set("is_admin", !!admin); m.set("email", String(email || "").slice(0, 120));
   for (const k of PERMS) m.set(k, perms[k]);
@@ -94,12 +103,24 @@ function expired(m) { return !!m.getString("access_until") && m.getDateTime("acc
 // A person leaves their Wir (inside a transaction): the account stays without a Wir, own places are no longer shared,
 // what they saved stays for the others (saved_by is emptied), and the old family-wide calendar address stops working.
 function leaveWir(tx, m) {
+  passFounder(tx, m);
   if (m.getString("user")) {
     try { const usr = tx.findRecordById("users", m.getString("user")); usr.set("member", ""); tx.save(usr); } catch (e) { /* gone */ }
     for (const pl of tx.findRecordsByFilter("places", "owner = {:o} && family != ''", "", 0, 0, { o: m.getString("user") })) { pl.set("family", ""); pl.set("shared", false); tx.save(pl); }
   }
   tx.delete(m);
   retireFamilyCalendar(tx, m.getString("family"));
+}
+// The founder (families.founder) is never removed or demoted by others. When they leave (only possible while another admin
+// with an account exists), the oldest other admin with an account becomes the founder. Inside a transaction.
+function founderOf(app, familyId) { try { return app.findRecordById("families", familyId).getString("founder"); } catch (e) { return ""; } }
+function passFounder(tx, m) {
+  let fam;
+  try { fam = tx.findRecordById("families", m.getString("family")); } catch (e) { return; }
+  if (fam.getString("founder") !== m.id) return;
+  const next = tx.findRecordsByFilter("members", "family = {:f} && is_admin = true && user != '' && id != {:m}", "created", 1, 0, { f: fam.id, m: m.id })[0];
+  fam.set("founder", next ? next.id : "");
+  tx.save(fam);
 }
 function canSee(m, perm) {
   if (expired(m)) return false;
@@ -128,5 +149,5 @@ function ageRange(ym, day) {
   return { min: months, max: months };
 }
 
-module.exports = { fail, handle, inTx, memberOf, ics, parseJson, PERMS, FULL, cleanPerms, makeAccount, linkUser, canSee, expired, leaveWir, retireFamilyCalendar, endOfDay, ageRange };
+module.exports = { fail, handle, inTx, memberOf, ics, parseJson, PERMS, FULL, HELPER, cleanPerms, permsOf, makeAccount, linkUser, canSee, expired, leaveWir, founderOf, passFounder, retireFamilyCalendar, endOfDay, ageRange };
 

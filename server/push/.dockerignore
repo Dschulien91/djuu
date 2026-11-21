@@ -1,0 +1,4 @@
+# Only the code: the push keys (push.env, vapid_private.pem) live in this folder on the server
+*
+!sender.py
+!gen_vapid.py

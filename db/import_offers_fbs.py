@@ -318,10 +318,19 @@ def keep(meta, groups):
     return bool(FAMILY_TITLE.search(text))
 
 
+def join_title(title, subtitle):
+    """Title and subtitle as one title; a subtitle that repeats the title (or contains it) is not added twice:
+    'Circle Singing- für Erwachsene' + 'für Erwachsene', 'DELFI®' + 'DELFI® für Juli 2026 geborene Babys'."""
+    f = lambda x: re.sub(r'[^a-z0-9äöüß]+', '', (x or '').lower())
+    if not subtitle or (len(f(subtitle)) >= 4 and f(subtitle) in f(title)): return title
+    if len(f(title)) >= 4 and f(subtitle).startswith(f(title)): return subtitle
+    return f'{title} – {subtitle}'
+
+
 def build(site, meta, det):
     title = det.get('title') or meta['title'] if det else meta['title']
     subtitle = (det.get('subtitle') if det else None) or meta['subtitle']
-    full = f'{title} – {subtitle}' if subtitle else title
+    full = join_title(title, subtitle)
     sessions = det['sessions'] if det else []
     start, t_from = first_when(meta['when'])
     if sessions:
@@ -336,8 +345,8 @@ def build(site, meta, det):
     lo, hi = age_of(f'{title} {subtitle}', start or date.today())
     if lo is None and hi is None and det:
         lo, hi = det.get('text_age') or (None, None)
-    if lo is None and hi is None and 'mit-babys-leben-bis-12-monate' in meta.get('cats', ()):
-        lo, hi = 0, 12
+    if lo is None and hi is None and 'mit-babys-leben-bis-12-monate' in meta.get('cats', ()) and not re.search(r'erwachsene', full, re.I):
+        lo, hi = 0, 12  # the baby category; not for an adults' course listed there ('Circle Singing – für Erwachsene')
     topic = topic_of(title + ' ' + subtitle)
     parents = topic in ('geburtsvorbereitung', 'rueckbildung')
     if parents and not re.search(r'mit baby|mit kind|babys von', full, re.I):

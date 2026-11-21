@@ -137,8 +137,10 @@ def run():
 
     used = [p for p in places.values() if p.get('used')]
     districts = load_districts()
+    from build_geo import OSM_TO_OFFICIAL  # official Stadtteil names ('Altstadt' -> 'Hamburg-Altstadt', 'Stove' -> 'Kirchwerder')
     for p in used:
         p['district'], p['borough'] = locate(districts, p['lat'], p['lon'])
+        p['district'] = OSM_TO_OFFICIAL.get(p['district'], p['district'])
 
     con.execute('UPDATE source_records SET place_id = NULL')
     con.execute('DELETE FROM places')

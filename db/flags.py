@@ -78,6 +78,7 @@ def flagged_offers(con):
 
 
 if __name__ == '__main__':
+    sys.stdout.reconfigure(encoding='utf-8')  # names like 'Övelgönne' on a Windows console
     con = connect()
     ensure(con)
     cmd = sys.argv[1] if len(sys.argv) > 1 else 'list'

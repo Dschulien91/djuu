@@ -90,7 +90,7 @@ function askResultsHtml() {
   if (!found.length && last.unknown.length) { found = last.unknown; partial = tl('Zu diesen Orten fehlen Angaben (zum Beispiel das Alter). Sie passen zum Rest deiner Frage.'); }
   if (!found.length && state.io) { const io = state.io; state.io = null; const r = compute(); state.io = io; found = r.match.concat(r.unknown); partial = tl('Nichts passt genau. Diese Orte passen zu einem Teil deiner Frage.'); }
   ASK.partial = !!partial;
-  const list = found.map(p => [dist(o, [p.lat, p.lon]), p]).sort((a, b) => a[0] - b[0]).slice(0, 25);
+  const list = found.map(p => [dist(o, [p.lat, p.lon]), p]).sort((a, b) => maybeLast(a[0], a[1]) - maybeLast(b[0], b[1])).slice(0, 25);
   return `<div class="askbox"><p class="askhead">${svg('sparkle')}${tl('Djuu hat verstanden')}</p>
       <div class="fgrid">${chips.map(([k, l]) => `<button type="button" class="chip askchip" data-askx="${esc(k)}" aria-label="${esc(l)} ${tl('entfernen')}">${esc(l)} ${svg('close')}</button>`).join('')}</div></div>
     ${partial && list.length ? `<p class="note partial">${svg('info')} ${partial}</p>` : ''}
@@ -103,7 +103,7 @@ function askResultsHtml() {
 // ---------- understanding a question: Claude Haiku on the server, else simple rules on the phone ----------
 const VOCAB = () => ({
   groups: GROUPS.filter(g => !g.offers).map(g => g.id),
-  tags: [...new Set(Object.entries(TAGS).filter(([id]) => !GROUP[id].offers).flatMap(([, l]) => l.map(t => t.id)))],
+  tags: [...new Set(Object.entries(TAGS).filter(([id]) => !GROUP[id].offers).flatMap(([, l]) => l.flatMap(t => [t.id, ...(t.of || [])])))], // museum, natur, baden … too
   filters: ATTRS.map(a => a.id).filter(id => id !== 'hund' || hasDog()).concat(['jetzt', 'sonntag']),
 });
 // which group a tag belongs to (the first that has it)
@@ -120,7 +120,7 @@ async function understand(q) {
       const u = { group: a.group, tags: a.tags || [], filters: a.filters || [], io: a.io, age: a.age_months };
       if (!u.group && u.tags.length) u.group = groupOfTag(u.tags[0]);
       if (u.tags.includes('wasserspiel')) { u.tags = u.tags.filter(t => t !== 'wasserspiel'); if (!u.filters.includes('wasser')) u.filters.push('wasser'); }
-      if (u.group) u.tags = u.tags.filter(t => TAGS[u.group]?.some(x => x.id === t));
+      if (u.group) { const ok = groupTagIds(GROUP[u.group]); u.tags = u.tags.filter(t => ok.has(t)); } // sub-categories and the place tags they stand for (museum)
       u.filters = u.filters.filter(f => FILTER_LABEL[f]);
       // the server knows no Stadtteile: they, "in der Nähe" and leftover names come from the phone's own reading
       const local = localUnderstand(q);
@@ -135,30 +135,51 @@ async function understand(q) {
 }
 // the phone's own recognition: words for categories, properties, indoor/outdoor, age, Stadtteile and "in der Nähe".
 // Works on norm()-ed text (ä -> ae, ß -> ss). Each rule marks the words it used, to see how much of the question was understood.
+// German and English alike ("playground", "changing table", "nappies")
 const LOCAL_RULES = [
-  [/spielpl\w*/, { group: 'spielen', tags: ['spielplatz'] }], [/abenteuer\w*/, { group: 'spielen', tags: ['abenteuer'] }], [/indoor\w*|spielhalle\w*/, { group: 'spielen', tags: ['indoorspielplatz'] }],
-  [/kletter\w*|boulder\w*/, { group: 'spielen', tags: ['klettern'] }], [/trampolin\w*/, { group: 'spielen', tags: ['trampolin'] }],
-  [/kindercafe\w*|spielcafe\w*|familiencafe\w*/, { group: 'gastro', tags: ['kindercafe'] }],
-  [/\bcafe\w*|kaffee\w*/, { group: 'gastro', tags: ['cafe'] }], [/restaurant\w*|essen gehen|mittagessen/, { group: 'gastro', tags: ['restaurant'] }], [/\beis(diele|cafe)?\b/, { group: 'gastro', tags: ['eis'] }],
-  [/museum|museen/, { group: 'entdecken', tags: ['museum'] }], [/\bzoo\b|tierpark\w*|bauernhof\w*|\btiere\b/, { group: 'entdecken', tags: ['tiere'] }], [/\bpark\b|\bparks\b|\bnatur\b|\bwald\b/, { group: 'entdecken', tags: ['natur'] }],
-  [/schwimm\w*|\bbaden\b|freibad\w*|hallenbad\w*/, { group: 'entdecken', tags: ['baden'] }], [/buecherhalle\w*|bibliothek\w*/, { group: 'entdecken', tags: ['buecherei'] }], [/theater\w*|\bkino\w*/, { group: 'entdecken', tags: ['theater'] }],
-  [/wickel\w*/, { group: 'sanitaer', tags: ['wickeln'] }], [/toilette\w*|\bwc\b|\bklo\b/, { group: 'sanitaer', tags: ['wc'] }], [/still(en|raum)\b/, { group: 'sanitaer', tags: ['stillen'] }],
-  [/apotheke\w*/, { group: 'gesundheit', tags: ['apotheke'] }], [/kinderarzt\w*|kinderaerzt\w*/, { group: 'gesundheit', tags: ['kinderarzt'] }], [/hebamme\w*/, { group: 'gesundheit', tags: ['hebamme'] }],
-  [/drogerie\w*|windeln/, { group: 'laeden', tags: ['drogerie'] }], [/supermarkt\w*/, { group: 'laeden', tags: ['supermarkt'] }], [/spielzeug\w*/, { group: 'laeden', tags: ['spielzeug'] }],
-  [/\bkita\w*|kindergarten\w*|krippe\w*/, { group: 'familie', tags: ['kita'] }], [/beratung\w*/, { group: 'familie', tags: ['beratung'] }], [/aufzug\w*|aufzuege\w*|fahrstuhl\w*|\blift\b/, { group: 'mobil', tags: ['aufzug'] }],
+  [/spielpl\w*|playground\w*/, { group: 'spielen', tags: ['spielplatz'] }], [/abenteuer\w*|adventure playground/, { group: 'spielen', tags: ['abenteuer'] }], [/indoor\w*|spielhalle\w*|soft ?play/, { group: 'spielen', tags: ['indoorspielplatz'] }],
+  [/kletter\w*|boulder\w*|climbing/, { group: 'spielen', tags: ['klettern'] }], [/trampolin\w*/, { group: 'spielen', tags: ['trampolin'] }],
+  [/kindercafe\w*|spielcafe\w*|familiencafe\w*|(kids|family|childrens?) ?cafes?\b/, { group: 'gastro', tags: ['kindercafe'] }],
+  [/\bcafe\w*|kaffee\w*|coffee/, { group: 'gastro', tags: ['cafe'] }], [/restaurant\w*|essen gehen|mittagessen|\blunch\b|\bdinner\b/, { group: 'gastro', tags: ['restaurant'] }], [/\beis(diele|cafe)?\b|ice ?cream/, { group: 'gastro', tags: ['eis'] }],
+  [/museum|museen|museums/, { group: 'entdecken', tags: ['museum'] }], [/\bzoo\b|tierpark\w*|bauernhof\w*|\btiere\b|\banimals?\b|\bfarm\b|petting/, { group: 'entdecken', tags: ['tiere'] }], [/\bpark\b|\bparks\b|\bnatur\b|\bnature\b|\bwald\b|\bforest\b|\bwoods\b/, { group: 'entdecken', tags: ['natur'] }],
+  [/schwimmbad\w*|\bbaden\b|freibad\w*|hallenbad\w*|swimming pool|\bpools?\b|\blido\b/, { group: 'entdecken', tags: ['baden'] }], [/buecherhalle\w*|bibliothek\w*|librar(y|ies)/, { group: 'entdecken', tags: ['buecherei'] }], [/theater\w*|\bkino\w*|theatre\w*|cinema\w*/, { group: 'entdecken', tags: ['theater'] }],
+  [/wickel\w*|changing (table|room|station)|baby ?chang\w*/, { group: 'sanitaer', tags: ['wickeln'] }], [/toilette\w*|\bwc\b|\bklo\b|toilets?\b|restrooms?|bathrooms?|\bloo\b/, { group: 'sanitaer', tags: ['wc'] }], [/still(en|raum)\b|breast ?feed\w*|nursing room/, { group: 'sanitaer', tags: ['stillen'] }],
+  [/apotheke\w*|pharmac(y|ies)|chemists?\b/, { group: 'gesundheit', tags: ['apotheke'] }], [/kinderarzt\w*|kinderaerzt\w*|paediatrician\w*|pediatrician\w*|\bdoctors?\b/, { group: 'gesundheit', tags: ['kinderarzt'] }], [/hebamme\w*|midwi(fe|ves)/, { group: 'gesundheit', tags: ['hebamme'] }],
+  [/drogerie\w*|windeln|nappies|diapers?|drugstores?/, { group: 'laeden', tags: ['drogerie'] }], [/supermarkt\w*|supermarkets?|groceries/, { group: 'laeden', tags: ['supermarkt'] }], [/spielzeug\w*|\btoys?\b|toy ?shops?/, { group: 'laeden', tags: ['spielzeug'] }],
+  [/\bkita\w*|kindergarten\w*|krippe\w*|day ?care|nurser(y|ies)/, { group: 'familie', tags: ['kita'] }], [/beratung\w*|counsel\w*/, { group: 'familie', tags: ['beratung'] }], [/aufzug\w*|aufzuege\w*|fahrstuhl\w*|\blifts?\b|elevators?/, { group: 'mobil', tags: ['aufzug'] }],
 ];
-const LOCAL_FILTERS = [[/\bwasser\w*|matsch\w*|planschen/, 'wasser'], [/eingezaeunt|umzaeunt/, 'eingezaeunt'], [/kinderwagen\w*|stufenlos\w*|barrierefrei\w*/, 'kinderwagen'],
-  [/hochstuhl\w*/, 'hochstuhl'], [/spielecke\w*/, 'spielecke'], [/kostenlos\w*|gratis|umsonst/, 'kostenlos'], [/\bjetzt\b|\bgerade\b|\bsofort\b|\bgeoeffnet\b|\boffen\b/, 'jetzt'],
-  [/sonntags?\b/, 'sonntag'], [/\bhunde?\b/, 'hund'], [/notdienst\w*|notapotheke\w*|\bnachts\b|in der nacht/, 'notdienst'],
-  [/kaputt|defekt|ausser betrieb|geht nicht|funktioniert nicht|gestoert/, 'aufzug_kaputt']];
-// words that carry no wish of their own ("Ideen", "bitte", "für Kinder")
-const FILLER = new Set('ideen idee tipps tipp vorschlag vorschlaege kinder kind kids familie familien bitte gut gute guter schoen schoene schoenen toll tolle beste besten naechste naechsten naechster wetter welche welcher welches wohin gehen hin kann koennen man unsere unser uns mal noch was gibts'.split(' '));
-const NEAR = /\b(in der )?naehe\b|\bnah\b|\bum die ecke\b|\bhier\b|\bbei mir\b/;
-const NEAR_WORDS = ['naehe', 'nah', 'hier', 'ecke', 'bei', 'mir'];
+const LOCAL_FILTERS = [[/\bwasser\w*|matsch\w*|planschen|\bwater\b|splash\w*/, 'wasser'], [/eingezaeunt|umzaeunt|fenced/, 'eingezaeunt'], [/kinderwagen\w*|stufenlos\w*|barrierefrei\w*|stroller|\bprams?\b|buggy|step ?free|wheelchair/, 'kinderwagen'],
+  [/hochstuhl\w*|high ?chairs?/, 'hochstuhl'], [/spielecke\w*|play (corner|area)/, 'spielecke'], [/kostenlos\w*|gratis|umsonst|\bfree\b/, 'kostenlos'], [/\bjetzt\b|\bgerade\b|\bsofort\b|\bgeoeffnet\b|\boffen\b|\bopen\b|\bnow\b/, 'jetzt'],
+  [/sonntags?\b|sundays?\b/, 'sonntag'], [/\bhunde?\b|\bdogs?\b/, 'hund'], [/notdienst\w*|notapotheke\w*|\bnachts\b|in der nacht|emergency|at night/, 'notdienst'],
+  [/kaputt|defekt|ausser betrieb|geht nicht|funktioniert nicht|gestoert|broken|out of order/, 'aufzug_kaputt']];
+// words that carry no wish of their own ("Ideen", "bitte", "für meine Kinder", "for my kids"): never a text filter
+const FILLER = new Set(('ideen idee tipps tipp vorschlag vorschlaege kinder kind kids familie familien bitte gut gute guter schoen schoene schoenen toll tolle beste besten naechste naechsten naechster wetter welche welcher welches wohin gehen hin kann koennen man unsere unser unseren unserer uns mal noch was gibts '
+  + 'meine mein meinen meiner meinem fuer mit tochter sohn jaehrige jaehrigen jaehriger jahrige jahre jahren jahr alt alte alten los etwas sowas '
+  + 'ideas idea tips tip please good nice great best nearest closest where what which whats can could we our my me for with the a an to go some any something child children family families son daughter year years old is are there this on in at of do does when it i you how should would like want need find looking look get let lets us').split(' '));
+const NEAR = /\b(in der )?naehe\b|\bnah\b|\bum die ecke\b|\bhier\b|\bbei mir\b|\bnear ?by\b|\bnear me\b|\baround here\b|\bclose by\b/;
+const NEAR_WORDS = ['naehe', 'nah', 'hier', 'ecke', 'bei', 'mir', 'near', 'nearby', 'me', 'around', 'here', 'close', 'by'];
+// marks the words a rule understood: every word of a match ("erste hilfe") and every whole word a match sits in
+// ("eingezaeunter", "kindertheater"), so no part of it is left over as a search word
+const askMarker = (t, used) => re => {
+  for (const m of t.matchAll(new RegExp(re.source, 'g'))) for (const w of words(m[0])) used.add(w);
+  for (const w of words(t)) if (re.test(w)) used.add(w);
+};
+// Stadtteile meant by a word that is only the first part of their names: "Barmbek" = Barmbek-Nord and Barmbek-Süd
+function askDistrictStem(q) {
+  const ws = words(q).filter(w => w.length >= 4);
+  for (const w of ws) { const hit = districtList().filter(d => words(d)[0] === w && words(d).length > 1); if (hit.length) return [hit, w]; }
+  return null;
+}
+// normalised word -> how the person wrote it (chips show their own spelling: „Straße“, not „strasse“)
+function askSpelling(q) {
+  const out = new Map();
+  for (const tok of String(q).split(/[\s,.;:!?„“”"'()]+/)) for (const w of words(tok)) if (!out.has(w)) out.set(w, tok);
+  return out;
+}
 function localUnderstand(q) {
   const t = norm(q), u = { group: null, tags: [], filters: [], io: null, age: null, area: null, preset: null, q: '' };
   const used = new Set(); // the words the rules understood
-  const mark = re => { for (const m of t.matchAll(new RegExp(re.source, 'g'))) for (const w of words(m[0])) used.add(w); };
+  const mark = askMarker(t, used);
   for (const [re, r] of LOCAL_RULES) if (re.test(t) && (!u.group || u.group === r.group)) { u.group = r.group; mark(re); for (const x of r.tags) if (!u.tags.includes(x)) u.tags.push(x); }
   for (const [re, f] of LOCAL_FILTERS) if (re.test(t) && (f !== 'hund' || hasDog()) && !u.filters.includes(f)) { u.filters.push(f); mark(re); }
   // emergency pharmacy: always the pharmacies; a broken lift: always the lifts
@@ -166,30 +187,108 @@ function localUnderstand(q) {
   if (u.filters.includes('aufzug_kaputt')) { u.group = 'mobil'; u.tags = ['aufzug']; }
   if (u.group === 'mobil') u.filters = u.filters.filter(f => f !== 'jetzt'); // lifts and stations have no opening hours
   // rain: the curated indoor set (indoor playgrounds, climbing, museums, Bücherhallen, kids' cafés, indoor pools), not every roof in town
-  const RAIN = /regen\w*|regnet|schlechtes wetter|schmuddel\w*/;
+  const RAIN = /regen\w*|regnet|schlechtes wetter|schmuddel\w*|\brain\w*|bad weather/;
   if (RAIN.test(t)) { mark(RAIN); if (!u.group) u.preset = 'regen'; else u.io = 'drinnen'; }
-  else if (/drinnen|ueberdacht|\bindoor\b/.test(t)) { u.io = 'drinnen'; mark(/drinnen|ueberdacht/); }
-  else if (/draussen|im freien/.test(t)) { u.io = 'draussen'; mark(/draussen|im freien/); }
-  const AGE = /(\d{1,2})\s*-?\s*(j(a|ae)hrig\w*|jahre?n?\b|j\.|monate?n?\b|mon\.)/;
-  const m = t.match(AGE);
-  if (m) { const n = +m[1], months = /mon/.test(m[2]) ? n : n * 12; u.age = [months, months + 12]; mark(AGE); }
-  else if (/baby\w*|saeugling\w*/.test(t)) { u.age = [0, 12]; mark(/baby\w*|saeugling\w*/); } else if (/kleinkind\w*/.test(t)) { u.age = [12, 36]; mark(/kleinkind\w*/); }
+  else if (/drinnen|ueberdacht|\bindoors?\b/.test(t)) { u.io = 'drinnen'; mark(/drinnen|ueberdacht|\bindoors\b/); }
+  else if (/draussen|im freien|outdoors?|outside/.test(t)) { u.io = 'draussen'; mark(/draussen|im freien|outdoors?|outside/); }
+  const months = askAge(t);
+  if (months) { u.age = [months.m, months.m + (months.m < 12 ? 12 : months.re === AGE_RE ? 12 : 24)]; mark(months.re); }
   // where: a Stadtteil named in the question (longest name first: "St. Pauli", "Ottensen"), else "in der Nähe" = 1 km around me
-  const flat = ' ' + words(q).join(' ') + ' ';
-  const hit = districtList().map(d => [d, words(d).join(' ')]).filter(([, n]) => n.length > 2).sort((a, b) => b[1].length - a[1].length).find(([, n]) => flat.includes(' ' + n + ' '));
+  const hit = askDistrict(q), stem = !hit && askDistrictStem(q);
   if (hit) { u.area = { type: 'district', names: [hit[0]] }; for (const w of hit[1].split(' ')) used.add(w); }
+  else if (stem) { u.area = { type: 'district', names: stem[0] }; used.add(stem[1]); }
   else if (NEAR.test(t)) { u.area = { type: 'radius', r: 1000, center: 'me' }; for (const w of NEAR_WORDS) used.add(w); }
   // what is left: words the rules did not use. Names and streets among them stay a text search ("Aufzug Hauptbahnhof")
   const all = words(q).filter(w => !STOP.has(w) && !FILLER.has(w) && !/^\d+$/.test(w));
   const left = all.filter(w => !used.has(w));
   u.share = all.length ? 1 - left.length / all.length : 1;
-  if (left.length && !askEmpty(u)) { const lq = left.join(' '); if (searchPlaces(lq).length) u.q = lq; }
+  if (left.length && !askEmpty(u)) { const lq = left.join(' '); if (searchPlaces(lq).length) { const sp = askSpelling(q); u.q = [...new Set(left.map(w => sp.get(w) || w))].join(' '); } }
   return u;
+}
+// age in a question: "3 Jahre", "3-jährig", "18 Monate", "3 year old", "18 months", baby, toddler -> { m: months, re }
+const AGE_RE = /(\d{1,2})\s*-?\s*(j(a|ae)hrig\w*|jahre?n?\b|j\.|monate?n?\b|mon\.|years?\b|yrs?\b|months?\b)/;
+function askAge(t) {
+  const m = t.match(AGE_RE);
+  if (m) return { m: /mon/.test(m[2]) ? +m[1] : +m[1] * 12, re: AGE_RE };
+  if (/baby\w*|babies|saeugling\w*|infant\w*/.test(t)) return { m: 0, re: /baby\w*|babies|saeugling\w*|infant\w*/ };
+  if (/kleinkind\w*|toddler\w*/.test(t)) return { m: 12, re: /kleinkind\w*|toddler\w*/ };
+  return null;
+}
+// a Stadtteil named in the question (longest name first: "St. Pauli", "Ottensen") -> [name, its words], or null
+function askDistrict(q) {
+  const flat = ' ' + words(q).join(' ') + ' ';
+  return districtList().map(d => [d, words(d).join(' ')]).filter(([, n]) => n.length > 2).sort((a, b) => b[1].length - a[1].length).find(([, n]) => flat.includes(' ' + n + ' ')) || null;
+}
+
+// ---------- questions about Termine: "Krabbelgruppe in Altona für 1-Jährige", "Was ist am Wochenende los?" ----------
+// They open Termine with its own filters (topic, Wann, age, Stadtteil or Bezirk, search words) instead of the map.
+// strong (1): only an offer is meant; weak words (Theater, Schwimmen, Musik …) count only next to a time or "Kurs/Termin" word.
+// page: 'e' = a single event (Einmalig), 'w' = a course or group (Wiederkehrend), '' = where the topic has more offers
+const EV_TOPIC_RULES = [
+  [/krabbel\w*|spielgruppe\w*|playgroups?|toddler groups?/, 'krabbelgruppe', 1, 'w'], [/kinderturn\w*|kinderyoga\w*|kindertanz\w*|kids'? (gym|yoga|dance)/, 'sport', 1, 'w'], [/pekip|babyturn\w*|eltern-?kind-?turn\w*|baby ?gym/, 'pekip', 1, 'w'], [/babymassage\w*|baby massage/, 'babymassage', 1, 'w'],
+  [/babyschwimm\w*|baby ?swim\w*|schwimmkurs\w*|swimming (lessons?|class\w*|course\w*)/, 'schwimmen', 1, 'w'], [/vorles\w*|bilderbuch\w*|lesung\w*|story ?time|storytelling/, 'lesen', 1, ''],
+  [/kinderkonzert\w*|familienkonzert\w*|konzert\w*|concerts?/, 'musik', 1, 'e'], [/bastel\w*|crafts?\b|crafting/, 'kreativ', 1, ''], [/flohmarkt\w*|basar\w*|flea ?markets?|jumble/, 'flohmarkt', 1, 'e'],
+  [/laterne\w*|lantern\w*|weihnachtsmarkt\w*|christmas markets?|kinderfest\w*|stadtteilfest\w*|festival\w*/, 'feste', 1, 'e'], [/geburtsvorbereitung\w*|antenatal|birth prep\w*|prenatal class\w*/, 'geburtsvorbereitung', 1, 'w'],
+  [/rueckbildung\w*|postnatal|post natal/, 'rueckbildung', 1, 'w'], [/erste hilfe|first aid/, 'erste_hilfe', 1, ''], [/eltern ?cafe\w*|elterncafe\w*|elterntreff\w*|parents? (cafe|meet\w*)/, 'eltern_cafe', 1, 'w'],
+  [/experiment\w*|forscher\w*|science/, 'wissen', 1, ''], [/kochkurs\w*|backkurs\w*|cooking|baking/, 'kochen', 1, ''],
+  [/theater\w*|theatre\w*|puppen\w*|puppet\w*|\bkino\w*|cinema|\bfilms?\b|zirkus\w*|circus/, 'theater', 0, 'e'], [/musik\w*|music|singen|singing/, 'musik', 0, ''],
+  [/turnen|\bsport\w*|tanz\w*|\bdanc\w*|yoga/, 'sport', 0, ''], [/schwimm\w*|swim\w*/, 'schwimmen', 0, ''], [/basteln|malen|painting|kreativ\w*/, 'kreativ', 0, ''],
+];
+const EV_WORDS = /\b(kurs|kurse|kursen|course|courses|class|classes|termin|termine|terminen|veranstaltung\w*|events?|programm|ferienprogramm|workshops?|vorstellung\w*|auffuehrung\w*|aktivitaet\w*|activit(y|ies)|was ist los|what(s| is|'s) (on|happening)|things to do|unternehmen)\b/;
+const EV_REGULAR = /\b(kurs|kurse|kursen|course|courses|class|classes|gruppe|gruppen|group|groups|treff|treffs|regelmaessig\w*|weekly|woechentlich)\b/;
+const EV_WHEN = [[/\bheute\b|\btoday\b|\btonight\b/, 'heute'], [/\bmorgen\b|\btomorrow\b/, 'morgen'], [/wochenende\w*|weekend|\bsamstag\w*|\bsaturday\b|\bsonntag\b|\bsunday\b/, 'wochenende'], [/diese woche|this week/, 'woche'], [/naechsten? (30 tage|monat)|this month|diesen monat/, '30']];
+function askTermine(q) {
+  const t = norm(q), used = new Set();
+  const mark = askMarker(t, used);
+  const topics = [];
+  let strong = false, hint = '';
+  for (const [re, topic, s, pg] of EV_TOPIC_RULES) if (re.test(t)) { if (!topics.includes(topic)) topics.push(topic); strong = strong || !!s; hint = hint || pg; mark(re); }
+  const evWord = EV_WORDS.test(t), regular = EV_REGULAR.test(t);
+  if (evWord) mark(EV_WORDS);
+  let when = '';
+  for (const [re, w] of EV_WHEN) if (re.test(t)) { when = when || w; mark(re); }
+  // a place question stays one: "Spielplatz heute", "Café sonntags", "Museum mit Kinderwagen" (Theater/Kino may be either)
+  const placeHit = LOCAL_RULES.some(([re, r]) => re.test(t) && r.tags[0] !== 'theater');
+  const loose = when && !placeHit && /\blos\b|\bmachen\b|\bunternehmen\b|\bto do\b|\bwhat(s| is|'s) (on|happening)\b/.test(t); // "Was machen wir am Wochenende?"
+  if (!strong && !evWord && !(when && topics.length && !placeHit) && !loose) return null;
+  if (placeHit && !strong && !evWord) return null;
+  const ev = { topics: topics.slice(0, 3), when, age: '', districts: [], q: '' };
+  const a = askAge(t);
+  if (a) { ev.age = a.m < 12 ? 'a0' : a.m < 36 ? 'a1' : a.m < 72 ? 'a3' : a.m < 120 ? 'a6' : 'a10'; mark(a.re); }
+  // where: a Stadtteil, else a Bezirk ("Bezirk Wandsbek", "in Altona": every Stadtteil of it)
+  const flat = ' ' + words(q).join(' ') + ' ', d = askDistrict(q);
+  const bz = BEZIRKE.map(b => [b, words(b).filter(w => w !== 'hamburg').join(' ')]).find(([, n]) => flat.includes(' ' + n + ' '));
+  const stem = !d && !bz && askDistrictStem(q);
+  if (d && !(bz && /\bbezirk\b/.test(t))) { ev.districts = [d[0]]; for (const w of d[1].split(' ')) used.add(w); }
+  else if (bz && GEO.stadtteile.length) { ev.districts = GEO.stadtteile.filter(s => s[1] === bz[0]).map(s => s[0]); for (const w of bz[1].split(' ').concat('bezirk', 'hamburg')) used.add(w); }
+  else if (stem) { ev.districts = stem[0]; used.add(stem[1]); }
+  // the page: what is asked for ("Kurs", "Gruppe") or where the topic has more offers
+  const ofTopic = o => !topics.length || topics.includes(o.topic);
+  const nT = OFFERS.filter(o => ofTopic(o) && o.kind === 'termin').length, nW = OFFERS.filter(o => ofTopic(o) && o.kind !== 'termin').length;
+  ev.page = regular ? 'wiederkehrend' : evWord && /veranstaltung|event|programm|vorstellung|auffuehrung|was ist los|what(s| is|'s) (on|happening)/.test(t) ? 'einmalig'
+    : hint === 'w' ? 'wiederkehrend' : hint === 'e' || when ? 'einmalig' : topics.length && nW > nT ? 'wiederkehrend' : 'einmalig';
+  // what is left and says something becomes the search words, in the person's own spelling
+  const sp = askSpelling(q), left = words(q).filter(w => !used.has(w) && !STOP.has(w) && !FILLER.has(w) && !/^\d+$/.test(w) && w.length > 2);
+  ev.q = [...new Set(left.map(w => sp.get(w) || w))].join(' ');
+  return ev;
+}
+function openTermine(ev) {
+  Object.assign(EV, { page: ev.page, mode: 'alle', when: ev.page === 'einmalig' ? ev.when || '30' : '7', from: '', to: '', q: ev.q, today: ev.page === 'wiederkehrend' && ev.when === 'heute', limit: 60 });
+  EV.topics = new Set(ev.topics); EV.fmt.clear(); EV.reg = '';
+  for (const k of ['fit', 'a0', 'a1', 'a3', 'a6', 'a10']) EV.f.delete(k);
+  if (ev.age) EV.f.add(ev.age);
+  // the Stadtteile go for this look only (the remembered Ort stays as it is and comes back with the next question without a place)
+  if (ev.districts.length) { Object.assign(EV.place, { mode: 'districts', districts: new Set(ev.districts), gps: null }); ASK.evPlace = true; }
+  else if (ASK.evPlace) { ASK.evPlace = false; Object.assign(EV.place, { mode: 'all', gps: null, districts: new Set() }); evRestore(); }
+  EVB.clear(); stack = [{ type: 'list' }]; go({ type: 'events' }, 'full'); setTab('events');
 }
 async function ask(q) {
   q = q.trim(); if (!q) return;
   clearTimeout(document.qt); // a pending "as you type" search must not paint over the answer
   state.sq = q; ASK.busy = true; ASK.text = q;
+  // a question about Termine opens Termine with its filters (the server's AI knows only the places)
+  const ev = OFFERS.length ? askTermine(q) : null;
+  if (ev) { ASK.busy = false; ASK.u = null; openTermine(ev); return; }
   const res = $('#searchRes'); if (res) res.innerHTML = `<div class="askbox busy"><p class="askhead">${svg('sparkle')}${tl('Djuu denkt nach …')}</p></div>`;
   const home_ = $('#searchHome'); if (home_) home_.hidden = true;
   const u = await understand(q);

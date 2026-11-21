@@ -24,6 +24,8 @@ routerAdd("POST", "/api/djuu/family", (e) => {
       u.makeAccount(me, { grp: "family", role: body.role, admin: true, perms: u.FULL, email: e.auth.email() });
       tx.save(me);
       u.linkUser(tx, e.auth.id, me.id);
+      fam.set("founder", me.id); // nobody can remove the founder or take away their admin role (see /member, /remove, /founder)
+      tx.save(fam);
       const mem = new Record(tx.findCollectionByNameOrId("shop_memory"));
       mem.set("family", fam.id); mem.set("history", {}); mem.set("learned", {}); mem.set("rank", {}); mem.set("trips", 0);
       tx.save(mem);
@@ -48,10 +50,45 @@ routerAdd("POST", "/api/djuu/invite", (e) => {
     const inv = new Record(e.app.findCollectionByNameOrId("invites"));
     inv.set("family", me.get("family")); inv.set("token_hash", $security.sha256(token)); inv.set("created_by", me.id);
     inv.set("grp", grp); inv.set("role", String(body.role || "").slice(0, 30)); inv.set("perms", u.cleanPerms(body.perms, grp));
-    if (body.until) inv.set("access_until", u.endOfDay(body.until));
+    if (inv.collection().fields.getByName("name")) inv.set("name", String(body.name || "").replace(/[\u0000-\u001f]/g, " ").trim().slice(0, 30));
+    if (body.until) {
+      inv.set("access_until", u.endOfDay(body.until));
+      if (inv.getDateTime("access_until").before(new DateTime())) throw u.fail(400, "invalid_date", "Das Enddatum liegt in der Vergangenheit.");
+    }
     inv.set("expires", new DateTime().addDate(0, 0, 7));
     e.app.save(inv);
     return e.json(200, { token });
+  });
+}, $apis.requireAuth());
+
+// The admins see the open invites of their Wir (never the link itself: only its hash is stored) and can take one back.
+// GET → { ok, invites: [{ id, group, role, name, expires, created, until }] }, newest first.
+routerAdd("GET", "/api/djuu/invites", (e) => {
+  const u = require(`${__hooks}/djuu_utils.js`);
+  return u.handle(e, () => {
+    const me = u.memberOf(e.app, e.auth.id);
+    if (!me) throw u.fail(400, "not_member", "Du bist in keiner Familie.");
+    if (!me.getBool("is_admin") || u.expired(me)) throw u.fail(403, "admin_only", "Nur der Admin kann Personen einladen.");
+    const iso = (r, f) => (r.getString(f) ? r.getDateTime(f).string().replace(" ", "T") : "");
+    const list = e.app.findRecordsByFilter("invites", "family = {:f} && used = '' && expires > {:now}", "-created", 50, 0, { f: me.getString("family"), now: new DateTime().string() });
+    e.response.header().set("Cache-Control", "no-store");
+    return e.json(200, { ok: true, invites: list.map((r) => ({ id: r.id, group: r.getString("grp") || "family", role: r.getString("role"), name: r.getString("name"),
+      expires: iso(r, "expires"), created: iso(r, "created"), until: iso(r, "access_until") })) });
+  });
+}, $apis.requireAuth());
+
+// POST { id }: the link stops working at once (the invite is deleted).
+routerAdd("POST", "/api/djuu/invite-revoke", (e) => {
+  const u = require(`${__hooks}/djuu_utils.js`);
+  return u.handle(e, () => {
+    const me = u.memberOf(e.app, e.auth.id);
+    if (!me) throw u.fail(400, "not_member", "Du bist in keiner Familie.");
+    if (!me.getBool("is_admin") || u.expired(me)) throw u.fail(403, "admin_only", "Nur der Admin kann Personen einladen.");
+    let inv;
+    try { inv = e.app.findRecordById("invites", String((e.requestInfo().body || {}).id || "")); } catch (err) { throw u.fail(404, "invite_not_found", "Diese Einladung gibt es nicht mehr."); }
+    if (inv.getString("family") !== me.getString("family")) throw u.fail(404, "invite_not_found", "Diese Einladung gibt es nicht mehr.");
+    e.app.delete(inv);
+    return e.json(200, { ok: true });
   });
 }, $apis.requireAuth());
 
@@ -71,6 +108,8 @@ routerAdd("POST", "/api/djuu/join", (e) => {
       try { inv = tx.findFirstRecordByFilter("invites", "token_hash = {:h} && used = ''", { h: $security.sha256(String(body.token || "")) }); }
       catch (err) { throw u.fail(400, "invite_invalid", "Diese Einladung gibt es nicht oder sie wurde schon benutzt."); }
       if (inv.getDateTime("expires").before(new DateTime())) throw u.fail(400, "invite_expired", "Diese Einladung ist abgelaufen. Bitte um eine neue.");
+      // a helper invite whose end date has passed meanwhile would give an account that ends at once
+      if (inv.getString("access_until") && inv.getDateTime("access_until").before(new DateTime())) throw u.fail(400, "invite_expired", "Diese Einladung ist abgelaufen. Bitte um eine neue.");
       const me = new Record(tx.findCollectionByNameOrId("members"));
       me.set("family", inv.get("family")); me.set("user", e.auth.id); me.set("name", myName); me.set("kind", "adult");
       const grp = inv.getString("grp") || "family";
@@ -114,13 +153,16 @@ routerAdd("GET", "/api/djuu/cal/{token}", (e) => {
     if (!fam) { try { fam = e.app.findFirstRecordByFilter("families", "cal_token = {:t} && cal_token != ''", { t: token }); } catch (err) { /* none */ } }
   }
   if (!fam) return e.json(404, { status: 404, code: "calendar_not_found", message: "Kalender nicht gefunden.", data: {} });
-  const saved = e.app.findRecordsByFilter("saved_offers", "family = {:f}", "-created", 500, 0, { f: fam.id });
+  const lang = String(e.request.url.query().get("lang") || "") === "en" ? "en" : "de"; // ?lang=en: English texts
+  // saved offers ("Gemerkt") only for a person who may read them (the old family-wide address: as before)
+  const saved = !member || u.canSee(member, "perm_saved") ? e.app.findRecordsByFilter("saved_offers", "family = {:f}", "-created", 500, 0, { f: fam.id }) : [];
   e.response.header().set("Content-Type", "text/calendar; charset=utf-8");
   e.response.header().set("Cache-Control", "private, max-age=900");
-  const body = u.ics(fam.get("name"), saved.map((r) => ({ id: r.getString("offer_id"), snap: u.parseJson(r.getString("snap")) })));
-  // the family calendar (djuu_cal.js): own entries, Bringen/Abholen, Kita-Schließtage, birthdays (family group), school holidays (?ferien=1)
+  const body = u.ics(fam.get("name"), saved.map((r) => ({ id: r.getString("offer_id"), snap: u.parseJson(r.getString("snap")) })), lang);
+  // the family calendar (djuu_cal.js): own entries, Bringen/Abholen, Kita-Schließtage, birthdays (family group), school holidays
+  // (?ferien=1); opts.lang is 'en' for ?lang=en (djuu_cal.js builds the English texts)
   let extra = [];
-  try { extra = require(`${__hooks}/djuu_cal.js`).feedLines(e.app, fam, member, { ferien: String(e.request.url.query().get("ferien") || "") === "1" }); }
+  try { extra = require(`${__hooks}/djuu_cal.js`).feedLines(e.app, fam, member, { ferien: String(e.request.url.query().get("ferien") || "") === "1", lang }); }
   catch (err) { e.app.logger().warn("djuu calendar feed", "error", String(err)); }
   return e.string(200, extra.length ? body.replace(/END:VCALENDAR\r\n$/, extra.join("\r\n") + "\r\nEND:VCALENDAR\r\n") : body);
 });
@@ -146,6 +188,8 @@ routerAdd("POST", "/api/djuu/member", (e) => {
     try { m = e.app.findRecordById("members", String(body.id || "")); } catch (err) { throw u.fail(404, "member_not_found", "Person nicht gefunden."); }
     if (m.getString("family") !== me.getString("family")) throw u.fail(404, "member_not_found", "Person nicht gefunden.");
     if (m.getString("kind") !== "adult") throw u.fail(400, "kid_no_access", "Kinder haben keinen Zugang.");
+    // the founder's own record (group, role, access, admin) is changed by the founder only
+    if (m.id !== me.id && u.founderOf(e.app, m.getString("family")) === m.id) throw u.fail(400, "founder", "Die Person, die das Wir angelegt hat, bleibt Admin. Sie kann das Wir zuerst übergeben.");
     const grp = body.grp === "family" || body.grp === "helper" ? body.grp : m.getString("grp");
     const admin = body.admin !== undefined ? !!body.admin : m.getBool("is_admin");
     if (admin && grp === "helper") throw u.fail(400, "admin_not_helper", "Ein Admin gehört immer zur Familie.");
@@ -154,9 +198,16 @@ routerAdd("POST", "/api/djuu/member", (e) => {
       const admins = e.app.findRecordsByFilter("members", "family = {:f} && is_admin = true", "", 0, 0, { f: m.getString("family") });
       if (admins.length < 2) throw u.fail(400, "last_admin", "Es muss immer mindestens einen Admin geben.");
     }
+    if (!admin && m.getBool("is_admin") && u.founderOf(e.app, m.getString("family")) === m.id) throw u.fail(400, "founder", "Die Person, die das Wir angelegt hat, bleibt Admin. Sie kann das Wir zuerst übergeben.");
+    const newGroup = grp !== m.getString("grp");
     m.set("grp", grp);
     if (body.role != null) m.set("role", String(body.role).slice(0, 30));
-    if (body.perms) { const p = u.cleanPerms(body.perms, grp); for (const k in p) m.set(k, p[k]); }
+    // one area changed: the others keep their level (missing areas come from the person's current levels);
+    // a new group starts from that group's defaults (a helper must not keep the family's "edit" everywhere)
+    if (body.perms || newGroup) {
+      const p = u.cleanPerms(body.perms, grp, newGroup ? null : u.permsOf(m));
+      for (const k in p) m.set(k, p[k]);
+    }
     if (body.until !== undefined) m.set("access_until", body.until ? u.endOfDay(body.until) : "");
     m.set("is_admin", admin);
     if (admin) { for (const p of u.PERMS) m.set(p, "edit"); m.set("access_until", ""); } // an admin always has full access
@@ -173,10 +224,11 @@ routerAdd("POST", "/api/djuu/remove", (e) => {
     const me = u.memberOf(e.app, e.auth.id);
     if (!me || !me.getBool("is_admin")) throw u.fail(403, "admin_only", "Nur der Admin kann Personen entfernen.");
     const id = String((e.requestInfo().body || {}).id || "");
-    if (id === me.id) throw u.fail(400, "cannot_remove_self", "Du kannst dich nicht selbst entfernen. Lösche dazu dein Konto.");
+    if (id === me.id) throw u.fail(400, "cannot_remove_self", "Du kannst dich nicht selbst entfernen. Nutze dazu „Wir verlassen“ in deinem Konto.");
     let m;
     try { m = e.app.findRecordById("members", id); } catch (err) { throw u.fail(404, "member_not_found", "Person nicht gefunden."); }
     if (m.getString("family") !== me.getString("family")) throw u.fail(404, "member_not_found", "Person nicht gefunden.");
+    if (u.founderOf(e.app, m.getString("family")) === m.id) throw u.fail(400, "founder", "Die Person, die das Wir angelegt hat, kann nicht entfernt werden.");
     u.inTx(e.app, (tx) => u.leaveWir(tx, m)); // their own calendar address goes with the record
     return e.json(200, { ok: true });
   });
@@ -237,6 +289,7 @@ routerAdd("POST", "/api/djuu/delete-account", (e) => {
         tx.delete(fam); // members, lists, saved, visits, invites and shared places go with it (cascade)
         wirDeleted = true;
       } else if (me) {
+        u.passFounder(tx, me); // the founder leaves: the oldest other admin becomes the founder
         tx.delete(me); // saved_by / added_by of the Wir's entries are emptied, the entries stay
         u.retireFamilyCalendar(tx, me.getString("family"));
       }

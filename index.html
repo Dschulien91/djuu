@@ -64,7 +64,8 @@
   <script src="vendor/leaflet-maplibre-gl.js"></script>
   <script src="vendor/leaflet.markercluster.js"></script>
   <script src="i18n/i18n.js"></script>
-  <script src="i18n/en.js"></script>
+  <!-- the English texts load only when English is chosen (German needs none: the German text is the key) -->
+  <script>if (LANG !== 'de') document.write('<script src="i18n/' + LANG + '.js"><\/script>');</script>
   <script src="config.js"></script>
   <script src="app.js"></script>
   <script src="ask.js"></script>
@@ -73,5 +74,8 @@
   <script src="wir.js"></script>
   <script src="looks.js"></script>
   <script src="cal.js"></script>
+  <script src="lists.js"></script>
+  <script src="push.js"></script>
+  <script src="community.js"></script>
 </body>
 </html>

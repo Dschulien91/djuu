@@ -410,7 +410,7 @@ def walddoerfer():
             v_name = venue
             lat, lon, address = place(venue)
         free_places = re.search(r'Freie Plätze:\s*(\d+)', body)
-        offers.append(group(href.rstrip('/').rsplit('/', 1)[-1] + f':{wd}:{m.group(2)}', title, href, provider, weekday=wd, venue=v_name,
+        offers.append(group(href.rstrip('/').rsplit('/', 1)[-1] + f':{wd}:{m.group(2)}', title, urljoin(WSV, href), provider, weekday=wd, venue=v_name,
                             address=address, lat=lat, lon=lon, time_from=m.group(2), time_to=m.group(3), age=age,
                             registration='Warteliste' if 'Warteliste' in title else 'nötig',
                             schedule=f'{WEEKDAYS[wd]} {m.group(2)}–{m.group(3)}, wöchentlich' + (' (Online-Buchung je Termin)' if free_places else '')))

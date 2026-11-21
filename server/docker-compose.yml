@@ -3,11 +3,18 @@
 # - that port is bound to the host's address inside Materialis' network (172.18.0.1) only, never to the internet;
 #   Materialis' Caddy forwards api.djuu.de there (one block in /root/app/Caddyfile)
 # - hard limits on memory, CPU, processes and log size so Djuu can never slow Materialis down
+# - push: the secret and the public VAPID key come from push/push.env, the private key from push/vapid_private.pem
+#   (both created once on the server by push/gen_vapid.py, never in the repo; create them BEFORE this file is used:
+#   compose refuses to start without push/push.env and would create an empty directory for the missing key file)
 services:
   api:
     build: .
     container_name: djuu-api
     restart: unless-stopped
+    env_file:
+      - ./push/push.env              # DJUU_PUSH_SECRET (sender route), DJUU_VAPID_PUBLIC (GET /api/djuu/push/key)
+    environment:
+      GOMEMLIMIT: 200MiB             # the Go runtime collects garbage harder before it reaches the container's 256 MB
     volumes:
       - pb_data:/pb/pb_data
       - ./public:/pb/pb_public:ro   # nightly events: https://api.djuu.de/data/offers.json
@@ -25,6 +32,35 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+  # push sender: polls the api inside djuu_net every 30 s and sends Web Push messages (outgoing https only, no ports)
+  push:
+    build: ./push
+    image: djuu-push                 # the same name as `docker build -t djuu-push ./push` (key generation, see NOTES)
+    container_name: djuu-push
+    restart: unless-stopped
+    depends_on:
+      - api
+    env_file:
+      - ./push/push.env
+    environment:
+      DJUU_API: http://djuu-api:8090
+      VAPID_PRIVATE_KEY: /keys/vapid_private.pem
+    volumes:
+      - ./push/vapid_private.pem:/keys/vapid_private.pem:ro
+    networks:
+      - djuu_net
+    read_only: true
+    mem_limit: 96m
+    cpus: 0.2
+    pids_limit: 50
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
 
   # nightly event refresh and live values, started by the systemd timers through refresh.sh / live.sh (not a running service)
   refresh:

@@ -140,27 +140,52 @@ function newsFromRecord(coll, r) {
     if (r.kind === 'adult' && r.user && r.id !== me) addNews({ area: 'wir', key: 'join:' + r.id, text: tl('{name} ist jetzt in eurem Wir', { name: r.name }), target: { person: r.id } });
     return;
   }
-  const area = AREA_OF[coll];
+  // entries of the other lists (lists.js): to-dos belong to Besorgungen, shopping and packing lists to Einkauf
+  const list = coll === 'shop_items' && r.list ? (store.lists || []).find(l => l.id === r.list) : null;
+  const area = list?.kind === 'todo' ? 'errands' : AREA_OF[coll];
   if (!area || !by || by === me || perm(area === 'saved' ? 'saved' : area) === 'none') return;
   const who = nameOfMember(by);
   if (coll === 'shop_items') {
-    // several things in a row from the same person become one message: "Tom hat Milch und Äpfel ... hinzugefügt"
-    const last = store.news[0];
-    if (last && last.area === 'shop' && !last.read && last.by === by && Date.now() - last.at < 30 * 60e3) {
-      last.items = [...(last.items || []), r.name]; last.at = Date.now(); last.text = shopNewsText(who, last.items); save(); updateBell(); return;
-    }
-    return addNews({ area, by, items: [r.name], text: shopNewsText(who, [r.name]), target: { page: 'shop' }, key: 'shop:' + r.id });
+    // several things in a row from the same person on the same list become one message: "Tom hat Milch, Äpfel und 3 weitere ... hinzugefügt"
+    const group = list ? 'list:' + list.id : 'shop:main', key = 'shop:' + r.id;
+    if (r.list && !list) return;
+    const text = items => (list ? tl('{name} hat {items} zu „{list}“ hinzugefügt', { name: who, items: newsItemsText(items), list: list.name }) : shopNewsText(who, items));
+    const g = groupedNews(group, by, key);
+    if (g === 'dup') return;
+    if (g) { g.items = [...(g.items || []), r.name]; g.keys = [...(g.keys || []), key]; g.text = text(g.items); return bumpNews(g); }
+    return addNews({ area, by, group, items: [r.name], text: text([r.name]), target: list ? { page: 'list', id: list.id } : { page: 'shop' }, key });
   }
   if (coll === 'errands') return addNews({ area, by, text: tl('{name} plant eine Besorgung: {what}', { name: who, what: r.title }), target: { page: 'errands' }, key: 'err:' + r.id });
   if (coll === 'cal_entries') {
+    // an Abholplan makes one entry per weekday: one message for the plan
+    if (r.plan && (r.kind === 'pickup' || r.kind === 'dropoff')) {
+      const group = `plan:${r.plan}:${r.kind}`, key = 'cal:' + r.id, g = groupedNews(group, by, key);
+      if (g === 'dup') return;
+      if (g) { g.keys = [...(g.keys || []), key]; return bumpNews(g); }
+      const kids = (r.kids || []).map(id => memberById(id)?.name).filter(Boolean).join(tl(' und '));
+      const what = kids ? (r.kind === 'pickup' ? tl('{kids} abholen', { kids }) : tl('{kids} bringen', { kids })) : (r.kind === 'pickup' ? tl('Abholen') : tl('Bringen'));
+      return addNews({ area, by, group, text: tl('{name} hat einen Plan in den Kalender eingetragen: {what}', { name: who, what }), target: { page: 'cal' }, key });
+    }
     const what = r.title || ({ pickup: tl('Abholen'), dropoff: tl('Bringen'), closed: tl('Kita zu') }[r.kind] || tl('Termin'));
     return addNews({ area, by, text: tl('{name} hat „{what}“ in den Kalender eingetragen', { name: who, what }), target: { page: 'cal' }, key: 'cal:' + r.id });
   }
   if (coll === 'saved_offers') return addNews({ area, by, text: tl('{name} hat „{what}“ gemerkt', { name: who, what: r.snap?.title || tl('einen Termin') }), target: { offer: r.offer_id }, key: 'sav:' + r.id });
 }
+// the unread message of the same group (one list, one Abholplan) by the same person from the last 30 minutes;
+// 'dup' when this record is already in a message
+function groupedNews(group, by, key) {
+  if (store.news.some(x => x.key === key || (x.keys || []).includes(key))) return 'dup';
+  return store.news.find(x => x.group === group && x.by === by && !x.read && Date.now() - x.at < 30 * 60e3) || null;
+}
+// a message that got one more entry moves to the top again
+function bumpNews(n) {
+  n.at = Date.now();
+  store.news = [n].concat(store.news.filter(x => x !== n));
+  save(); updateBell();
+}
+const newsItemsText = items => (items.length <= 3 ? items.join(items.length === 2 ? tl(' und ') : ', ').replace(/, ([^,]*)$/, tl(' und ') + '$1') : `${items.slice(0, 2).join(', ')} ${tl('und {n} weitere', { n: items.length - 2 })}`);
 function shopNewsText(who, items) {
-  const list = items.length <= 3 ? items.join(items.length === 2 ? tl(' und ') : ', ').replace(/, ([^,]*)$/, tl(' und ') + '$1') : `${items.slice(0, 2).join(', ')} ${tl('und {n} weitere', { n: items.length - 2 })}`;
-  return tl('{name} hat {items} zur Einkaufsliste hinzugefügt', { name: who, items: list });
+  return tl('{name} hat {items} zur Einkaufsliste hinzugefügt', { name: who, items: newsItemsText(items) });
 }
 // Gemerkt: when the provider publishes a new block of a saved course or group, once (the same provider and title, a new offer)
 function courseBlockNews() {
@@ -209,7 +234,7 @@ function openNews(id) {
   const n = store.news.find(x => x.id === id); if (!n) return;
   n.read = true; save(); updateBell();
   const t = n.target || {};
-  if (t.page) { SH.menu = SH.pending = SH.editing = null; stack = [{ type: 'list' }]; go({ type: 'me' }, 'full'); setTab('me'); go({ type: 'wir', page: t.page }); }
+  if (t.page) { SH.menu = SH.pending = SH.editing = null; stack = [{ type: 'list' }]; go({ type: 'me' }, 'full'); setTab('me'); go({ type: 'wir', page: t.page, ...(t.id ? { id: t.id } : {}) }); }
   else if (t.offer) go({ type: 'offer', id: t.offer }, 'full');
   else if (t.person) { stack = [{ type: 'list' }]; go({ type: 'me' }, 'full'); setTab('me'); go({ type: 'person', id: t.person }); }
   else if (t.ferien) go({ type: 'ferien' }, 'full');

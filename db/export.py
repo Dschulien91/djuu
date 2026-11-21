@@ -16,6 +16,9 @@ Computed facts (method 'computed', source index -1, rules in infer_facts()):
   baby_swimming = 'yes' (the course names move to baby_swimming_courses)
   dog_offleash          'alle' (§8 zone: every dog) / 'gepruefte' (§9 zone: only dogs with a test) / 'leine', from dog_rule
   drinking_water = 'refill' on a business whose own Refill station pin was folded into it (fold_refill())
+  ekiz = 'yes' (method 'source')   a Kita that hosts an Eltern-Kind-Zentrum of the city register; tag 'elternschule' too
+Duplicates: flags 'duplikat' (db/flags.py) plus data/cleaning/dubletten.csv (db/dedupe.py) - the duplicate leaves the app and
+hands its facts, sources and offers to the place that stays.
 Lift places carry the hvv station in their name ('Aufzug Hauptbahnhof (Gleis 13/14)'), see lift_names().
 """
 import json
@@ -23,6 +26,10 @@ import math
 import re
 from collections import defaultdict
 
+try:
+    from build_geo import OSM_TO_OFFICIAL
+except ImportError:  # a pipeline copy without build_geo.py (server): the same two names
+    OSM_TO_OFFICIAL = {'Altstadt': 'Hamburg-Altstadt', 'Stove': 'Kirchwerder'}
 from common import ROOT, connect, now
 from derive_names import is_bad_name
 from flags import ensure as ensure_flags, flagged_offers
@@ -75,6 +82,7 @@ NAME_CAT_FROM = {'treffpunkt', 'beratung', 'hebamme', 'kita', 'spielplatz', 'par
 
 
 def refine(cat, name, srcs):
+    if cat == 'kita' and 'hh_kitas' in srcs: return cat  # 'KiGa Bauspielplatz am Galgenbrack' is a Kita, not an adventure playground
     for s in srcs:
         if s in SOURCE_CAT and not (SOURCE_CAT[s] == 'kurs' and cat == 'kita'):
             return SOURCE_CAT[s]
@@ -190,6 +198,75 @@ def fold_refill(places):
     return [p for p in places if p[0] not in drop], drop
 
 
+# Hosts Djuu never links (place websites, images, offer links, source links): the hamburg.de portal with ALL its subdomains
+# (also schools and parks on *.hamburg.de), hamburg-tourism.de, and the platforms (Facebook, Instagram, TikTok, X/Twitter).
+BLOCKED_HOSTS = ('hamburg.de', 'hamburg-tourism.de', 'facebook.com', 'fb.com', 'fb.me', 'instagram.com', 'tiktok.com',
+                 'twitter.com', 'x.com')
+HOST_RX = re.compile(r'(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}', re.I)
+
+
+def blocked_host(host):
+    h = (host or '').lower().strip().rstrip('.')
+    return any(h == b or h.endswith('.' + b) for b in BLOCKED_HOSTS)
+
+
+def portal_link(url):
+    """True for a link Djuu never shows (BLOCKED_HOSTS). The one shared host check of the pipeline: export.py applies it to
+    place websites, images and offer links after the duplicates handed over their facts. Also catches a bare host inside
+    a text ('Elternschulen in Hamburg - hamburg.de')."""
+    from urllib.parse import urlparse
+    s = str(url or '')
+    try: hosts = [urlparse(s.split(';')[0].strip()).hostname or '']
+    except ValueError: hosts = []
+    return any(blocked_host(h) for h in hosts + HOST_RX.findall(s))
+
+
+blocked_link = portal_link
+URL_KEYS = ('website', 'image', 'notinsel_url')  # place facts that the app turns into links or loads
+
+
+def offer_url(url, base):
+    """The offer's link for the app: absolute http(s) only ('/workshops/?kurs=1' is joined to the source's address),
+    None for blocked hosts and anything else; the provider and place stay."""
+    from urllib.parse import urljoin
+    u = (url or '').strip()
+    if u and not re.match(r'https?://', u, re.I) and base and re.match(r'https?://', base, re.I) and re.match(r'[/?.\w]', u) and ':' not in u.split('/')[0]:
+        u = urljoin(base, u)
+    if not re.match(r'https?://[^\s"\'<>]+$', u, re.I) or portal_link(u): return None
+    return u
+
+
+def name_fix(name):
+    """'Caf%C3%A9%20N%C3%A4scherei' (URL-encoded names from Mangrove subjects) -> 'Café Näscherei'."""
+    from urllib.parse import unquote_plus
+    return unquote_plus(name) if name and re.search(r'%[0-9A-Fa-f]{2}', name) else name
+
+
+# 'familienfreundlich' places (no other category, shown under Sanitär) stay only with a positive family fact: OSM puts
+# shops there that merely carry 'changing_table=no', and Mangrove reviews of any business (optician, hair salon) landed there.
+FAMILY_KEYS = ('changing_table', 'baby_feeding', 'toilets_children')  # what makes a place useful under Sanitär (a play corner alone does not)
+
+
+def family_positive(f):
+    if (f.get('drinking_water') or [''])[0] == 'refill': return True
+    return any((f.get(k) or [''])[0] not in ('', 'no', 'none', 'unknown') for k in FAMILY_KEYS)
+
+
+# dedupe.py rules whose duplicate hands over no facts: a Mütterberatung pin folded into the EKiZ/Kita that hosts it has
+# other hours and another service; a stale Overture copy at another address has the old address and phone; an OSM Kita
+# under another name at a register Kita's address may carry another Kita's website or hours.
+NO_FACTS_RULES = {'muetterberatung', 'kopie', 'kita_kopie'}
+
+
+def duplicate_list():
+    """(duplicate id, id that stays, rule) from data/cleaning/dubletten.csv, written by db/dedupe.py."""
+    import csv
+    path = ROOT / 'data' / 'cleaning' / 'dubletten.csv'
+    if not path.exists(): return []
+    with open(path, encoding='utf-8-sig') as fh:
+        return [(r['id'], r['behalten'], r.get('regel') or '') for r in csv.DictReader(fh, delimiter=';') if r.get('id') and r.get('behalten')]
+
+
 def run():
     con = connect()
     sources = [list(r) for r in con.execute('SELECT id, name, license, attribution, url FROM sources ORDER BY priority DESC, id')]
@@ -199,6 +276,22 @@ def run():
     q = f"""SELECT place_id, key, value, source_id, method, n_sources FROM place_facts WHERE key IN ({','.join('?' * len(KEYS))})"""
     for pid, key, value, src, method, n in con.execute(q, KEYS):
         facts[pid][key] = [value, sidx[src], method]
+    # blocked hosts (portal_link) are never linked, also no images loaded from them; a place whose chosen website is
+    # blocked takes the website another of its sources gives (the operator's own site instead of a hamburg.de page)
+    prio = dict(con.execute('SELECT id, priority FROM sources'))
+    other_web = defaultdict(list)
+    for pid, src, value in con.execute("""SELECT sr.place_id, f.source_id, f.value FROM facts f JOIN source_records sr USING (source_id, source_ref)
+                                          WHERE f.key = 'website' AND sr.place_id IS NOT NULL"""):
+        if re.match(r'(https?://|www\.)\S+$', value or '', re.I) and not portal_link(value): other_web[pid].append((-(prio.get(src) or 0), value, src))
+    n_blocked, n_alt = 0, 0
+    for pid in list(facts):
+        for k in URL_KEYS:
+            if k in facts[pid] and portal_link(facts[pid][k][0]):
+                del facts[pid][k]; n_blocked += 1
+                if k == 'website' and other_web.get(pid):
+                    _, v, src = min(other_web[pid])
+                    facts[pid][k] = [v, sidx[src], 'source']; n_alt += 1
+    print(f'{n_blocked} links to blocked hosts removed from places ({n_alt} replaced by the website of another source)')
     # evidence snippets and confidence for website facts
     for pid, key, value in con.execute("""SELECT sr.place_id, f.key, f.value FROM facts f JOIN source_records sr USING (source_id, source_ref)
                                           WHERE f.source_id = 'website' AND f.key LIKE 'evidence_%' AND sr.place_id IS NOT NULL"""):
@@ -228,17 +321,33 @@ def run():
     new_cat = {i: c for i, st, c in flags if st == 'kategorie' and c}
     # a duplicate hands its facts and sources to the place that stays
     dup_of = {i: k for i, st, k in flags if st == 'duplikat' and k}
-    for dup, keep in dup_of.items():
-        for k, v in facts.get(dup, {}).items(): facts[keep].setdefault(k, v)
+    n_csv, place_ids = 0, {r[0] for r in con.execute('SELECT id FROM places')}
+    no_facts = set()
+    for dup, keep, rule in duplicate_list():  # db/dedupe.py: also applied where the database has no flags (server)
+        if rule in NO_FACTS_RULES: no_facts.add(dup)
+        if dup in place_ids and keep in place_ids and dup not in dup_of and dup not in hidden and (keep not in hidden or keep in dup_of):
+            dup_of[dup] = keep; hidden.add(dup); n_csv += 1
+    for dup in list(dup_of):  # chains (a -> b -> c) end at the place that stays
+        seen_ids, keep = {dup}, dup_of[dup]
+        while keep in dup_of and keep not in seen_ids:
+            seen_ids.add(keep); keep = dup_of[keep]
+        dup_of[dup] = keep
+    print(f'{len(dup_of)} duplicates ({n_csv} from data/cleaning/dubletten.csv without a database flag)')
+    for dup, keep in sorted(dup_of.items()):  # sorted: the same result with database flags (local) and the CSV alone (server)
+        if dup in no_facts: continue  # only its offers follow (export_offers)
+        for k, v in facts.get(dup, {}).items():
+            if k in URL_KEYS and portal_link(v[0]): continue  # never linked (already removed above; kept as a guard)
+            facts[keep].setdefault(k, v)
         gear[keep] |= gear.get(dup, set())
         srcs[keep] |= srcs.get(dup, set()); srcnames[keep] |= srcnames.get(dup, set())
     rows = con.execute('SELECT id, name, category, lat, lon, district FROM places').fetchall()
-    rows = [(i, n, c, la, lo, d or umland(new_cat.get(i, c), la, lo, osm_raw[i], n)) for i, n, c, la, lo, d in rows]
+    # official Stadtteil names: OSM calls Hamburg-Altstadt 'Altstadt' and has 'Stove' (part of Kirchwerder), see build_geo.py
+    rows = [(i, name_fix(n), c, la, lo, OSM_TO_OFFICIAL.get(d, d) or umland(new_cat.get(i, c), la, lo, osm_raw[i], n)) for i, n, c, la, lo, d in rows]
     rows = [r for r in rows if r[5]]
     n_all = len(rows)
     names = {i: n for i, n, *_ in rows}
     for dup, keep in dup_of.items():
-        if not names.get(keep): names[keep] = names.get(dup)  # a duplicate may know the name
+        if not names.get(keep) and dup not in no_facts: names[keep] = names.get(dup)  # a duplicate may know the name
     rows = [(i, names[i], new_cat.get(i, c), la, lo, d) for i, n, c, la, lo, d in rows if i not in hidden]
     print(f'{n_all - len(rows)} places hidden by flags, {len(new_cat)} recategorised')
     rows = [(pid, name, refine(cat, name, srcnames[pid]), lat, lon, d) for pid, name, cat, lat, lon, d in rows if cat not in SKIP_CATS]
@@ -278,8 +387,11 @@ def run():
     derived = {r[0]: r[1:] for r in con.execute('SELECT place_id, near, basis FROM derived_names')} if con.execute("SELECT 1 FROM sqlite_master WHERE name='derived_names'").fetchone() else {}
     lifts = lift_names(con, dup_of)
     places = []
+    n_family_dropped = 0
     for pid, name, cat, lat, lon, district in rows:
         f = facts.get(pid, {})
+        if cat == 'familienfreundlich' and not family_positive(f):
+            n_family_dropped += 1; continue
         if is_bad_name(name): name = None  # stop ids and building numbers are not names
         if pid in lifts: name = lifts[pid]  # 'Aufzug Hauptbahnhof (Gleis 13/14)': the hvv station says more than an OSM label
         if not name and pid in derived: f['near_name'] = [derived[pid][0], sidx['osm'], 'computed', derived[pid][1]]
@@ -297,16 +409,22 @@ def run():
         # after the tip rules: register counts cover a whole green area, not one playground
         if devices.get(pid) and devices[pid] > int(f.get('device_count', [0])[0] or 0) and 'hh_spielgeraete' in sidx:
             f['device_count'] = [str(devices[pid]), sidx['hh_spielgeraete'], 'computed']
+        if cat == 'kita' and 'hh_ekiz' in srcnames[pid]:  # the city's EKiZ register names this Kita as host (db/dedupe.py 'ekiz')
+            f['ekiz'] = ['yes', sidx['hh_ekiz'], 'source']
         infer_facts(cat, f)
         tg = place_tags(cat, name, osm_raw[pid], {k: v[0] for k, v in f.items()}, gear.get(pid))
+        if 'ekiz' in f: tg = sorted(set(tg) | {'elternschule'})  # also found under Familie > Elternschulen
         places.append([pid, name or '', cat, round(lat, 6), round(lon, 6), district, f, sorted(srcs[pid]), tg])
+    print(f"{n_family_dropped} 'familienfreundlich' places without a positive family fact left out")
     places, folded = fold_refill(places)
     for k, v in folded.items(): dup_of[k] = v  # offers linked to a folded Refill pin follow it to the business
     out = {'version': 2, 'generated': now(), 'sources': sources, 'places': places}
     path = ROOT / 'data' / 'places.json'
     path.write_text(json.dumps(out, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
-    # small file for the legal page, so it never has to load all places
-    (ROOT / 'data' / 'sources.json').write_text(json.dumps({'generated': out['generated'], 'sources': [s[1:] for s in sources]}, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
+    # small file for the legal page, so it never has to load all places. Rows [name, licence, attribution, url]; a source
+    # on a blocked host gets a fifth element {"link": false}: the URL stays as data (licence reference), shown as text
+    srows = [s[1:] + ([{'link': False}] if s[4] and portal_link(s[4]) else []) for s in sources]
+    (ROOT / 'data' / 'sources.json').write_text(json.dumps({'generated': out['generated'], 'sources': srows}, ensure_ascii=False, separators=(',', ':')), encoding='utf-8')
     from collections import Counter
     print(f'{len(places)} places, {path.stat().st_size / 1e6:.1f} MB -> {path}')
     print('categories:', dict(Counter(p[2] for p in places).most_common()))
@@ -334,13 +452,23 @@ def run():
 #   online            1 for online courses / streams (venue or title says online), else None
 #   series            stable key for the same offer across dates and nights: 'se_' + hash(provider, normalised title, venue)
 #   tip               1 for Djuu-Redaktion highlights (source 'redaktion'), else None
-#   first_seen        'YYYY-MM-DD' the offer id was first exported (state: data/raw/offer_first_seen.json); None = known before
-#                     tracking started (21 Nov 2026)
+#   age_guess         1 when age_min_m/age_max_m is an estimate (db/ages.py: provider type, 'Krabbel', 'Baby'),
+#                     2 = an event for the whole family, every age ('für alle Altersgruppen': age_min_m 0, age_max_m None;
+#                     Krippenspiel, Laternenumzug, Kinderflohmarkt ...), else None (age stated by the provider or in the title, or unknown)
+#   for_parents       1 for (expecting) parents, also for adults' offers that name the child's age (Erste Hilfe am Säugling,
+#                     Babyschlaf-Sprechstunde, Mütterberatung): age_min_m/age_max_m then describe the child, not who takes part
+#   repeat            'weekly' | 'biweekly' | 'monthly' | 'once' | None (repeat_of()): 'once' = one date, or one block of
+#                     consecutive days from start_date to end_date (holiday camp); None = not known (only the provider's
+#                     schedule text is reliable: twice a month, 'nach Absprache', a course of which only the first date is known)
+#   first_seen        'YYYY-MM-DD' the offer first appeared (state: data/raw/offer_first_seen.json, older snapshots merged
+#                     once from offer_first_seen_seed.json); a new date of a known series keeps the series' date;
+#                     None = known before tracking started (Nov 2026)
 DB_OFFER_COLS = ['id', 'title', 'kind', 'topic', 'age_min_m', 'age_max_m', 'for_parents', 'weekday', 'time_from', 'time_to',
                  'start_date', 'end_date', 'sessions', 'schedule', 'price', 'free', 'registration', 'venue', 'address',
                  'lat', 'lon', 'place_id', 'url', 'provider', 'source_id']
-OFFER_COLS = DB_OFFER_COLS + ['audience', 'district', 'dogs', 'registration_text', 'status', 'online', 'series', 'tip', 'first_seen']
+OFFER_COLS = DB_OFFER_COLS + ['audience', 'district', 'dogs', 'registration_text', 'status', 'online', 'series', 'tip', 'first_seen', 'age_guess', 'repeat']
 FIRST_SEEN = ROOT / 'data' / 'raw' / 'offer_first_seen.json'
+FIRST_SEEN_SEED = ROOT / 'data' / 'raw' / 'offer_first_seen_seed.json'  # db/first_seen_seed.py, merged once
 
 # Registration as published -> normalised value; None = drop the offer (group closed)
 REG_RULES = [
@@ -388,6 +516,109 @@ def clean_title(title):
     return t or title, status, False
 
 
+def dedupe_title(t):
+    """Importers join title and subtitle with ' – '; when one repeats the other only one is kept:
+    'Circle Singing- für Erwachsene – für Erwachsene' -> 'Circle Singing- für Erwachsene',
+    'DELFI® – DELFI® für Juli 2026 geborene Babys' -> 'DELFI® für Juli 2026 geborene Babys'."""
+    parts = (t or '').split(' – ')
+    f = lambda s: re.sub(r'[^a-z0-9äöüß]+', '', s.lower())
+    for i in range(1, len(parts)):
+        a, b = ' – '.join(parts[:i]), ' – '.join(parts[i:])
+        fa, fb = f(a), f(b)
+        if len(fb) >= 4 and fb in fa: return a.strip()
+        if len(fa) >= 4 and fb.startswith(fa): return b.strip()
+    return t
+
+
+# Who takes part, decided before a child's age in the title counts: 'Circle Singing – für Erwachsene', 'Erste Hilfe am Säugling'
+ADULT_FIRST = re.compile(r'für erwachsene|nur erwachsene|erste[- ]hilfe|sprechstunde|vortrag|infoabend|informationsabend|elternabend|'
+                         r'babyschlaf|schlafberatung|mütterberatung', re.I)
+JOINT = re.compile(r'mit (ihren |ihrem |deinem |dem |eurem |euren )?(kind|kindern|baby|babys|nachwuchs)\b|eltern-kind|mutter-kind|'
+                   r'vater-kind|und (ihre[n]?|kinder|kind|babys?)\b|familien|massage|pekip|delfi|krabbel|spielgruppe|turnen', re.I)
+
+
+def adult_first(title):
+    return bool(ADULT_FIRST.search(title or '')) and not JOINT.search(title or '')
+
+
+# repeat_of(): how often a course or group takes place (column 'repeat')
+R_TWICE = re.compile(r'(2|zwei)\s*-?\s*mal\s+(im |pro |in )?monat|(2|zwei)\s*x\s+(im |pro )?monat|(1\.|ersten)\s+und\s+(3\.|dritten)|'
+                     r'(2\.|zweiten)\s+und\s+(4\.|vierten|letzten)', re.I)
+R_MONTHLY = re.compile(r'(1|ein|einmal)\s*-?\s*(mal|x)\s+(im|pro|in)\s+monat|einmal (im|pro) monat|\bmonatlich|monatliche[rsn]?\b|'
+                       r'(jeden|jede|am|an jedem)\s+(1\.|2\.|3\.|4\.|ersten|zweiten|dritten|vierten|letzten)\s+[a-zäöü]+\.?\s+(im|des|eines)\s+monat', re.I)
+R_BIWEEKLY = re.compile(r'14\s*-?\s*t[äa]gig|vierzehnt[äa]gig|alle\s+(zwei|2)\s+wochen|zweiw[öo]chentlich|jede\s+(zweite|2\.)\s+woche|'
+                        r'(un)?gerade[nr]?\s+(kw|kalenderwoche|woche)|\bun?gr\.\s*kw', re.I)
+R_IRREGULAR = re.compile(r'nach (absprache|vereinbarung)|auf (wunsch|anfrage)|unregelm|alle\s+(zwei|2|drei|3|vier|4|sechs|6)\s+monate|'
+                         r'quartal|jährlich|kurstermine', re.I)
+R_WEEKLY = re.compile(r'wöchentlich|jede woche|weekly|jeden (montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag)\b(?!\s+im monat)', re.I)
+R_SINGLE = re.compile(r'^familientag|bilderbuchkino|vortrag\b|infoabend|informationsabend|elternabend|^treffen für', re.I)
+R_DATE = re.compile(r'(\d{1,2})\.(\d{1,2})\.(\d{2,4})?')
+
+
+def date_list(schedule):
+    """Dates of a schedule that lists them ('Sa 10:30, 29.08. / 26.09. / 21.11., 3×'), else []."""
+    s = schedule or ''
+    if ' / ' not in s: return []
+    return R_DATE.findall(s)
+
+
+def list_gaps(schedule, start):
+    """Days between the listed dates (the year follows start_date and turns over in January), else []."""
+    from datetime import date
+    if not start: return []
+    year, last, out = int(start[:4]), None, []
+    for d, m, y in date_list(schedule):
+        try:
+            if y: year = int(y) if len(y) == 4 else 2000 + int(y)
+            elif last and int(m) < last.month: year += 1
+            cur = date(year, int(m), int(d))
+        except ValueError:
+            return []
+        if last: out.append((cur - last).days)
+        last = cur
+    return out
+
+
+def repeat_of(o):
+    """'weekly' | 'biweekly' | 'monthly' | 'once' | None from kind, schedule text, dates and number of sessions."""
+    from datetime import date
+    if o['kind'] == 'termin': return 'once'
+    sched = o['schedule'] or ''
+    text = f"{sched} {o['title'] or ''}"  # 'Monatlicher Treff …', 'SchreiBabyBeratung - 1x im Monat'
+    st, en, n = o['start_date'], o['end_date'], o['sessions']
+    if n == 1 or (st and st == en): return 'once'
+    if R_TWICE.search(text) or R_IRREGULAR.search(sched): return None  # twice a month: no rule the calendar can follow
+    if R_MONTHLY.search(text): return 'monthly'
+    if R_BIWEEKLY.search(text): return 'biweekly'
+    if R_WEEKLY.search(text) and o['weekday'] is not None and not n == 1: return 'weekly'  # 'wöchentlich', '(jeden Donnerstag)'
+    several_days = bool(re.match(r'\s*(mo|di|mi|do|fr|sa|so)\.?\s*[/,–-]\s*(mo|di|mi|do|fr|sa|so)\b', sched, re.I))
+    gaps = sorted(list_gaps(sched, st))
+    if len(gaps) >= 2:  # listed dates: the usual gap decides ('12.09. / 26.09. / 17.10. / 31.10.' = every two weeks, a break)
+        m = gaps[len(gaps) // 2]
+        if m <= 1: return 'once'
+        if 6 <= m <= 8: return 'weekly'
+        if 13 <= m <= 15: return 'biweekly'
+        if 26 <= m <= 35 and len(gaps) >= 3: return 'monthly'
+        return None
+    if st and en:
+        span = (date.fromisoformat(en) - date.fromisoformat(st)).days
+        if n and n > 1:
+            per = span / (n - 1)
+            if per <= 1.5: return 'once'  # consecutive days: one block (holiday camp, Mo–Fr)
+            if per < 5 or several_days: return None  # several weekdays per week ('Mi/Do')
+            if n == 2: return 'weekly' if per <= 9 else 'biweekly' if 13 <= per <= 15 else None
+            if per <= 13: return 'weekly'  # school holidays make the average gap longer than 7 days
+            if per <= 15: return 'biweekly'
+            if 24 <= per <= 35: return 'monthly'
+            return None
+        if span <= 6: return 'once'
+        return 'weekly' if o['weekday'] is not None and not several_days else None
+    if n and n > 1: return 'weekly' if o['weekday'] is not None and not several_days else None
+    if st: return 'once' if R_SINGLE.search(o['title'] or '') else None  # only the first date is known
+    if o['weekday'] is None or several_days: return None
+    return 'weekly' if o['kind'] == 'gruppe' or R_WEEKLY.search(sched) else None
+
+
 def free_from_price(price):
     """1 / 0 / None from a price text the importer left open ('auf Spendenbasis', '18 € / 12 € ermäßigt', 'Museumseintritt' ...)."""
     t = (price or '').lower()
@@ -397,15 +628,15 @@ def free_from_price(price):
     return None
 
 
-DEFAULT_AGE = [  # conservative: only titles that clearly name the age group, never a guess from the provider alone
+DEFAULT_AGE = [  # titles that clearly name the age group; the result is marked as an estimate (age_guess 1)
     (re.compile(r'krabbel', re.I), (0, 36)),
-    (re.compile(r'babymassage|pekip|säugling|neugeboren|\bbabys?\b|baby-?(treff|gruppe|café|cafe|kurs|zeit)', re.I), (0, 12)),
+    (re.compile(r'babymassage|pekip|delfi|säugling|neugeboren|\bbabys?\b|baby-?(treff|gruppe|café|cafe|kurs|zeit)', re.I), (0, 12)),
 ]
 
 
 def default_age(title):
     t = title or ''
-    if re.search(r'babysitter|schwanger|werdende|geburtsvorbereit', t, re.I): return None, None
+    if re.search(r'babysitter|schwanger|werdende|geburtsvorbereit|geschwister', t, re.I): return None, None
     for rx, span in DEFAULT_AGE:
         if rx.search(t): return span
     return None, None
@@ -444,11 +675,11 @@ DOGS_SCHEMA = """CREATE TABLE IF NOT EXISTS offer_dogs (
 ADULT_TOPICS = {'geburtsvorbereitung', 'rueckbildung', 'beratung', 'erste_hilfe', 'eltern_thema'}
 ADULT_TITLE = re.compile(r'schwanger|werdende|trennungseltern|alleinerziehend|sprachcaf|deutschkurs|sprachkurs|zumba|pilates|'
                          r'fitness|elternabend|vortrag|infoabend|elternkurs|für (mütter|väter)|väterkreis|müttercaf|entspann|'
-                         r'selbstfürsorge|stretch|relax|stillvorbereitung|säuglingspflege|nähkurs|nähcaf|bewerbung|yoga(?! für kinder)', re.I)
+                         r'selbstfürsorge|stretch|relax|stillvorbereitung|säuglingspflege|nähkurs|nähcaf|nähwerkstatt|bewerbung|für erwachsene|yoga(?! für kinder)', re.I)
 
 
 def audience(o):
-    if o['for_parents'] or o['topic'] in ADULT_TOPICS: return 'erwachsene'
+    if o['for_parents'] or o['topic'] in ADULT_TOPICS or adult_first(o['title']): return 'erwachsene'
     if o['age_min_m'] is not None or o['age_max_m'] is not None: return 'kinder'
     t = o['title'] or ''
     if re.search(r'mit (kind|kindern|baby|babys|nachwuchs)|eltern-kind|familie', t, re.I): return 'kinder'
@@ -458,8 +689,11 @@ def audience(o):
 def drop_cross_source_duplicates(con, out, sidx, pos=None):
     """The same dated event from two sources (venue and organiser, importer and Redaktion) is shown once.
 
-    Same day and start time, similar title, and the same place or venues close together (or similar venue names when
-    coordinates are missing). The source with the higher priority wins, then the entry with more facts.
+    Same day and start time (or one source gives no time), similar title, and the same place or venues close together
+    (or similar venue names when coordinates are missing, or the venue named in the other title: 'Ferien-Theaterkurse auf
+    Gut Karlshöhe'). The source with the higher priority wins, then the entry with more facts.
+    Within one source, entries that look exactly alike (same title, day or weekday, times and place) are shown once too:
+    some providers list a group twice (two halls, a copied page).
     """
     from difflib import SequenceMatcher
     from merge import similar
@@ -490,17 +724,29 @@ def drop_cross_source_duplicates(con, out, sidx, pos=None):
         if a and b and a[0] and b[0]: return dist(a[0], a[1], b[0], b[1]) < 400
         if similar(x[c['venue']], y[c['venue']]): return True
         words = lambda v: {w for w in re.findall(r'[a-zäöüß]{6,}', (v or '').lower()) if w not in ('hamburg', 'straße', 'strasse')}
-        return bool(words(x[c['venue']]) & words(y[c['venue']]))
+        if words(x[c['venue']]) & words(y[c['venue']]): return True
+        named = lambda v, t: len(v := norm(v)) >= 8 and v in norm(t)  # the venue of one is named in the other's title
+        return named(x[c['venue']], y[c['title']]) or named(y[c['venue']], x[c['title']])
 
     def rank(o):
         filled = sum(1 for k in ('age_min_m', 'price', 'time_to', 'lat', 'registration') if o[c[k]] is not None)
         return (prio_by_idx.get(o[c['source_id']], 0), filled)
 
+    def filled(o):
+        return sum(1 for k in ('age_min_m', 'price', 'time_to', 'lat', 'registration', 'place_id', 'end_date') if o[c[k]] is not None)
+
+    # one source, the same entry twice
+    twins, drop = {}, set()
+    for o in sorted(out, key=lambda o: (-filled(o), o[c['id']])):
+        k = (o[c['source_id']], o[c['kind']], re.sub(r'\s+', ' ', (o[c['title']] or '').lower()).strip(), o[c['start_date']],
+             o[c['weekday']], o[c['time_from']], o[c['time_to']], o[c['place_id']] or norm(o[c['venue']]))
+        if k in twins: drop.add(id(o))
+        else: twins[k] = o
+    n_twins = len(drop)
     slots = defaultdict(list)
     for o in out:
-        if o[c['kind']] == 'termin' and o[c['start_date']]:
-            slots[(o[c['start_date']], o[c['time_from']] or '')].append(o)
-    drop = set()
+        if o[c['kind']] == 'termin' and o[c['start_date']] and id(o) not in drop:
+            slots[o[c['start_date']]].append(o)
     for items in slots.values():
         if len(items) < 2: continue
         items.sort(key=rank, reverse=True)
@@ -508,15 +754,18 @@ def drop_cross_source_duplicates(con, out, sidx, pos=None):
             if id(keep) in drop: continue
             for other in items[i + 1:]:
                 if id(other) in drop or other[c['source_id']] == keep[c['source_id']]: continue
+                t1, t2 = keep[c['time_from']], other[c['time_from']]
+                if t1 and t2 and t1 != t2: continue
                 if same_title(keep[c['title']], other[c['title']]) and near(keep, other):
                     drop.add(id(other))
     if drop:
-        print(f'{len(drop)} offers dropped as duplicates of the same event from another source')
+        print(f'{len(drop) - n_twins} offers dropped as duplicates of the same event from another source, {n_twins} listed twice by one source')
     return [o for o in out if id(o) not in drop]
 
 
 def export_offers(con, places, sidx, dup_of=None):
     """Write data/offers.json: courses, groups and events, each linked to the nearest matching Djuu place."""
+    from ages import explicit_age, guess_age
     from offers import ensure, topic_of
     from offers_util import age_of
     from merge import similar
@@ -544,10 +793,18 @@ def export_offers(con, places, sidx, dup_of=None):
     seen = seen or {}
     dropped = defaultdict(int)
     stats = defaultdict(int)
+    src_url = dict(con.execute('SELECT id, url FROM sources'))
     for r in rows:
         o = dict(zip(cols, r))
         if o['id'] in hide: continue
+        u = offer_url(o['url'], src_url.get(o['source_id']))  # blocked hosts: shown without a link, the provider's name and place stay
+        if u != o['url']: stats['url blocked' if o['url'] and portal_link(o['url']) else 'url made absolute' if u else 'url dropped'] += 1
+        o['url'] = u
         if (o['age_min_m'] or 0) >= 13 * 12 and not o['for_parents']: continue  # teen groups: outside our target group (0 to about 12)
+        if (t := dedupe_title(o['title'])) != o['title']: o['title'] = t; stats['title part repeated'] += 1
+        if re.search(r'für erwachsene|nur erwachsene', o['title'] or '', re.I) and not JOINT.search(o['title']) and not o['for_parents']:
+            o['age_min_m'] = o['age_max_m'] = None  # an adults' course; a baby category of the provider is no child's age
+        if o['sessions'] is None and len(dl := date_list(o['schedule'])) > 1: o['sessions'] = len(dl)
         o['title'], o['status'], cancelled = clean_title(o['title'])
         if cancelled: dropped['abgesagt'] += 1; continue  # 'Fällt aus', 'Entfällt', 'abgesagt': the date does not take place
         reg, o['registration_text'], closed = norm_registration(o['registration'], r[cols.index('title')])
@@ -570,13 +827,24 @@ def export_offers(con, places, sidx, dup_of=None):
             if best: o['place_id'] = best[0]
         if not o['place_id'] and len(by_name.get(key(o['venue']), ())) == 1:
             o['place_id'] = by_name[key(o['venue'])][0]
+        if o['topic'] in (None, 'sonstiges'): o['topic'] = topic_of(o['title'])
+        o['age_guess'] = None
         if o['age_min_m'] is None and o['age_max_m'] is None and not o['for_parents']:
             o['age_min_m'], o['age_max_m'] = age_of(o['title'])
             if o['age_min_m'] is None and o['age_max_m'] is None:
+                o['age_min_m'], o['age_max_m'] = explicit_age(o['title'], today)
+                if o['age_min_m'] is not None or o['age_max_m'] is not None: stats['age from title words'] += 1
+            if o['age_min_m'] is None and o['age_max_m'] is None:
                 o['age_min_m'], o['age_max_m'] = default_age(o['title'])
-                if o['age_min_m'] is not None: stats['default age'] += 1
-        if o['topic'] in (None, 'sonstiges'): o['topic'] = topic_of(o['title'])
+                if o['age_min_m'] is None and audience(o) == 'kinder':  # never turns an adults' offer into a children's one
+                    o['age_min_m'], o['age_max_m'] = guess_age(o['title'], o['venue'], o['provider'], o['source_id'], o['kind'], o['topic'])
+                if o['age_min_m'] is not None:
+                    all_ages = (o['age_min_m'], o['age_max_m']) == (0, None)  # ages.py: an event for the whole family
+                    o['age_guess'] = 2 if all_ages else 1; stats['all ages (family event)' if all_ages else 'age estimated'] += 1
         o['audience'] = audience(o)
+        if o['audience'] == 'erwachsene' and not o['for_parents'] and (o['age_min_m'] is not None or o['age_max_m'] is not None):
+            o['for_parents'] = 1; stats['for parents (child age given)'] += 1  # the age is the child's the course is about
+        o['repeat'] = repeat_of(o)
         o['online'] = 1 if ONLINE.search(o['title'] or '') or ONLINE.search(o['venue'] or '') else None
         # Stadtteil by coordinates (point in polygon): the linked place's position, else the offer's own, else the postcode
         la, lo = pos.get(o['place_id'], (o['lat'], o['lon']))
@@ -586,14 +854,14 @@ def export_offers(con, places, sidx, dup_of=None):
             if o['district']: stats['district from postcode'] += 1
         o['series'] = series_key(o['provider'], o['title'], o['venue'])
         o['tip'] = 1 if o['source_id'] == 'redaktion' else None
-        if o['id'] not in seen: seen[o['id']] = '' if first_run else today  # '' = known before tracking started
-        o['first_seen'] = seen[o['id']] or None
+        o['first_seen'] = None  # set below, once all offers are known (first_seen_dates)
         o['source_id'] = sidx.get(o['source_id'], -1)
         o['dogs'] = dogs.get(o['id'])
         out.append([o[c] for c in OFFER_COLS])
+    seen = first_seen_dates(out, seen, first_run, today, stats)
     # first-seen state: keep ids for two years, so a course that comes back next term is not 'new'
     cutoff = f'{int(today[:4]) - 2}{today[4:]}'
-    seen = {k: v for k, v in seen.items() if not v or v >= cutoff}
+    seen = {k: v for k, v in seen.items() if not v or v >= cutoff or k == '_seed'}
     FIRST_SEEN.parent.mkdir(parents=True, exist_ok=True)
     FIRST_SEEN.write_text(json.dumps(seen, separators=(',', ':')), encoding='utf-8')
     print('offers dropped:', dict(dropped), '| changed:', dict(stats))
@@ -611,6 +879,44 @@ def export_offers(con, places, sidx, dup_of=None):
           '| online:', sum(1 for o in out if o[ix('online')]), '| tip:', sum(1 for o in out if o[ix('tip')]),
           '| series:', len({o[ix('series')] for o in out}), '| new today:', sum(1 for o in out if o[ix('first_seen')] == today),
           '| free known:', sum(1 for o in out if o[ix('free')] is not None), '| age known:', sum(1 for o in out if o[ix('age_min_m')] is not None or o[ix('age_max_m')] is not None))
+
+
+def first_seen_dates(out, seen, first_run, today, stats):
+    """Fill the first_seen column. State: {offer id: date, series key: date, '_seed': date}; '' = known before tracking.
+
+    - A new id of a series that is already known (next date of a weekly group, the same course next term, a provider that
+      renamed its pages) inherits the series' date: 'neu' means a new offer, not a new date.
+    - data/raw/offer_first_seen_seed.json (db/first_seen_seed.py: estimates from older snapshots) is merged once: it
+      replaces '' (before tracking) for the offers it knows; dates found by the nightly runs stay.
+    """
+    c = {k: i for i, k in enumerate(OFFER_COLS)}
+    older = lambda a, b: '' if '' in (a, b) else min(a, b)
+    seed = {}
+    if FIRST_SEEN_SEED.exists():
+        try: seed = json.loads(FIRST_SEEN_SEED.read_text(encoding='utf-8'))
+        except ValueError: seed = {}
+    if seed and seen.get('_seed') != seed.get('made'):
+        n = 0
+        for o in out:
+            i, se = o[c['id']], o[c['series']]
+            if seen.get(i, '') != '': continue  # the nightly runs already know when this one appeared
+            v = seed.get('offers', {}).get(i)
+            if v is None: v = seed.get('series', {}).get(se)
+            if v is not None:
+                seen[i] = v; n += v != ''
+                seen[se] = older(seen[se], v) if se in seen else v
+        seen['_seed'] = seed.get('made')
+        stats['first_seen from seed'] = n
+    for o in out:  # series of offers known before
+        i, se = o[c['id']], o[c['series']]
+        if i in seen: seen[se] = older(seen[se], seen[i]) if se in seen else seen[i]
+    for o in out:
+        i, se = o[c['id']], o[c['series']]
+        if i not in seen:
+            seen[i] = '' if first_run else seen.get(se, today)
+            seen.setdefault(se, seen[i])
+        o[c['first_seen']] = seen[i] or None
+    return seen
 
 
 def stadtteil_finder():

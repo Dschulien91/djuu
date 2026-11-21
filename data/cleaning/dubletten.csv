@@ -1,0 +1,520 @@
+﻿id;behalten;regel;name;name_behalten;kategorie;kategorie_behalten;abstand_m;stadtteil
+dj_18237f1fbc18;dj_7c417984a60b;area_name;Grüne Ringe Niendorf;Grüne Ringe Niendorf;hundeauslauf;hundeauslauf;83;Niendorf
+dj_48aa99eb444f;dj_909045d724a4;area_name;Parkanlage Grindelberg;Parkanlage Grindelberg;hundeauslauf;hundeauslauf;126;Harvestehude
+dj_2359b4f69d63;dj_291d7e875722;area_name;Rothenbaumchaussee - Mittelweg;Rothenbaumchaussee - Mittelweg;hundeauslauf;hundeauslauf;95;Harvestehude
+dj_4f0a7d4e6476;dj_cdeb1cb76162;area_name;August-Lütgens-Park;August-Lütgens-Park;spielplatz;spielplatz;54;Altona-Altstadt
+dj_8358d489faba;dj_4eb4a976683e;area_name;Bergedorfer Schloßgarten;Bergedorfer Schloßgarten;spielplatz;spielplatz;88;Bergedorf
+dj_5dfc5667d805;dj_8b5476d51263;area_name;Blohms Park;Blohms Park;spielplatz;spielplatz;99;Horn
+dj_bf5b770d47ad;dj_4760d9a1dfe9;area_name;Emil-Wendt-Park;Emil-Wendt-Park;spielplatz;spielplatz;68;Altona-Altstadt
+dj_647c778c9c17;dj_849c7e411eab;area_name;Emil-Wendt-Park;Emil-Wendt-Park;spielplatz;spielplatz;87;Altona-Altstadt
+dj_446d4e4b5dc4;dj_854ce140fe91;area_name;Fischers Allee;Fischers Allee;spielplatz;spielplatz;120;Ottensen
+dj_55e186687d77;dj_854ce140fe91;area_name;Fischers Allee;Fischers Allee;spielplatz;spielplatz;102;Ottensen
+dj_b5a8cddcbe99;dj_4f2a98f8ca4f;area_name;Grünes Zentrum Lohbrügge;Grünes Zentrum Lohbrügge;spielplatz;spielplatz;121;Lohbrügge
+dj_04701a9b113d;dj_2e6c33a6a02b;area_name;Harburger Stadtpark;Harburger Stadtpark;spielplatz;spielplatz;136;Wilstorf
+dj_b2bf6423db7f;dj_2d421963b21d;area_name;Hayns Park;Hayns Park;spielplatz;spielplatz;72;Eppendorf
+dj_ffe8f0879c4f;dj_bc52a8579f41;area_name;Johannes-Prassek-Park;Johannes-Prassek-Park;spielplatz;spielplatz;40;Barmbek-Süd
+dj_45d743cd747e;dj_c9affe36886c;area_name;Kaltenbergenplatz;Kaltenbergenplatz;spielplatz;spielplatz;117;Billstedt
+dj_4eaf4184f4c9;dj_a1a09e36458c;area_name;Königswiesen Park;Königswiesen Park;spielplatz;spielplatz;127;Neugraben-Fischbek
+dj_bce994d9b366;dj_5e9140ce9110;area_name;Rothenburgsorter Marktplatz;Rothenburgsorter Marktplatz;spielplatz;spielplatz;67;Rothenburgsort
+dj_1312bc0c0146;dj_25cc8b339b9a;area_name;Spielplatz Kreienstieg;Spielplatz Kreienstieg;spielplatz;spielplatz;56;Poppenbüttel
+dj_f72c7de15da1;dj_71f5da56597d;area_name;Stadtpark;Stadtpark;spielplatz;spielplatz;149;Winterhude
+dj_3d48e862e96a;dj_5acf8acd59be;area_name;Tegelsbarg;Tegelsbarg;spielplatz;spielplatz;81;Hummelsbüttel
+dj_7c25b1551573;dj_9cba224f2a23;area_name;Wandsbeker Gehölz;Wandsbeker Gehölz;spielplatz;spielplatz;112;Marienthal
+dj_065e45b24332;dj_6594029b4417;bolzplatz;Ballspielfeld Georg-Raloff-Ring;Ballspielfeld Georg-Raloff-Ring;bolzplatz;bolzplatz;22;Steilshoop
+dj_61f3d9e50911;dj_ced6dadf9bca;bolzplatz;Ballspielfeld Knabeweg;Ballspielfeld Knabeweg;bolzplatz;bolzplatz;17;Osdorf
+dj_160b037a9ae7;dj_6c551c56028f;bolzplatz;Ballspielfeld Krausestraße;Ballspielfeld Krausestraße;bolzplatz;bolzplatz;34;Barmbek-Nord
+dj_9b00af689447;dj_b1ac82be53ee;bolzplatz;Ballspielfeld Ohrnsweg - Cuxhavener Straße;Ballspielfeld Ohrnsweg - Cuxhavener Straße;bolzplatz;bolzplatz;20;Neugraben-Fischbek
+dj_2e0d81e55cad;dj_4517b01b6781;bolzplatz;Ballspielfeld Schmilinskystraße - Knorrestraße;Ballspielfeld Schmilinskystraße - Knorrestraße;bolzplatz;bolzplatz;19;St. Georg
+dj_48f93e8bea35;dj_7f7a05e293dc;bolzplatz;Ballspielfeld Vorhornweg;Ballspielfeld Vorhornweg;bolzplatz;bolzplatz;46;Bahrenfeld
+dj_5050c674b487;dj_23432a5a133e;ekiz;DRK Kita Regenbogen;Kita Regenbogen;kita;kita;7;Lohbrügge
+dj_e041a143a541;dj_3e6ef7c9e024;ekiz;Elbkinder-Kita Eddelbüttelstraße mit EKiZ;Kindertagesstätte Eddelbüttelstraße;kita;kita;14;Harburg
+dj_954aed2a2806;dj_b7fdf47561c6;ekiz;Ev. Kita Emmaus;Eltern-Kind-Zentrum Reiherstieg;kita;treffpunkt;15;Wilhelmsburg
+dj_d6aa82744ae7;dj_92f974015e0c;ekiz;Ev. Kita St. Petrus;Evangelische Kita St. Petrus Harburg;kita;kita;31;Heimfeld
+dj_d5656d89ac2b;dj_4e576d1724f5;ekiz;Frosch-Kita;Eltern-Kind-Zentrum Froschfamilie;kita;treffpunkt;26;Billwerder
+dj_61d795824194;dj_1e8c3b9a16d5;ekiz;Kita An der Falkenbek;"KiTa ""An der Falkenbek""";kita;kita;7;Neugraben-Fischbek
+dj_6e52debc7098;dj_79113f23124b;ekiz;Kita Bengelsdorfstraße;Kita Bengelsdorfstraße;kita;kita;17;Bramfeld
+dj_923586e118f1;dj_3f0f52c1be5e;ekiz;Kita Berner Heerweg;KiTa Berner Heerweg;kita;kita;11;Farmsen-Berne
+dj_1ecbccbfe5ad;dj_8225de23e264;ekiz;Kita Bluma Mekler;"Kindertagesstätte ""Bluma Mekler""";kita;kita;30;Schnelsen
+dj_8920d5cb119c;dj_d0e53332c545;ekiz;Kita Boberg;Eltern-Kind-Zentrum Boberg;kita;treffpunkt;6;Lohbrügge
+dj_2cc610c69a0b;dj_c371e5969c36;ekiz;Kita Dahlemer Ring;Kita Dahlemer Ring;kita;kita;32;Jenfeld
+dj_90cf75255b1f;dj_f4b0bcf9482a;ekiz;Kita Dortmunder Straße;Kita Dortmunder Straße;kita;kita;10;Langenhorn
+dj_2289c808799f;dj_6cef146ab1ca;ekiz;Kita Druckerstraße;Kita Druckerstraße;kita;kita;8;Billstedt
+dj_d1c4f99917b7;dj_4fbf59547160;ekiz;Kita Grüne Insel/Dr. Ernst-Hinze-Haus;Kita Grüne Insel;kita;kita;9;Hausbruch
+dj_e00755cf62be;dj_79eb6a7596b9;ekiz;Kita Hartzloh;Eltern-Kind-Zentrum Hartzloh;kita;treffpunkt;3;Barmbek-Nord
+dj_68077f46811a;dj_53d8596f4e21;ekiz;Kita Hermannstal;Kita Hermannstal;kita;kita;35;Horn
+dj_170fb6e91f0f;dj_3a96b1f72331;ekiz;Kita Iserbrook;Ev. KiGa Hamburg-Iserbrook;kita;kita;73;Iserbrook
+dj_35dc38f852f5;dj_f8a7394cc697;ekiz;Kita Jenfelder Au;Kita WABE Jenfelder Au;kita;kita;20;Jenfeld
+dj_89496b567ca3;dj_0e0332b8dd8f;ekiz;Kita Johanna-Kirchner-Haus;Kita Johanna-Kirchner-Haus;kita;kita;22;Neuallermöhe
+dj_9086c7ba93af;dj_d4c8d63ae371;ekiz;Kita Lelka Birnbaum;Kita Lelka Birnbaum;kita;kita;5;St. Pauli
+dj_da7a0d808257;dj_ccfb1e920fb2;ekiz;Kita Lohkampstraße;Kita Lohkampstraße;kita;kita;74;Eidelstedt
+dj_2f2998c01861;dj_44a7830e999e;ekiz;Kita Lothringer Straße;Kita Lothringer Straße;kita;kita;21;Dulsberg
+dj_eb673054e2f2;dj_71cab26bbc0f;ekiz;Kita Löwenzahn;Kita Löwenzahn;kita;kita;3;Poppenbüttel
+dj_cc5ca6215685;dj_8f50fed2b945;ekiz;Kita Neuer Mohnhof;WABE-Kita Neuer Mohnhof;kita;kita;38;Bergedorf
+dj_c017f6d62da7;dj_0270a07e5bd3;ekiz;Kita Prassekstraße;Eltern-Kind-Zentrum Kita Prassekstraße;kita;kita;3;Wilhelmsburg
+dj_e99dc990a747;dj_faf22856b649;ekiz;Kita Rappelkiste;KiTa Rappelkiste;kita;kita;20;Rahlstedt
+dj_8d0be7831c16;dj_29ce70614ff2;ekiz;Kita Sandfoort;Kita Sandfoort;kita;kita;10;Langenhorn
+dj_95197dfbefe6;dj_9fe239435ed3;ekiz;Kita Scheplerstraße;Kita Scheplerstraße;kita;kita;19;Altona-Altstadt
+dj_63411040e15a;dj_b264da64413c;ekiz;Kita Spitzbergenweg;Eltern-Kind-Zentrum;kita;treffpunkt;8;Rahlstedt
+dj_862ce445591e;dj_1690e2ce8eab;ekiz;Kita Sportini Poppenbüttel;KiTa Sportini Poppenbüttel;kita;kita;13;Poppenbüttel
+dj_27d151bcb730;dj_265ce5a91276;ekiz;Kita Steilshooper Allee;Kita Steilshooper Allee;kita;kita;23;Steilshoop
+dj_3025253b08b2;dj_77afac02c17d;ekiz;Kita Storchenwiese;Kindertagesstätte Storchenwiese;kita;kita;20;Neugraben-Fischbek
+dj_826352902176;dj_423c10f2a12e;ekiz;Kita Uffelnsweg;Eltern-Kind-Zentrum Veddel;kita;treffpunkt;14;Veddel
+dj_1c072f375e39;dj_25f6b99055b4;ekiz;Kita an der Trabrennbahn;Kita an der Trabrennbahn;kita;kita;0;Bahrenfeld
+dj_fcdf73ce22f2;dj_70636b5b1ae4;ekiz;Kita der Ev. Luther-Kirchengemeinde;Kindertagesstätte der Luthergemeinde;kita;kita;15;Bahrenfeld
+dj_1f749fb3b879;dj_a63355ecf237;ekiz;EKiZ Schilleroper;Kita Schilleroper;treffpunkt;kita;54;St. Pauli
+dj_4916014e54d2;dj_d259bcd37e14;ekiz;EKiZ beim Kultur- und Bildungszentrum Lurup;Eltern-Kind-Zentrum Lurup;treffpunkt;treffpunkt;7;Lurup
+dj_8b02496f9152;dj_c36e2967343a;ekiz;Kinderzentrum Neuenfelde;Kinderzentrum Neuenfelde;treffpunkt;kita;11;Neuenfelde
+dj_a387ca6bf278;dj_c8584c1face7;hand;Abenteuerspielplatz Wegenkamp e.V.;Abenteuerspielplatz Wegenkamp;abenteuer;spielplatz;22;Stellingen
+dj_3643dcab4a6e;dj_6ad4182266d2;hand;Bauspielplatz Berne;Bauspielplatz Berne;abenteuer;spielplatz;21;Farmsen-Berne
+dj_0e03ec022de0;dj_c5b3c852c416;hand;Bauspielplatz Tweeltenmoor;Bauspielplatz Tweeltenmoor;abenteuer;spielplatz;11;Langenhorn
+dj_19e46acafd0c;dj_1c083a75603b;hand;Bauspielplatz und Spielhaus Eppendorfer Park;Bauspielplatz Eppendorfer Park;abenteuer;spielplatz;36;Eppendorf
+dj_3f699da62de7;dj_c63b834a17d2;hand;Apotheke am Eckhoffplatz;Apotheke am Eckhoffplatz;apotheke;apotheke;3;Lurup
+dj_8529025df4f4;dj_3ed53f26b146;hand;Beamstop;Beamstop;cafe;restaurant;7;
+dj_c1bde25041d1;dj_c38ec59c0cd1;hand;Café Landhaus Walter;Landhaus Walter;cafe;restaurant;1;Winterhude
+dj_89b11ce301cf;dj_61928d75f37a;hand;Third Room;THIRDROOM;cafe;cafe;17;Eimsbüttel
+dj_23f14d35fc5e;dj_349c243f8969;hand;Minigolf Events Hamburg Horn;miniGOLF Hamburg Horn;freizeit;freizeit;40;Horn
+dj_ce60d8c64ec2;dj_e4f438952309;hand;Elbhebammen;Elbehebamme;hebamme;geburtshaus;31;Harburg
+dj_8df0bb0f60ae;dj_8acd63f9572b;hand;Futterkrippe;Futterkrippe;imbiss;restaurant;3;
+dj_bfbb4a9b0a54;dj_2c1519e3587d;hand;Ballin Kita im Volkspark;KiTa Ballin Kita im Volkspark;kita;kita;163;Bahrenfeld
+dj_672d1de39baf;dj_76d9a1d77fbd;hand;KITA Archenholzstraße;KiTa in der Schule Archenholzstraße;kita;kita;106;Billstedt
+dj_ce9155669b04;dj_cc041ce2b3c8;hand;Kita Feldahornweg;Kita Feldahornweg;kita;kita;11;Winterhude
+dj_2e292787336a;dj_5b509aa99dba;hand;Kita Verheißung;Ev. Kindergarten Verheißungskirche;kita;kita;8;Niendorf
+dj_e83ed9a32e25;dj_ac058796912f;hand;Kita Zapperlot;KiTa Zapperlott;kita;kita;134;St. Pauli
+dj_f063a04731d8;dj_ff72d2ea66f4;hand;Kita am Eichtalpark;KiTa in der Schule Am Eichtalpark;kita;kita;122;Wandsbek
+dj_96258477c383;dj_7c4bf059d59a;hand;Waldforscher Summerhill;KiTa Waldforscher Summerhill;kita;kita;209;Schnelsen
+dj_2bdb8a265b48;dj_93d0fa46e96d;hand;Wunderkabinett;KiTa Wunderkabinett;kita;kita;219;Hamm
+dj_7977f3b34b88;dj_fcd587a6bd46;hand;Allee Theater;Theater für Kinder;kultur;kultur;22;Altona-Altstadt
+dj_0bc016b74c3f;dj_b4f277f80d81;hand;Kaffeemuseum Burg;Kaffeemuseum Burg;museum;museum;4;HafenCity
+dj_b86e7a58e8dc;dj_3bbc14db8a4b;hand;State Youth Music School Hamburg;Staatliche Jugendmusikschule Hamburg;musikschule;musikschule;59;Rotherbaum
+dj_4f2edf0cb8d4;dj_a01fba227076;hand;Chinaland Hamburg;Chinaland;restaurant;imbiss;14;Eilbek
+dj_f598369582f3;dj_9310ef0beb40;hand;Golden Dragon;Goldener Drache;restaurant;restaurant;4;Barmbek-Süd
+dj_da1abbd17214;dj_7ab1456350e8;hand;Le Quán Volksdorf;Le Quán;restaurant;restaurant;10;Volksdorf
+dj_58f4753d03c1;dj_cb0819008e99;hand;Taj Mahal;Raj Mahal;restaurant;restaurant;17;Hamm
+dj_2d000eda66e6;dj_587aa611f6a9;hand;Spielhaus Alsenpark;Flaks und Spielhaus Alsenpark;spielhaus;treffpunkt;9;Altona-Nord
+dj_f7089129118c;dj_3ab3497606bd;hand;Spielhaus Essener Straße;Spielhaus und Bauspielplatz Essener Straße;spielhaus;spielhaus;6;Langenhorn
+dj_1cd678541cf4;dj_1dd17168653a;hand;Spielhaus Neuallermöhe-Ost;Spielhaus Allermöhe;spielhaus;spielhaus;14;Neuallermöhe
+dj_b7618ebad842;dj_6ad4182266d2;hand;Bauspielplatz Berne;Bauspielplatz Berne;spielplatz;spielplatz;317;Farmsen-Berne
+dj_c1c893134fd1;dj_f6f3ffaf90ae;hand;Kiefernberg Spielplatz;Kinderspielplatz Kiefernberg;spielplatz;spielplatz;19;Heimfeld
+dj_8c3426deec49;dj_31e98160a163;hand;Lindenpark;Spielplatz Robinsons Insel;spielplatz;spielplatz;13;Eimsbüttel
+dj_b184a9af2035;dj_31e98160a163;hand;Lindenpark;Spielplatz Robinsons Insel;spielplatz;spielplatz;17;Eimsbüttel
+dj_e32e9c0604c7;dj_d503c3bbc90a;hand;Bostelbeker SV;Borstelbeker Sportverein;sportstaette;sportverein;16;Heimfeld
+dj_6ab8e1a8cb89;dj_3c98a847f13a;hand;FC Bergedorf 85 e.V.;FC Bergedorf 85;sportstaette;sportverein;38;Lohbrügge
+dj_c31de9a2c80f;dj_ee0d752b8c9f;hand;Mühlenberger Segel-Club e.V.;Mühlenberger Segel-Club e.V.;sportstaette;sportverein;11;Nienstedten
+dj_45f3eb3eca7b;dj_4f81039c9d50;hand;Sv West-eimsbüttel;SV West-Eimsbüttel von 1923 e.V. / TSV Stellingen von 1888 e.V.;sportstaette;sportverein;4;Stellingen
+dj_688609886e29;dj_dab1fd436467;hand;VfL 93 Hamburg;Vereinsheim VfL 93;sportstaette;sportverein;15;Winterhude
+dj_d304e010361f;dj_6f6446ce6af8;hand;VfL Lohbrügge 1892;VfL Lohbrügge;sportstaette;sportverein;7;Lohbrügge
+dj_622b7d62b97d;dj_b52f9b417ae8;hand;SV Uhlenhorst-Adler;Sv Uhlenhorst-adler;sportverein;sportstaette;120;Barmbek-Süd
+dj_4d4e539b6361;dj_4170f6c56ae2;hand;Vereinsheim Hamburg-Horner TV von 1905 e.V.;Hamburg-Horner TV von 1905 e.V.;sportverein;sportverein;3;Horn
+dj_9bc684aab397;dj_0961096536bc;hand;Kinderzentrum Harburg;Kinderzentrum (KIZ) Harburg;treffpunkt;spielplatz;9;Wilstorf
+dj_6c0fb5c658da;dj_14ecab4395c6;hand;Budni - Drogerie;Budnikowsky;windeln;windeln;21;Lurup
+dj_0fd09762b11e;dj_6a22d12187c5;hand;Kiosk&Shisha Shop;Ahuja Kiosk & Shisha Shop;windeln;windeln;9;Harburg
+dj_2165b4ae4bf4;dj_ce7470cfc40f;inside;Kletterwäldchen;Spielplatz Bondenwald;spielplatz;spielplatz;21;Niendorf
+dj_cf1ae9acc5d9;dj_cc2d41868dc9;kita_copy;AWO Krippe Am Tannenhof;AWO Kita Huulkamp;kita;kita;37;Lemsahl-Mellingstedt
+dj_20bbde4417db;dj_abfd16bd86b5;kita_copy;Albertinen Kindertagesstätte Schnelsen;Ev. KiTa des Albertinen Diakoniewerkes;kita;kita;37;Schnelsen
+dj_44e34a419905;dj_01e8a8295c19;kita_copy;Bilinguale Krippe Cocorí;"KiTa ""Cocori"" spanisch-deutsche Kindertagesstätte";kita;kita;7;Rotherbaum
+dj_0598e749bebd;dj_a76539879964;kita_copy;Bunte Biene Elementar (Osdorf);KiTa Bunte Biene Krippe;kita;kita;26;Osdorf
+dj_101835e347f1;dj_a76539879964;kita_copy;Bunte Biene Kinderbetreuungszentrum;KiTa Bunte Biene Krippe;kita;kita;9;Osdorf
+dj_5dee730f126e;dj_d7e214191cc6;kita_copy;Elementarbereich KIta Baumhaus;Kita Baumhaus der Pestalozzi-Stiftung Hamburg;kita;kita;52;Eppendorf
+dj_d87667cc13dc;dj_92f749d90dc2;kita_copy;Ev. Kindergarten Vicelinkirche;Ev. KiGa Vicelin-Sasel;kita;kita;12;Sasel
+dj_b934b7187c60;dj_1fd64a321122;kita_copy;Ev. Kindertageseinrichtung Maria Magdalenen;Ev. KiTa Maria Magdalenen, Klein Borstel;kita;kita;11;Ohlsdorf
+dj_572e12bdbd3a;dj_03374b917459;kita_copy;Evangelische Integrationskita Simeon;Ev. KiTa Simeonkirche Hamm;kita;kita;11;Hamm
+dj_7f94b7f94df6;dj_437909caf125;kita_copy;Evangelische Kindertagesstätte Luther;Ev. KiTa Luther Harburg;kita;kita;28;Eißendorf
+dj_694b915928c2;dj_e5da61424efe;kita_copy;Evangelische Kita Der Gute Hirte;Kita Lütten-Haus - Ev.-Luth. Kita Christus Der Gute Hirte;kita;kita;57;Jenfeld
+dj_b0273bce5db8;dj_a0e641f77979;kita_copy;Evangelische Kita Lukas Sasel;Ev. KiGa Lukaskirche-Sasel;kita;kita;11;Sasel
+dj_67ed1fea1407;dj_d0c217f78a6f;kita_copy;Evangelische Kita St. Paulus Harburg;Ev. KiTa St. Paulus Heimfeld;kita;kita;22;Heimfeld
+dj_2c21de4e5b94;dj_a13c96e262e6;kita_copy;Harburger Krabbelkiste e.V.;KiTa Beutnerring;kita;kita;10;Marmstorf
+dj_062b48680d72;dj_59809c6db777;kita_copy;IPICAPE;"Deutsch-Spanischer Kindergarten ""La Cometa""";kita;kita;11;Niendorf
+dj_7d00140b93fe;dj_c6a334134e04;kita_copy;Katholische Kindertagesstätte Sankt Joseph;Kath. KiTa St. Joseph-Wandsbek;kita;kita;59;Wandsbek
+dj_6e7bd097ed9a;dj_07ce86e57efc;kita_copy;Katholische Kindertagesstätte St. Johannis;Kath. KiTa St. Johannis/ Steilshoop;kita;kita;2;Steilshoop
+dj_23cb1338971c;dj_b75c7a4c292d;kita_copy;KiTa Deichpiraten;KiTa Niedergeorgswerder Deich;kita;kita;32;Wilhelmsburg
+dj_caf4eb31c6a2;dj_439f625e9eff;kita_copy;Kindergarten der Johannes-Kirche;Ev. KiTa Johannes Rissen;kita;kita;6;Rissen
+dj_3abd775bf688;dj_e4cf561778d1;kita_copy;Kinderhaus 4 Zeiten - Elementarhaus;Kinderhaus 4 Zeiten - Krippenhaus;kita;kita;30;Eimsbüttel
+dj_60bcd699ef4c;dj_0c2d232fe669;kita_copy;Kinderhaus MiLa;Ballin Kita MiLa;kita;kita;4;Billwerder
+dj_58ffc731e699;dj_156c4309b6ba;kita_copy;Kinderkrippe LaLeLu;Kindergarten Bramfeld;kita;kita;44;Bramfeld
+dj_0f8233967a05;dj_4c0b5c0df1a9;kita_copy;Kindertagesheim Holzwurm;KiTa Netzestraße;kita;kita;25;Lurup
+dj_b1bf4e290a7b;dj_db451fd563ad;kita_copy;Kindertagesheim Simeonkirche;Ev. KiTa Kitamigo;kita;kita;11;Bramfeld
+dj_52be2b2e46a1;dj_d433601dc3cd;kita_copy;Kindertagesstätte Melanchthon;Ev. KiTa der Melanchthonkirchengemeinde;kita;kita;15;Groß Flottbek
+dj_e6843ff8f1c6;dj_edf2b3eddd72;kita_copy;"Kita ""Die Moor-Rüben""";Ballin Kita am Ohmoor;kita;kita;19;Niendorf
+dj_ce028f0107c0;dj_fe1e46583273;kita_copy;Kita Hänsel und Gretel;KiTa Meine Kita;kita;kita;6;Wandsbek
+dj_8926e1dee0c9;dj_4b883efbf897;kita_copy;Kita Piggeldy;KiTa Elefant & Tiger;kita;kita;5;Wandsbek
+dj_3a7110dcb625;dj_c144fcca6350;kita_copy;Kita Rahlstedter Höhe;KiTa Voll in Bewegung;kita;kita;26;Rahlstedt
+dj_40e9e9d8af14;dj_f8bb316a3c86;kita_copy;Lille Hüs Kinderkrippe;Kinderladen lille Hüs;kita;kita;9;Volksdorf
+dj_1b13f7a71aa9;dj_317c0c306834;kita_copy;Praxisausbildungsstätte Kita;PAS der staatl. Fachschule f. Sozialpäd. Altona;kita;kita;17;Altona-Altstadt
+dj_f668293db088;dj_a1cbd3809aaa;kita_copy;Ringelsocke;KiTa Babyladen Ottensen;kita;kita;5;Ottensen
+dj_e5a1c7064cc8;dj_2646d416ab83;kita_copy;SterniPark KITA21;KiTa Kinderhaus Goethestraße;kita;kita;6;Altona-Altstadt
+dj_b69058e02c9b;dj_70a5533cbd89;kita_copy;Vorschulakademie Käptn Kaninchen;KiTa Käpt´n Kaninchen Walter-Jungleib-Straße;kita;kita;8;Schnelsen
+dj_b1557662018c;dj_c93449615b2e;kita_kopie;Bilingualer Kindergarten;Das Krippenhaus;kita;kita;58;Hohenfelde
+dj_b6b2696c7403;dj_69464d57d58c;kita_kopie;Dschungelkinder;Kita Tweeltenmoor;kita;kita;15;Langenhorn
+dj_8bf40330d814;dj_24aa51ccda9c;kita_kopie;Elbkinder;KiTa Oldenburger Straße;kita;kita;10;Stellingen
+dj_46a87a4cd662;dj_6a6bd0d20d2b;kita_kopie;Elbkinder Kita;KiTa Harburger Rathauspassage;kita;kita;4;Harburg
+dj_c988a00a3664;dj_fe4f49e13cd9;kita_kopie;Ev. Kindergarten Madacker;Ev. KiGa Lemsahl-Mellingstedt;kita;kita;24;Lemsahl-Mellingstedt
+dj_b5938994729a;dj_41c264e6a1bd;kita_kopie;Ev. Kita der Markus-Kirchengemeinde;Ev. KiTa Rahlstedt-Ost;kita;kita;28;Jenfeld
+dj_f54c71d35033;dj_3a96b1f72331;kita_kopie;Ev. Luth. KiTa Schenefelder Landstraße;Ev. KiGa Hamburg-Iserbrook;kita;kita;12;Iserbrook
+dj_f753947522cf;dj_0a80619aa661;kita_kopie;Evangelische Kindertagesstätten;Ev. KiGa Friedenskirche;kita;kita;1;Eilbek
+dj_b771d281549f;dj_9e20959dbcc6;kita_kopie;Evangelisches Familienzentrum Hamburg Hamm;KiTa Dreifaltigkeit;kita;kita;5;Hamm
+dj_68ba5f373bf1;dj_d85aab69ba92;kita_kopie;Evangelisches Kindertagesheim;Ev. KiTa St. Georg;kita;kita;13;St. Georg
+dj_9e3ab8c2424a;dj_457c3b91f064;kita_kopie;Integrations-Kita Anna-Susanna-Stieg;Ev. KiTa Nordstern;kita;kita;19;Schnelsen
+dj_a4583ca60eff;dj_6e61b28d8f92;kita_kopie;KITA Das Spielnetz;Ballin Kita mit Eltern-Kind-Zentrum Boberg;kita;kita;6;Lohbrügge
+dj_9a4cb5136bf8;dj_b65c28df02bf;kita_kopie;KJSH e.V. KITA alte druckerei;Aurora Kindergärten;kita;kita;24;Bahrenfeld
+dj_706ad2ec68b8;dj_87bea3f133d8;kita_kopie;KiTa Finkenwerder Norderdeich;KiTa Elbhalle;kita;kita;2;Finkenwerder
+dj_4e79a2f23130;dj_eec0fc7e8eb9;kita_kopie;Kindergarten Volksdorf;KiGa Vörn Barkholt;kita;kita;9;Volksdorf
+dj_c91a01b6611d;dj_035d222d8fd7;kita_kopie;Kindergruppe in den Elbvororten e. V.;KiGa Schenefelder Landstraße;kita;kita;7;Iserbrook
+dj_2a89eec1aeff;dj_66a9a8e47464;kita_kopie;Kinderhaus;KiTa Margaretenstraße;kita;kita;2;Eimsbüttel
+dj_11cf24479058;dj_5f2af1c0c75e;kita_kopie;Kinderinitiative Eimsbüttel;KiTa Kinderhaus Lokstedt;kita;kita;6;Lokstedt
+dj_0e105686d356;dj_24f644fe35d7;kita_kopie;Kindertagesstätte Kinderkreisel;KiTa Zwergenhaus;kita;kita;5;Wohldorf-Ohlstedt
+dj_c115fcb31831;dj_651929853912;kita_kopie;Kinderwelt Hamburg;KiTa Grasbrook;kita;kita;4;HafenCity
+dj_a8af9e69a501;dj_2d17e5f90eff;kita_kopie;Kita Bullerbü;Vorschule Beavers;kita;kita;7;Uhlenhorst
+dj_a18721d30e8e;dj_e80021fd124b;kita_kopie;Kita Kallista;KiTa Villa Vivendi GbR;kita;kita;1;Barmbek-Nord
+dj_ec4841197854;dj_c46d7407ca4c;kita_kopie;Kita Kelloggstraße;Ballin Kita Ahoi;kita;kita;16;Jenfeld
+dj_b4b610b2d958;dj_28d6b4782d50;kita_kopie;Kita Kinderkreisel;KiTa Duvenstedter Berg;kita;kita;9;Duvenstedt
+dj_77c091388eca;dj_536f1e0dcaa4;kita_kopie;Kita Kinderzimmer;KiTa KMK Am Stadtpark;kita;kita;38;Barmbek-Nord
+dj_ffa8f1464eaf;dj_c3089537753d;kita_kopie;Kita Kleine Füße;KiTa Mousehouse;kita;kita;2;Barmbek-Süd
+dj_40dcc6d6f75b;dj_c07e8fe90eeb;kita_kopie;Kita Knirpse;Ballin Kita Rahlstedt Hohenhorst;kita;kita;13;Rahlstedt
+dj_16a358868670;dj_4861a589c6e0;kita_kopie;Kita Lila Regenwürmchen;Kita-Kinderkönigreich;kita;kita;4;Eimsbüttel
+dj_6a96412f2795;dj_3eea3883d7a0;kita_kopie;Kita Sommerweg;KiTa Elbgaustraße;kita;kita;20;Lurup
+dj_f5b462f8c787;dj_0fd73ebb52ce;kita_kopie;Kita Wildschwanbrook;Ev. KiTa Rogate Meiendorf;kita;kita;9;Rahlstedt
+dj_377b0f970fe0;dj_e52bd64cfbb8;kita_kopie;Kita Zachäuskirche;Ev. KiTa An der Käkenflur;kita;kita;10;Langenhorn
+dj_b66def0adca0;dj_1e89dc79ceb5;kita_kopie;Le petit monde;KiTa Grelckstraße Kleine Riesen;kita;kita;14;Lokstedt
+dj_6baf08d84556;dj_d4a0adcdf126;kita_kopie;Partou;KiTa Paula und Max - Eilbeker Weg;kita;kita;21;Eilbek
+dj_b9a06a2f08e8;dj_11794c424ca3;kita_kopie;SterniPark;KiTa Kinderhaus Tornquiststraße;kita;kita;19;Eimsbüttel
+dj_7c9f74fa5459;dj_e7ca6b017b22;kita_kopie;SterniPark Kinderhaus;KiTa Kinderhaus Nienhagener Straße;kita;kita;4;Rahlstedt
+dj_e0d22d3c3bf0;dj_69af5508b756;kita_kopie;Sternipark;KiTa Kinderhaus Grot Sahl;kita;kita;22;Rissen
+dj_665842701be6;dj_dd34d595b6e8;kita_kopie;Türkisch - deutscher Kindergarten;KiTa Eimsbütteler Kitafanten;kita;kita;3;Altona-Nord
+dj_b186a971c31f;dj_f27bbcd69e5e;kita_kopie;Wadorf-Kindergarten;KiGa der Christengemeinschaft in Bergstedt;kita;kita;9;Bergstedt
+dj_ae94452fb9f6;dj_bb7e5bc63c10;kita_kopie;Wandsbeker Kinder e.V.;KiTa Stephanstraße;kita;kita;13;Wandsbek
+dj_82379a771306;dj_cbf36bb45529;kita_kopie;Werkstatt-Kita Tüftler, Träumer, Wolkenstürmer;ASB Kita Lerche;kita;kita;24;St. Pauli
+dj_96f9e54de6c8;dj_3c6fcccdde93;kita_kopie;kitarino;KiTa Emily;kita;kita;5;Altona-Altstadt
+dj_e7073452743d;dj_ec7a2503e254;kopie;Sashimi Sushi;Sashimi Sushi;imbiss;restaurant;157;Fuhlsbüttel
+dj_f8e546e4f901;dj_b9015310c6a4;kopie;Deutsches Zusatzstoffmuseum;Deutsches Zusatzstoffmuseum;museum;museum;561;Hammerbrook
+dj_e2f71be646e1;dj_75986f801063;kopie;Physiobande;Physiobande;physio;physio;237;St. Pauli
+dj_8ef27e1ab659;dj_e8b41686069e;kopie;Alte Mühle Bergstedt;Alte Mühle;restaurant;restaurant;14572;Neustadt
+dj_e370e2cad85b;dj_02a258d0fcad;kopie;Drei Sommer;Drei Sommer;restaurant;restaurant;243;Ottensen
+dj_bd8b5fa1ce65;dj_bd1832d5b0ad;kopie;Lolas;Lolas Bistro;restaurant;restaurant;279;HafenCity
+dj_7198209c4935;dj_71d6b2dd065d;kopie;Ristorante Arabella;Arabella;restaurant;restaurant;255;Winterhude
+dj_52d767126734;dj_3b0423c9a32d;kopie;Taverna Priamos;Taverna Priamos;restaurant;restaurant;425;Altona-Altstadt
+dj_5b45428b08c6;dj_dfbdbc282358;kopie;Fc Preussen Hamburg Ev;FC Preußen Hamburg;sportstaette;sportstaette;5433;Barmbek-Süd
+dj_459dedffb2bd;dj_9fe239435ed3;muetterberatung;Mütterberatung – Altona-Altstadt, c/o EKiZ Scheplerstraße;Kita Scheplerstraße;beratung;kita;19;Altona-Altstadt
+dj_106bc88109a9;dj_70636b5b1ae4;muetterberatung;Mütterberatung – Bahrenfeld, c/o EKiZ LutherCampus;Kindertagesstätte der Luthergemeinde;beratung;kita;4;Bahrenfeld
+dj_6917a8e1ec15;dj_2c2dfed8edd2;muetterberatung;Mütterberatung – Dulsberg;Kulturhof Dulsberg;beratung;treffpunkt;8;Dulsberg
+dj_8f60b07b4745;dj_00a893a2a203;muetterberatung;Mütterberatung – EKIZ Hamm;Kita Osterbrook;beratung;kita;0;Hamm
+dj_a726bd51eccc;dj_423c10f2a12e;muetterberatung;Mütterberatung – EKIZ Veddel;Eltern-Kind-Zentrum Veddel;beratung;treffpunkt;14;Veddel
+dj_305e554837fd;dj_1e8c3b9a16d5;muetterberatung;Mütterberatung – Eltern-Kind-Zentrum Falkenbek;"KiTa ""An der Falkenbek""";beratung;kita;7;Neugraben-Fischbek
+dj_3c3dbd4b0900;dj_23432a5a133e;muetterberatung;Mütterberatung – Eltern-Kind-Zentrum Lohbrügge Ost;Kita Regenbogen;beratung;kita;7;Lohbrügge
+dj_41d02ce7af8d;dj_77afac02c17d;muetterberatung;Mütterberatung – Eltern-Kind-Zentrum Storchennest;Kindertagesstätte Storchenwiese;beratung;kita;20;Neugraben-Fischbek
+dj_c87a05ce5723;dj_0b897b550d9a;muetterberatung;Mütterberatung – IFZ St. Georg;Schorsch im IFZ;beratung;treffpunkt;19;St. Georg
+dj_2abdd8307f92;dj_692e3138f4ee;muetterberatung;Mütterberatung – Kinder-und Familienzentrum Allermöhe;KiFaz Neuallermöhe;beratung;treffpunkt;0;Neuallermöhe
+dj_a651dc9e8e00;dj_5445874537a7;muetterberatung;Mütterberatung – Rissen, c/o Kleines KiFaZ;Kleines Kifaz – Kinder- und Familienzentrum Rissen;beratung;treffpunkt;4;Rissen
+dj_a599d2a2b242;dj_29ffe94c682c;muetterberatung;Mütterberatung – Spiel-Werk-Stadt Billstedt;Spiel-Werk-Stadt Schleemer Bach;beratung;treffpunkt;7;Billstedt
+dj_41d6ab35dd8c;dj_40324856693c;muetterberatung;Mütterberatung – Stadtteilhaus Horn;Stadtteilhaus Horner Freiheit;beratung;treffpunkt;11;Horn
+dj_1681671e1b25;dj_08f241e2b166;muetterberatung;Mütterberatung – Treffpunkt Sandbek;Familienfördernde Angebote Sandbek;beratung;treffpunkt;0;Neugraben-Fischbek
+dj_75d2813e37a9;dj_8225de23e264;muetterberatung;Mütterberatung – c/o EKiZ-Bluma Mekler;"Kindertagesstätte ""Bluma Mekler""";beratung;kita;30;Schnelsen
+dj_8db033ad6162;dj_1e9b67639be6;park;Eppendorfer Moor;Eppendorfer Moor;naturschutz;park;123;Groß Borstel
+dj_4ef783d03d26;dj_6d96f5635dd3;park;Grasbrookpark;Grasbrookpark;park;park;87;HafenCity
+dj_0956cfd8b1d0;dj_37eb48005ad2;park;Stoltenpark;Stoltenpark;park;park;175;Hammerbrook
+dj_0d6755a45932;dj_37eb48005ad2;park;Stoltenpark;Stoltenpark;park;park;134;Hammerbrook
+dj_8e8ca1118f41;dj_9574eb1b154d;park;Stoltenpark;Stoltenpark;park;park;122;Hammerbrook
+dj_2973347e23ba;dj_750a96ea83a6;shop_in_fuel;REWE To Go;ARAL;windeln;windeln;12;Altona-Altstadt
+dj_15f29c8ab1c7;dj_67e0fa687c15;shop_in_fuel;REWE To Go;Aral;windeln;windeln;21;Hamm
+dj_1ae52d5b3b72;dj_ee7b3bcfaf40;shop_in_fuel;REWE To Go;Aral;windeln;windeln;17;Bergedorf
+dj_c892b7e82181;dj_6c379bb5c36b;shop_in_fuel;REWE To Go;Aral;windeln;windeln;23;Barmbek-Nord
+dj_f989c7f27548;dj_f57b17696ba0;shop_in_fuel;REWE To Go;Aral;windeln;windeln;18;Niendorf
+dj_61dfcbbc7f01;dj_3ee577f5b8fa;shop_in_fuel;REWE To Go;Aral;windeln;windeln;9;Rotherbaum
+dj_e8a5dd1b56e3;dj_aec078ccb358;shop_in_fuel;REWE To Go;Aral;windeln;windeln;4;Schnelsen
+dj_a7d97d333782;dj_e0ec8254a700;shop_in_fuel;REWE To Go;Aral;windeln;windeln;7;Barmbek-Nord
+dj_c4c0607bd77c;dj_4496846e526a;shop_in_fuel;REWE To Go;Aral;windeln;windeln;20;Wilhelmsburg
+dj_afd2b3c7122e;dj_5bc960cbdf41;shop_in_fuel;REWE To Go;Aral;windeln;windeln;8;Hamm
+dj_1ce5d29402a8;dj_ceb3747124e5;shop_in_fuel;REWE To Go;Aral;windeln;windeln;5;Veddel
+dj_67aa506808e5;dj_a4fc90df00f4;shop_in_fuel;REWE To Go;Aral;windeln;windeln;36;Finkenwerder
+dj_9856535906ad;dj_164d28a7049f;shop_in_fuel;REWE To Go;Aral;windeln;windeln;12;Heimfeld
+dj_64f2f10675d3;dj_ea10bc6063ac;shop_in_fuel;REWE To Go;Aral;windeln;windeln;12;Wilhelmsburg
+dj_23b31f6c0433;dj_ce722fae14b6;shop_in_fuel;REWE To Go;Aral;windeln;windeln;4;Sülldorf
+dj_2d23df8adc7f;dj_a4eb076df796;shop_in_fuel;REWE To Go;Aral;windeln;windeln;5;Jenfeld
+dj_156e240a298b;dj_3906fefdb41a;shop_in_fuel;Rewe To Go;ARAL;windeln;windeln;19;Stellingen
+dj_685033a8ba5b;dj_348f2c7bc006;shop_in_fuel;Rewe To Go;Aral;windeln;windeln;11;Stellingen
+dj_ddeae5db33ea;dj_4f73ebf1f6ce;unnamed;;Ballspielfeld Heinrich-Hertz-Straße;bolzplatz;bolzplatz;9;Uhlenhorst
+dj_d7f924248787;dj_ab6da4909d46;unnamed;;Ballspielfeld Rondeel - Sierichstraße;bolzplatz;bolzplatz;9;Winterhude
+dj_34c54219e8ab;dj_c9ac71082bc5;unnamed;;;bolzplatz;bolzplatz;13;Osdorf
+dj_4a8d2c5c7e77;dj_5e3461ebb67d;unnamed;;;bolzplatz;bolzplatz;20;Rahlstedt
+dj_0b04f7084306;dj_13252d85a9aa;unnamed;;;bolzplatz;bolzplatz;18;Lurup
+dj_a7762f57c6b3;dj_2fe53f548608;unnamed;;Ballspielfeld Weidestraße;bolzplatz;bolzplatz;17;Barmbek-Süd
+dj_259560a8cd9b;dj_a0f3e77cb9fb;unnamed;;;bolzplatz;bolzplatz;15;Eilbek
+dj_d86b2b94d892;dj_e9c2633f3321;unnamed;;;bolzplatz;bolzplatz;20;Lurup
+dj_16cbaf2592ec;dj_cd65f86c2db2;unnamed;;Ballspielfeld Goetheallee;bolzplatz;bolzplatz;18;Altona-Nord
+dj_e7a112ed7f5e;dj_d850995a3505;unnamed;;Ballspielfeld Schemmannstraße;bolzplatz;bolzplatz;19;Volksdorf
+dj_6f371bee8f66;dj_c7e025a744f6;unnamed;;;bolzplatz;bolzplatz;6;Eidelstedt
+dj_3f77de61319a;dj_d441f76a3711;unnamed;;;bolzplatz;bolzplatz;9;Ottensen
+dj_9e48a61f13fa;dj_30caf4072456;unnamed;;Ballspielfeld An der Kleiderkasse;bolzplatz;bolzplatz;25;Altona-Nord
+dj_6a2e4722fd03;dj_9e909480714e;unnamed;;;bolzplatz;bolzplatz;12;Altona-Nord
+dj_3ce5cfe6cc75;dj_5f05d8ac9dc4;unnamed;;;bolzplatz;bolzplatz;21;Bahrenfeld
+dj_2c240795cffd;dj_5f05d8ac9dc4;unnamed;;;bolzplatz;bolzplatz;16;Bahrenfeld
+dj_7e4a9de9528b;dj_5cffef39f902;unnamed;;Ballspielfeld Rotenhäuser Wettern;bolzplatz;bolzplatz;22;Wilhelmsburg
+dj_f3a321c25bd4;dj_7bb53b2713cb;unnamed;;Ballspielfeld Lütt Iserbrook - Pieperweg;bolzplatz;bolzplatz;23;Iserbrook
+dj_41330c38a14c;dj_dae693de13b0;unnamed;;;bolzplatz;bolzplatz;11;Altona-Nord
+dj_7b0169e7cb61;dj_8380e7134a51;unnamed;;Ballspielfeld Ophagen;bolzplatz;bolzplatz;15;Altona-Nord
+dj_cb5e9709d9bd;dj_f8efd5307c5e;unnamed;;;bolzplatz;bolzplatz;16;Altona-Nord
+dj_484eb4ab832f;dj_f240ea057a81;unnamed;;;bolzplatz;bolzplatz;13;Altona-Altstadt
+dj_2028454da5d2;dj_448547c79a2d;unnamed;;Ballspielfeld Ammernweg - Langbargheide;bolzplatz;bolzplatz;21;Lurup
+dj_5eb8fac9d74a;dj_17d888c4fabb;unnamed;;Ballspielfeld Schulterblatt 66;bolzplatz;bolzplatz;16;Sternschanze
+dj_e1cde22789ec;dj_ab74af0aea21;unnamed;;Ballspielfeld Franzosenkoppel - Boberstraße;bolzplatz;bolzplatz;24;Lurup
+dj_58456eba2a74;dj_901aa18b8f71;unnamed;;;bolzplatz;bolzplatz;7;Iserbrook
+dj_7f1d0ec40eed;dj_907f7cc2ebc4;unnamed;;Ballspielfeld Zeiseweg - Eggerstedtstraße;bolzplatz;bolzplatz;16;Altona-Nord
+dj_ce47f035b224;dj_f79bd9620d8f;unnamed;;;bolzplatz;bolzplatz;13;Hausbruch
+dj_25c5adcc6973;dj_8a03522f571c;unnamed;;Ballspielfeld Hammenmacherstieg;bolzplatz;bolzplatz;22;Langenhorn
+dj_7b23c010d656;dj_aa0ecdb3f70f;unnamed;;Ballspielfeld Stückweg - Böverstland;bolzplatz;bolzplatz;25;Lurup
+dj_5e21a665a68d;dj_4b89100fd78a;unnamed;;Ballspielfeld Hohenzollernring;bolzplatz;bolzplatz;24;Ottensen
+dj_4920bfe930fa;dj_46e98ee8837a;unnamed;;Ballspielfeld Alter Weg - Högenstraße;bolzplatz;bolzplatz;15;Eimsbüttel
+dj_baa57eec3827;dj_c8d155c99424;unnamed;;;bolzplatz;bolzplatz;3;Bergstedt
+dj_7b7f30d56927;dj_f8dc1f3f95a8;unnamed;;Ballspielfeld Dahlemer Ring - Düpheid;bolzplatz;bolzplatz;20;Rahlstedt
+dj_04ac5df1fb25;dj_54c8ec0269a9;unnamed;;;bolzplatz;bolzplatz;10;Stellingen
+dj_0fe3fc1e7444;dj_4faede3141f4;unnamed;;Ballspielfeld Sülldorfer Landstraße;bolzplatz;bolzplatz;23;Rissen
+dj_7d9126ffe533;dj_9b55d90e6143;unnamed;;;freizeit;freizeit;10;Lohbrügge
+dj_53292a3bcd34;dj_5ddc6ce7dee2;unnamed;;;grillplatz;grillplatz;8;Volksdorf
+dj_48757684d0cb;dj_0679553be7bc;unnamed;;KiTa KMK Kinderzimmer Eilbekpark;kita;kita;19;Wandsbek
+dj_4b11abfbbb15;dj_0679553be7bc;unnamed;;KiTa KMK Kinderzimmer Eilbekpark;kita;kita;19;Wandsbek
+dj_84e6276147d8;dj_96649e283dac;unnamed;;;picknick;picknick;5;Tatenberg
+dj_0862294d9520;dj_96649e283dac;unnamed;;;picknick;picknick;5;Tatenberg
+dj_37568082eff2;dj_58a2b4637aa2;unnamed;;;picknick;picknick;5;Finkenwerder
+dj_838111f461f0;dj_e082818f5542;unnamed;;;picknick;picknick;14;Barmbek-Süd
+dj_184279e34df7;dj_f4da123638c1;unnamed;;;picknick;picknick;9;Neuallermöhe
+dj_e7c9071f230c;dj_f4da123638c1;unnamed;;;picknick;picknick;24;Neuallermöhe
+dj_bdd7ebd7e5ed;dj_f4da123638c1;unnamed;;;picknick;picknick;16;Neuallermöhe
+dj_e5c13fdfd552;dj_f4da123638c1;unnamed;;;picknick;picknick;6;Neuallermöhe
+dj_64021c05c2e3;dj_f4da123638c1;unnamed;;;picknick;picknick;12;Neuallermöhe
+dj_ec49fe305690;dj_f4da123638c1;unnamed;;;picknick;picknick;25;Neuallermöhe
+dj_868edc42c782;dj_f4da123638c1;unnamed;;;picknick;picknick;20;Neuallermöhe
+dj_228721f58217;dj_f4da123638c1;unnamed;;;picknick;picknick;2;Neuallermöhe
+dj_075e4e491576;dj_9d03ace88bb2;unnamed;;;picknick;picknick;7;Barmbek-Süd
+dj_c70aac29c760;dj_ec34a715015d;unnamed;;;picknick;picknick;4;
+dj_47872ab8dd4b;dj_e78544ce9c9d;unnamed;;;picknick;picknick;7;
+dj_94700add7316;dj_104107ab3fe6;unnamed;;Hohenbuchenpark;spielplatz;spielplatz;19;Poppenbüttel
+dj_079fd47fc94b;dj_f0852cde65ae;unnamed;;;spielplatz;spielplatz;16;Winterhude
+dj_77a47cb16524;dj_f0c8d0e0a189;unnamed;;Spielplatz Grandweg;spielplatz;spielplatz;20;Lokstedt
+dj_9fc2b7a08f7a;dj_699d8d604c44;unnamed;;Spielplatz Silbersackstraße;spielplatz;spielplatz;12;St. Pauli
+dj_59ab93804b62;dj_b423f7e06f4d;unnamed;;Spielplatz Hermann-Kauffmann-Straße;spielplatz;spielplatz;3;Barmbek-Nord
+dj_b84d98d3961b;dj_c0d528bf15ce;unnamed;;;spielplatz;spielplatz;18;Neuallermöhe
+dj_71d4955bdf52;dj_e9162c2f3b8e;unnamed;;;spielplatz;spielplatz;16;Alsterdorf
+dj_5db685200706;dj_e8bfc8f06d41;unnamed;;City-Nord-Park;spielplatz;spielplatz;20;Winterhude
+dj_06447c82f38f;dj_f34b477d2312;unnamed;;SV Nettelnburg/Allermöhe von 1930 e.V.;sportstaette;sportstaette;11;Bergedorf
+dj_b34924ee3d46;dj_fb84733de530;unnamed;;;sportstaette;sportstaette;24;Winterhude
+dj_2572e528aa78;dj_fb84733de530;unnamed;;;sportstaette;sportstaette;10;Winterhude
+dj_33de67797c8e;dj_a6b0c4c13f15;unnamed;;;sportstaette;sportstaette;12;Dulsberg
+dj_07071166c09b;dj_720089f32190;unnamed;;;sportstaette;sportstaette;10;Dulsberg
+dj_400e1b966309;dj_720089f32190;unnamed;;;sportstaette;sportstaette;10;Dulsberg
+dj_0ab0c3ac2a96;dj_d16a9872fbfe;unnamed;;;sportstaette;sportstaette;10;Dulsberg
+dj_4b65337fec7d;dj_e6ec82c9bdd1;unnamed;;;sportstaette;sportstaette;8;Billstedt
+dj_664c46213892;dj_cf9bb34b1998;unnamed;;;sportstaette;sportstaette;6;Bergedorf
+dj_0b554c770993;dj_cf9bb34b1998;unnamed;;;sportstaette;sportstaette;10;Bergedorf
+dj_32644850e228;dj_88a84094f631;unnamed;;;tischtennis;tischtennis;11;Stellingen
+dj_159135bc7524;dj_dd3490e4a5cf;unnamed;;;tischtennis;tischtennis;14;Rahlstedt
+dj_93d1d1c22cc2;dj_dd3490e4a5cf;unnamed;;;tischtennis;tischtennis;7;Rahlstedt
+dj_03d894e56b14;dj_98da19ab78d5;unnamed;;;tischtennis;tischtennis;10;Jenfeld
+dj_b40c7845b232;dj_cecda4fb72bd;unnamed;;;tischtennis;tischtennis;13;Eimsbüttel
+dj_886efb85aeb3;dj_cb6622443857;unnamed;;;tischtennis;tischtennis;3;Steilshoop
+dj_3f25b6b9624b;dj_d1e411295908;unnamed;;;tischtennis;tischtennis;7;Sülldorf
+dj_9ff5ee26cb5c;dj_a52b68a5aabe;unnamed;;;tischtennis;tischtennis;12;Neugraben-Fischbek
+dj_23ca20d86675;dj_942181ffa591;unnamed;;;tischtennis;tischtennis;4;Barmbek-Nord
+dj_6c1e2e18edd8;dj_c79e4673719b;unnamed;;;tischtennis;tischtennis;6;Wilstorf
+dj_a7a538824d31;dj_c79e4673719b;unnamed;;;tischtennis;tischtennis;12;Wilstorf
+dj_21b2b412ffbb;dj_7c7e69e83d45;unnamed;;;tischtennis;tischtennis;4;Winterhude
+dj_bed4bbd10d76;dj_e57a86200983;unnamed;;;tischtennis;tischtennis;8;Altona-Altstadt
+dj_8fa2e895e411;dj_d3c762931f72;unnamed;;;tischtennis;tischtennis;14;Altona-Nord
+dj_566bfeff0e08;dj_9c2e23b00f99;unnamed;;;tischtennis;tischtennis;7;Altona-Nord
+dj_4fdbe089db74;dj_ef77e81c4f6d;unnamed;;;tischtennis;tischtennis;10;Eimsbüttel
+dj_0375dab25418;dj_ed39c5725f3f;unnamed;;;tischtennis;tischtennis;7;Volksdorf
+dj_17c560cb1d49;dj_6898796b1ca3;unnamed;;;tischtennis;tischtennis;4;Volksdorf
+dj_afd9944d00fe;dj_b7926723efee;unnamed;;;tischtennis;tischtennis;7;Volksdorf
+dj_0df2de4eafb5;dj_310fcc775bb0;unnamed;;;tischtennis;tischtennis;13;Volksdorf
+dj_8c9a8db933e1;dj_e304ad9eccde;unnamed;;;tischtennis;tischtennis;4;Eimsbüttel
+dj_158dfb03f2c6;dj_bd406fb79195;unnamed;;;tischtennis;tischtennis;2;Volksdorf
+dj_0df922cbc2f4;dj_24f1c572c1d3;unnamed;;;tischtennis;tischtennis;5;Altona-Altstadt
+dj_190265648fa2;dj_c86e4b5cf516;unnamed;;;tischtennis;tischtennis;4;Othmarschen
+dj_7769cebb06c7;dj_e7d1edb5da62;unnamed;;;tischtennis;tischtennis;6;Schnelsen
+dj_1c91f5f04920;dj_c43882eb1853;unnamed;;;tischtennis;tischtennis;2;Bahrenfeld
+dj_b0d1b50b1710;dj_c43882eb1853;unnamed;;;tischtennis;tischtennis;3;Bahrenfeld
+dj_6e39d9e30494;dj_c43882eb1853;unnamed;;;tischtennis;tischtennis;1;Bahrenfeld
+dj_35a04be5d136;dj_e5326d0f1005;unnamed;;;tischtennis;tischtennis;13;Barmbek-Süd
+dj_403c701e160c;dj_86ef275341a3;unnamed;;;tischtennis;tischtennis;4;Neugraben-Fischbek
+dj_b119b8780e98;dj_df2e49d24e9c;unnamed;;;tischtennis;tischtennis;11;Bahrenfeld
+dj_6550f1ebd04a;dj_fc5b0050c44a;unnamed;;;tischtennis;tischtennis;10;Bahrenfeld
+dj_106b0de317a1;dj_8cc2e5bf09bc;unnamed;;;tischtennis;tischtennis;4;Steilshoop
+dj_ab6dadc4565e;dj_dcdfa180db9c;unnamed;;;tischtennis;tischtennis;4;Ottensen
+dj_2904892d3f4c;dj_c032ee0668bd;unnamed;;;tischtennis;tischtennis;4;Ottensen
+dj_17deb44a3038;dj_c08bd47909b9;unnamed;;;tischtennis;tischtennis;8;Ottensen
+dj_b54300229078;dj_c08bd47909b9;unnamed;;;tischtennis;tischtennis;4;Ottensen
+dj_4990d8d69e65;dj_a4bb7426c094;unnamed;;;tischtennis;tischtennis;11;St. Pauli
+dj_07a50a425c8b;dj_18bffcc0a456;unnamed;;;tischtennis;tischtennis;2;Lohbrügge
+dj_66417483d385;dj_c3207513a179;unnamed;;;tischtennis;tischtennis;6;Lokstedt
+dj_22ad0b416b46;dj_fc864602d0d9;unnamed;;;tischtennis;tischtennis;14;Finkenwerder
+dj_3ed5a31f064f;dj_fb9f29e7735d;unnamed;;;tischtennis;tischtennis;5;Eißendorf
+dj_8780523183ef;dj_fb9f29e7735d;unnamed;;;tischtennis;tischtennis;23;Eißendorf
+dj_bfedab49936d;dj_fb9f29e7735d;unnamed;;;tischtennis;tischtennis;9;Eißendorf
+dj_45271c97ae1b;dj_4d276b7bb560;unnamed;;;tischtennis;tischtennis;6;Billstedt
+dj_e7970ea19be4;dj_e95a287a26c9;unnamed;;;tischtennis;tischtennis;11;Finkenwerder
+dj_1c7fc0b1da5a;dj_e95a287a26c9;unnamed;;;tischtennis;tischtennis;18;Finkenwerder
+dj_8c1997ba61ec;dj_b86146107cad;unnamed;;;tischtennis;tischtennis;12;Harburg
+dj_4c2f263c9224;dj_8f688ed655c4;unnamed;;;tischtennis;tischtennis;8;Ottensen
+dj_4765e7471767;dj_e74028cebd4b;unnamed;;;tischtennis;tischtennis;4;Stellingen
+dj_22ca31762635;dj_9ee9fe5ec05d;unnamed;;;tischtennis;tischtennis;5;Eimsbüttel
+dj_28ba80d40b48;dj_4e6998797aa6;unnamed;;;tischtennis;tischtennis;15;Eidelstedt
+dj_459117f13d7d;dj_4e6998797aa6;unnamed;;;tischtennis;tischtennis;21;Eidelstedt
+dj_0ad171f92615;dj_d911ba240e9f;unnamed;;;tischtennis;tischtennis;3;Eidelstedt
+dj_c41f736b58fa;dj_d911ba240e9f;unnamed;;;tischtennis;tischtennis;7;Eidelstedt
+dj_72541d0e905a;dj_7ffbe26f58d7;unnamed;;;tischtennis;tischtennis;4;Altona-Altstadt
+dj_406916450ebe;dj_d6c3946340c5;unnamed;;;tischtennis;tischtennis;3;Eppendorf
+dj_4b497392172e;dj_9eb9b566911c;unnamed;;;tischtennis;tischtennis;4;Harvestehude
+dj_bc5e3aa43736;dj_f9bdb21a56e1;unnamed;;;tischtennis;tischtennis;4;Bergstedt
+dj_38e19720bb91;dj_f9bdb21a56e1;unnamed;;;tischtennis;tischtennis;7;Bergstedt
+dj_33f6a404f015;dj_7602ad5125f9;unnamed;;;tischtennis;tischtennis;3;Billwerder
+dj_8ed8343a1c7b;dj_bc9c0421e46b;unnamed;;;tischtennis;tischtennis;12;Barmbek-Nord
+dj_882532fab713;dj_dabdaf843dc2;unnamed;;;tischtennis;tischtennis;8;Barmbek-Nord
+dj_9197bb784a81;dj_dabdaf843dc2;unnamed;;;tischtennis;tischtennis;8;Barmbek-Nord
+dj_1603186a6284;dj_66af94bb1ab0;unnamed;;;tischtennis;tischtennis;4;Eppendorf
+dj_0b310bf3d444;dj_c067ef280b76;unnamed;;;tischtennis;tischtennis;14;Lohbrügge
+dj_ace842bafa78;dj_da2dae8e477a;unnamed;;;tischtennis;tischtennis;8;Lohbrügge
+dj_65ea461b8c0e;dj_eb7462e4f8e7;unnamed;;;tischtennis;tischtennis;5;Niendorf
+dj_074b96c26c64;dj_9031b5fe5bfa;unnamed;;;tischtennis;tischtennis;4;Niendorf
+dj_daefbc9d7f5b;dj_fe80879eff0f;unnamed;;;tischtennis;tischtennis;3;Osdorf
+dj_99163ec9df28;dj_fc63a8b2c15b;unnamed;;;tischtennis;tischtennis;10;Schnelsen
+dj_bde4da2a882d;dj_d33978922289;unnamed;;;tischtennis;tischtennis;2;HafenCity
+dj_7c9ce4c205b8;dj_e019fa59e5b7;unnamed;;;tischtennis;tischtennis;4;Horn
+dj_959ae9409d48;dj_d0cb17ed89d0;unnamed;;;tischtennis;tischtennis;7;Altona-Altstadt
+dj_b53365f60400;dj_d026856d1a5b;unnamed;;;tischtennis;tischtennis;6;Neugraben-Fischbek
+dj_6b4c17751735;dj_bc42914b2229;unnamed;;;tischtennis;tischtennis;7;Langenhorn
+dj_0cc72f86b031;dj_60a6c9a206bd;unnamed;;;trinkwasser;trinkwasser;9;Fuhlsbüttel
+dj_0f0b115b2600;dj_a180bcce9cfb;unnamed;;;wc;wc;3;Bahrenfeld
+dj_7ec01b73752d;dj_a1fe0ad90aea;unnamed;;;wc;wc;2;St. Pauli
+dj_91a25005d0a7;dj_e5cb42313c6a;unnamed;;Reeperbahn;wc;wc;5;St. Pauli
+dj_0d23164289af;dj_d540449586bb;unnamed;;;wc;wc;6;Eppendorf
+dj_68c7734f3e8c;dj_d540449586bb;unnamed;;;wc;wc;3;Eppendorf
+dj_010f06ea56ff;dj_31d1c3b50eca;unnamed;;;wc;wc;7;Neuwerk
+dj_55234cce9c0e;dj_7b3e5a01f0e3;unnamed;;Rollstuhltoilette;wc;wc;2;Niendorf
+dj_0dbb1e883797;dj_deb74616d11f;unnamed;;;wc;wc;0;Eppendorf
+dj_1d69c324dbc2;dj_deb74616d11f;unnamed;;;wc;wc;0;Eppendorf
+dj_caa14ab8e161;dj_deb74616d11f;unnamed;;;wc;wc;7;Eppendorf
+dj_a417ed5407cf;dj_ca7a463e09e8;unnamed;;;wc;wc;9;Eppendorf
+dj_1741e2061509;dj_328b0eb3d5f3;unnamed;;;wc;wc;7;Allermöhe
+dj_8d1b25988237;dj_aac38abdf63b;unnamed;;;wc;wc;9;Ohlsdorf
+dj_a9dcb0c0f79e;dj_bb7334833e5e;unnamed;;;wc;wc;6;Fuhlsbüttel
+dj_96e1a4d7da7a;dj_d25fb02ecdeb;unnamed;;;wc;wc;3;Bramfeld
+dj_425ca962c21c;dj_9ff8312538a9;unnamed;;;wc;wc;4;Barmbek-Süd
+dj_e59e5b3df6ca;dj_f5a4a663d583;unnamed;;;wc;wc;10;Niendorf
+dj_634cebc0a5d5;dj_832541a14723;unnamed;;;wc;wc;10;Niendorf
+dj_2c99dfbda764;dj_4de389313db4;unnamed;;;wc;wc;5;Jenfeld
+dj_755338e05aa8;dj_0a15e146dc2e;unnamed;;rail & fresh WC - Hamburg Harburg;wc;wc;3;Harburg
+dj_606f23cede9b;dj_7976cefe357a;unnamed;;;wc;wc;3;Stellingen
+dj_56cf495ea1ed;dj_9ee1b1b5bc80;unnamed;;;wc;wc;3;Lurup
+dj_63071f1db714;dj_b0236ad3baa0;unnamed;;;wc;wc;2;Lurup
+dj_c6081985701e;dj_f854cf9a773b;unnamed;;;wc;wc;4;St. Pauli
+dj_bfec8638568b;dj_f854cf9a773b;unnamed;;;wc;wc;4;St. Pauli
+dj_34c523f685b4;dj_e4e3e2e7e60e;unnamed;;;wc;wc;4;Altengamme
+dj_60801f2d9d91;dj_72cdfdd99861;unnamed;;;windeln;windeln;2;Bergstedt
+dj_98e297b43181;dj_016c8b6b6813;unnamed;;Vega mobile Kiosk;windeln;windeln;4;Neugraben-Fischbek
+dj_d4569d03035e;dj_3c60aeaae798;unnamed;;Shell;windeln;windeln;2;Wandsbek
+dj_33b59b8e67d8;dj_9692e6d41111;unnamed_near;;;spielplatz;spielplatz;49;Hummelsbüttel
+dj_5da7cb3c61ae;dj_704eece18535;unnamed_near;;;spielplatz;spielplatz;32;Rahlstedt
+dj_742f600ece20;dj_9d7793f6ff83;unnamed_near;;;spielplatz;spielplatz;19;Eimsbüttel
+dj_14cd068f4c4e;dj_fab3ec63cebc;unnamed_near;;;spielplatz;spielplatz;27;Eppendorf
+dj_2e99d4e0ce84;dj_6fcde9b969cd;unnamed_near;;;spielplatz;spielplatz;42;Ottensen
+dj_90dba0963449;dj_ca1203e2370e;unnamed_near;;;spielplatz;spielplatz;34;Altona-Altstadt
+dj_84edb1f34bd8;dj_a5396849ea47;unnamed_near;;;spielplatz;spielplatz;20;Ottensen
+dj_74c838a51d4d;dj_7fa39caeb865;unnamed_near;;;spielplatz;spielplatz;49;Marienthal
+dj_45a64597786b;dj_ea8f3ccd06a6;unnamed_near;;;spielplatz;spielplatz;49;Hummelsbüttel
+dj_977340256706;dj_e17217d0908a;unnamed_near;;;spielplatz;spielplatz;32;Fuhlsbüttel
+dj_2c9dddbb8f13;dj_b8cd5985b06c;unnamed_near;;;spielplatz;spielplatz;47;Eidelstedt
+dj_36bc38dbed39;dj_b8cd5985b06c;unnamed_near;;;spielplatz;spielplatz;42;Eidelstedt
+dj_20b4ad8f12c1;dj_dd2a0d452960;unnamed_near;;;spielplatz;spielplatz;60;Farmsen-Berne
+dj_d52695e6cca4;dj_dd2a0d452960;unnamed_near;;;spielplatz;spielplatz;49;Farmsen-Berne
+dj_4baf012efb31;dj_d445a0045a59;unnamed_near;;;spielplatz;spielplatz;40;Farmsen-Berne
+dj_572eb69d08e1;dj_86889a8c7f53;unnamed_near;;;spielplatz;spielplatz;45;Wilhelmsburg
+dj_8c8cf7d55f2e;dj_cc0b9e7989c0;unnamed_near;;;spielplatz;spielplatz;15;Winterhude
+dj_8b55ef03b0ea;dj_ce9227239f80;unnamed_near;;;spielplatz;spielplatz;30;Rahlstedt
+dj_1d5a603a2af5;dj_8720d343f788;unnamed_near;;;spielplatz;spielplatz;40;Langenhorn
+dj_1397ac2d49a0;dj_47a3a123628f;unnamed_near;;;spielplatz;spielplatz;34;Rahlstedt
+dj_4e1f30ebd721;dj_7fd1d78f1b4a;unnamed_near;;;spielplatz;spielplatz;39;Rahlstedt
+dj_7eff5759f235;dj_6819806c5f18;unnamed_near;;;spielplatz;spielplatz;21;Altona-Altstadt
+dj_42a747a2b6a5;dj_908a464d3e64;unnamed_near;;;spielplatz;spielplatz;28;Eidelstedt
+dj_61d522f30d8b;dj_b6b70ebbc45f;unnamed_near;;;spielplatz;spielplatz;46;Lohbrügge
+dj_02a777a2cf9e;dj_c368099e3a8b;unnamed_near;;;spielplatz;spielplatz;31;Lokstedt
+dj_14aa3964c051;dj_f7b58eb775be;unnamed_near;;;spielplatz;spielplatz;32;Barmbek-Nord
+dj_73f783497437;dj_b28d4cf22b1f;unnamed_near;;;spielplatz;spielplatz;49;Barmbek-Nord
+dj_5a13f301fa7d;dj_f0852cde65ae;unnamed_near;;;spielplatz;spielplatz;21;Winterhude
+dj_02ac339e3626;dj_f0efdfb53074;unnamed_near;;;spielplatz;spielplatz;33;Winterhude
+dj_61751f38db17;dj_fda129a7f323;unnamed_near;;;spielplatz;spielplatz;35;Winterhude
+dj_4b1c4c47988e;dj_d49f63d4d81b;unnamed_near;;;spielplatz;spielplatz;18;Rahlstedt
+dj_a105174b8845;dj_e1b2908e8e23;unnamed_near;;;spielplatz;spielplatz;17;
+dj_6a1bb938928c;dj_867171bfec22;unnamed_near;;;spielplatz;spielplatz;23;Steilshoop
+dj_666f50c434ce;dj_9145913cdc26;unnamed_near;;;spielplatz;spielplatz;46;Dulsberg
+dj_cc8143cd5e11;dj_e46967823670;unnamed_near;;;spielplatz;spielplatz;41;HafenCity
+dj_f3a68aa5e6e7;dj_4c5edec5c20a;unnamed_near;;;spielplatz;spielplatz;32;Altona-Altstadt
+dj_23a6bb9816b1;dj_de1ce771db23;unnamed_near;;;spielplatz;spielplatz;50;Ohlsdorf
+dj_7cc23cf45663;dj_4e36e014cbae;unnamed_near;;;spielplatz;spielplatz;22;Eidelstedt
+dj_2ffb439ee659;dj_5ac0770da6f2;unnamed_near;;;spielplatz;spielplatz;34;Steilshoop
+dj_9c62127a3e7e;dj_bcd17c2b7562;unnamed_near;;;spielplatz;spielplatz;20;Niendorf
+dj_5c9c11d23abb;dj_b478985aa0fb;unnamed_near;;;spielplatz;spielplatz;43;Altona-Altstadt
+dj_54045ba3248c;dj_f2574dd75e47;unnamed_near;;;spielplatz;spielplatz;35;Niendorf
+dj_7ed9e2c95918;dj_ab840da3dbcd;unnamed_near;;;spielplatz;spielplatz;44;Billstedt
+dj_3b070cc4a1ff;dj_ea8c239386d9;unnamed_near;;;spielplatz;spielplatz;26;Steilshoop
+dj_47638dec77ae;dj_e7e98c773f4d;unnamed_near;;;spielplatz;spielplatz;43;Ottensen
+dj_144e8e4e31f7;dj_481902c99bc2;unnamed_near;;;spielplatz;spielplatz;33;Ottensen
+dj_4f86d95be09d;dj_e5667baef845;unnamed_near;;;spielplatz;spielplatz;23;Wandsbek
+dj_14cdc86c6b5b;dj_d1899ad96c6d;unnamed_near;;;spielplatz;spielplatz;45;Niendorf
+dj_0ad39d2d3150;dj_adcce6f4b8ad;unnamed_near;;;spielplatz;spielplatz;35;Lohbrügge
+dj_036d554c32f0;dj_806ad90c0465;unnamed_near;;;spielplatz;spielplatz;23;Lohbrügge
+dj_0a116a327f7e;dj_18d0a41cd9f5;unnamed_near;;;spielplatz;spielplatz;15;Lokstedt
+dj_4faeda4b65b5;dj_68fa2cdd4947;unnamed_near;;;spielplatz;spielplatz;40;Lokstedt
+dj_448c866e15b8;dj_f033745bdd75;unnamed_near;;;spielplatz;spielplatz;48;Farmsen-Berne
+dj_070bca933015;dj_7e36e1ac7205;unnamed_near;;;spielplatz;spielplatz;30;Eißendorf
+dj_8358d8a956fa;dj_7e36e1ac7205;unnamed_near;;;spielplatz;spielplatz;40;Eißendorf
+dj_e7e16210e44d;dj_e8d3964e227d;unnamed_near;;;spielplatz;spielplatz;50;Bergedorf
+dj_2f7af1e954ea;dj_ce5f4189cc17;unnamed_near;;;spielplatz;spielplatz;39;Lokstedt
+dj_10f56a49c2a3;dj_ce5f4189cc17;unnamed_near;;;spielplatz;spielplatz;25;Lokstedt
+dj_cbd05a3f8d23;dj_e732b7f2fb7d;unnamed_near;;;spielplatz;spielplatz;44;Osdorf
+dj_2e2f46181598;dj_6f563dbd49a3;unnamed_near;;;spielplatz;spielplatz;20;Steilshoop
+dj_74d1cb60d859;dj_9454128f67ae;unnamed_near;;;spielplatz;spielplatz;39;Osdorf
+dj_03727a1cbffe;dj_e900b97c502d;unnamed_near;;;spielplatz;spielplatz;33;Volksdorf
+dj_051f69fb9d9a;dj_ed198620a404;unnamed_near;;;spielplatz;spielplatz;41;Volksdorf
+dj_b783e40b9663;dj_f0c8d0e0a189;unnamed_near;;Spielplatz Grandweg;spielplatz;spielplatz;39;Lokstedt
+dj_039f1daef704;dj_161b96460302;unnamed_near;;;spielplatz;spielplatz;23;Bramfeld
+dj_11cb164aeea5;dj_608f94b9f556;unnamed_near;;;spielplatz;spielplatz;47;Billstedt
+dj_4486ed2f1115;dj_e4380b252d57;unnamed_near;;;spielplatz;spielplatz;37;Hummelsbüttel
+dj_55b33eb5242c;dj_6fefb05c8ce0;unnamed_near;;;spielplatz;spielplatz;37;Hummelsbüttel
+dj_b7a440296d67;dj_f56c324f1fc8;unnamed_near;;;spielplatz;spielplatz;19;Rahlstedt
+dj_0a275d4c0f27;dj_873e1815d702;unnamed_near;;;spielplatz;spielplatz;43;Neustadt
+dj_0a3f970068ee;dj_1c78051ba710;unnamed_near;;;spielplatz;spielplatz;22;Hoheluft-West
+dj_f8fe7a6bed45;dj_e206b89958bd;unnamed_near;;;spielplatz;spielplatz;28;Osdorf
+dj_06efce85421e;dj_cc3ae5a8a9e5;unnamed_near;;;spielplatz;spielplatz;36;Neustadt
+dj_572ad3a21fe2;dj_60fe7cd43595;unnamed_near;;;spielplatz;spielplatz;39;Ohlsdorf
+dj_1357ad6ccbd1;dj_6d51b01ffde0;unnamed_near;;;spielplatz;spielplatz;37;Lohbrügge
+dj_653d6ff90579;dj_c0d528bf15ce;unnamed_near;;;spielplatz;spielplatz;48;Neuallermöhe
+dj_0a671b72a97e;dj_0d62725f3682;unnamed_near;;;spielplatz;spielplatz;45;Hamm
+dj_5de577d6009d;dj_af1851296733;unnamed_near;;;spielplatz;spielplatz;46;Hamm
+dj_77b922e7a981;dj_f1dffa06fa0f;unnamed_near;;;spielplatz;spielplatz;27;Iserbrook
+dj_cabdf712108e;dj_53824826baa4;unnamed_near;;;spielplatz;spielplatz;34;Neugraben-Fischbek
+dj_ac74fcb2bd8e;dj_f94f3284eec6;unnamed_near;;;spielplatz;spielplatz;48;Langenhorn
+dj_2797e0b28f2d;dj_bae47b5c09a3;unnamed_near;;;spielplatz;spielplatz;40;Langenhorn
+dj_4f228a3c47d5;dj_a525f04a2f00;unnamed_near;;;spielplatz;spielplatz;49;Alsterdorf
+dj_42d772a781d8;dj_a525f04a2f00;unnamed_near;;;spielplatz;spielplatz;26;Alsterdorf
+dj_0c7eb7dd428c;dj_28e8665879cc;unnamed_near;;;spielplatz;spielplatz;41;Jenfeld
+dj_9cf9a82e77d6;dj_cbd70412153c;unnamed_near;;;spielplatz;spielplatz;40;Jenfeld
+dj_593e1a4acafd;dj_a62be347352a;unnamed_near;;;spielplatz;spielplatz;49;Jenfeld
+dj_0f767cb159b5;dj_406ca0eadbbe;unnamed_near;;;spielplatz;spielplatz;50;Neuallermöhe
+dj_3fdbbfbd0d3c;dj_931096e51a04;unnamed_near;;;spielplatz;spielplatz;41;Neuallermöhe
+dj_76f0d88ec0ff;dj_dba1f468a99a;unnamed_near;;;spielplatz;spielplatz;27;Sülldorf
+dj_d788a53b824e;dj_dc78c00cff71;unnamed_near;;;spielplatz;spielplatz;41;Steilshoop
+dj_314c0883a5e9;dj_aa5b06d0d568;unnamed_near;;;spielplatz;spielplatz;34;Poppenbüttel
+dj_74f805c1351f;dj_d47202a3b57c;unnamed_near;;;spielplatz;spielplatz;18;Rahlstedt
+dj_96b17a23a8d0;dj_a7796c6be421;unnamed_near;;;spielplatz;spielplatz;30;Ohlsdorf
+dj_5d72ce130aa7;dj_a9de4293e106;unnamed_near;;;spielplatz;spielplatz;38;Ohlsdorf
+dj_060b90e42654;dj_73c2726ccc92;unnamed_near;;;spielplatz;spielplatz;25;Alsterdorf
+dj_98d5359ddcaa;dj_fc10d0d1b9d4;unnamed_near;;;spielplatz;spielplatz;30;Billstedt
+dj_889ad0169cd9;dj_236c7bb5bd1c;unnamed_near;;;spielplatz;spielplatz;49;Lohbrügge
+dj_2c411aee92cc;dj_e79a5d29d2f9;unnamed_near;;;spielplatz;spielplatz;40;Lokstedt
+dj_082c8fbde7cb;dj_e79a5d29d2f9;unnamed_near;;;spielplatz;spielplatz;41;Lokstedt
+dj_752478cb776d;dj_aa77b5a8182a;unnamed_near;;;spielplatz;spielplatz;22;Bergedorf
+dj_5ad6fc04216b;dj_fcfef519c617;unnamed_near;;;spielplatz;spielplatz;44;Lokstedt
+dj_14fb9444911b;dj_a10109438cb0;unnamed_near;;;spielplatz;spielplatz;49;Bahrenfeld
+dj_0bf6254f1c87;dj_7ba7a03513d2;unnamed_near;;;spielplatz;spielplatz;39;Heimfeld
+dj_4fe681e03a2d;dj_663eda080b45;unnamed_near;;;spielplatz;spielplatz;34;Rahlstedt
+dj_289838551ef5;dj_9a70c2337e58;unnamed_near;;;spielplatz;spielplatz;40;Neuallermöhe
+dj_30b5517b7137;dj_55f14173aa8f;unnamed_near;;;spielplatz;spielplatz;35;Horn
+dj_a557b575eb4d;dj_d3925db78658;unnamed_near;;;spielplatz;spielplatz;46;Eidelstedt

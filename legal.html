@@ -28,14 +28,14 @@
 </head>
 <body>
 <!-- German is the binding version. The page shows the language chosen in the app (or the phone's language).
-     State of the texts: 20 Nov 2026. Points that a lawyer still has to check are marked with HTML comments "[juristisch prüfen]".
+     State of the texts: 21 Nov 2026. Points that a lawyer still has to check are marked with HTML comments "[juristisch prüfen]".
      Keep this page in line with server/pb_migrations, server/pb_hooks and sync.js when what is stored or sent changes. -->
 <main lang="de" data-lang="de">
   <a class="back" href="./">‹ Zurück zur App</a>
   <h1>Djuu</h1>
   <nav><a href="#impressum">Impressum</a><a href="#agb">Nutzungsbedingungen</a><a href="#datenschutz">Datenschutz</a><a href="#daten">Daten und Lizenzen</a></nav>
   <!-- [juristisch prüfen] The legal review of the whole page is still open (handoff §8). Remove "Entwurf" from the line below only after that review. -->
-  <p class="stand">Stand: 20.11.2026 · Entwurf, die rechtliche Prüfung steht noch aus.</p>
+  <p class="stand">Stand: 21.11.2026 · Entwurf, die rechtliche Prüfung steht noch aus.</p>
 
   <h2 id="impressum">Impressum</h2>
   <p>Angaben gemäß § 5 Digitale-Dienste-Gesetz (DDG):</p>
@@ -74,7 +74,7 @@
   <h3>2. Speicher auf deinem Gerät</h3>
   <p>Djuu setzt keine Cookies. Damit die App funktioniert, legt sie Daten im Speicher deines Browsers ab (Local Storage und, für Fotos, IndexedDB) und speichert über einen Service Worker die App-Dateien und Termine, damit sie auch ohne Netz starten. Das ist für den Dienst, den du aufrufst, unbedingt erforderlich (§ 25 Abs. 2 Nr. 2 TDDDG); eine Einwilligung ist dafür nicht nötig.</p>
   <!-- [juristisch prüfen] § 25 Abs. 2 Nr. 2 TDDDG for local storage and the service worker cache (no consent banner). -->
-  <p>Nur auf deinem Gerät bleiben: Sprache, Kartenstil, Gebiet und Filter, deine Bewertungen und eingetragenen Orte mit ihren Fotos (bis du sie uns selbst per E-Mail schickst) und deine Angaben unter „Was passt zu euch?“. Diese Angaben (zum Beispiel alleinerziehend, Regenbogenfamilie, Inklusion) können sensibel sein; Djuu speichert sie nur mit deiner ausdrücklichen Einwilligung (Art. 9 Abs. 2 lit. a DSGVO), nutzt sie nur für Vorschläge, und du kannst sie jederzeit löschen. Damit widerrufst du auch deine Einwilligung.</p>
+  <p>Nur auf deinem Gerät bleiben: Sprache, Kartenstil, Gebiet und Filter, ohne Konto deine Bewertungen, Ergänzungen und eingetragenen Orte mit ihren Fotos (bis du dich anmeldest und sie selbst sendest, siehe 9.) und deine Angaben unter „Was passt zu euch?“. Mit Konto gehen Bewertungen, Ergänzungen, neue Orte und Fotos zur Prüfung an unseren Server (siehe 9.); auf dem Gerät bleibt davon nur eine Kopie, damit du siehst, was noch auf die Prüfung wartet. Diese Angaben (zum Beispiel alleinerziehend, Regenbogenfamilie, Inklusion) können sensibel sein; Djuu speichert sie nur mit deiner ausdrücklichen Einwilligung (Art. 9 Abs. 2 lit. a DSGVO), nutzt sie nur für Vorschläge, und du kannst sie jederzeit löschen. Damit widerrufst du auch deine Einwilligung.</p>
   <p>Dein Standort wird nur verwendet, wenn du ihn im Browser erlaubst, und nur im Browser verrechnet. Er geht nur dann an unseren Server, wenn du ihn bei „Wo seid ihr?“ selbst einmal sendest (siehe unten).</p>
   <p>Löschst du die Website-Daten im Browser, sind die Daten auf dem Gerät weg. Was in deinem Konto gespeichert ist, bleibt dort.</p>
 
@@ -85,16 +85,22 @@
     <li><b>Dein Konto:</b> E-Mail-Adresse, Passwort (nur als sicherer Hash, nie im Klartext), ob die E-Mail bestätigt ist, und deine persönlichen Einstellungen: welche Neuigkeiten du ausgeschaltet hast und deine Einstellungen für Termine. Für die Sicherheit merkt sich der Server außerdem, auf welchen Geräten du dich angemeldet hast (eine Kennung aus IP-Adresse und Browser), und schickt dir eine E-Mail, wenn du dich auf einem neuen Gerät anmeldest.</li>
     <li><b>Euer Wir:</b> der Name und das Foto des Wir.</li>
     <li><b>Personen im Wir</b> (alles außer dem Namen freiwillig): Erwachsene mit Name, Rolle, Gruppe (Familie oder Helfer:in), Zugangsrechten, einem Enddatum für befristeten Zugang, Farbe, Foto, Arbeitszeiten und bei Personen mit eigenem Zugang der E-Mail-Adresse; Kinder mit Name, Geburtsjahr, Geburtsmonat oder ganzem Geburtsdatum (so genau, wie du es einträgst), Kita oder Schule, Kleider- und Schuhgröße, Farbe und Foto; Hunde mit Name und Foto.</li>
-    <li><b>Gemeinsame Listen:</b> Einkaufsliste mit dem, was ihr oft kauft, Besorgungen, gemerkte Orte und Termine, „Waren dabei“, jeweils mit der Person, die es eingetragen hat.</li>
+    <li><b>Gemeinsame Listen und Kalender:</b> Einkaufslisten mit dem, was ihr oft kauft, To-do- und Packlisten (freiwillig mit zuständiger Person und Datum), Besorgungen, Einträge im Familienkalender (zum Beispiel Bringen und Abholen), gemerkte Orte und Termine, jeweils mit der Person, die es eingetragen hat, und welche Listen du verfolgst.</li>
+    <li><b>Notfall-Infos</b> (freiwillig, nur mit ausdrücklicher Einwilligung): zu einem Kind Allergien, Medikamente, Kinderarzt, Hinweise und Notfallkontakte. Siehe unten.</li>
     <li><b>Meine Orte:</b> Name, Postleitzahl, freiwillig eine Adresse und die Koordinaten der Postleitzahl.</li>
   </ul>
-  <p><b>Wer was sieht:</b> Die Gruppe „Familie“ sieht alles im Wir. Helfer:innen sehen nur die Erwachsenen und die Bereiche, die der Admin für sie freigibt; Kinder, Hunde, ihre Fotos und eure Orte sehen sie nie. Ein befristeter Zugang endet automatisch. Die E-Mail-Adressen der Erwachsenen sehen nur Admins. Deine Orte unter „Meine Orte“ sehen nur du, bis du einen davon mit dem Wir teilst.</p>
+  <p><b>Wer was sieht:</b> Die Gruppe „Familie“ sieht alles im Wir. Helfer:innen sehen nur die Erwachsenen und die Bereiche, die der Admin für sie freigibt; Kinder, Hunde, ihre Fotos und eure Orte sehen sie nie; die Notfall-Infos nur, wenn der Admin ihnen diesen Bereich freigibt, und nur, solange ihr Zugang läuft. Ein befristeter Zugang endet automatisch. Die E-Mail-Adressen der Erwachsenen sehen nur Admins (und jede Person ihre eigene). Wer das Wir angelegt hat, kann von anderen nicht entfernt werden und kann das Wir an einen anderen Admin übergeben. Deine Orte unter „Meine Orte“ sehen nur du, bis du einen davon mit dem Wir teilst.</p>
   <p><b>Fotos</b> werden in der App rund zugeschnitten, auf höchstens 512 Pixel verkleinert und bei uns gespeichert. Alle im Wir sehen das Foto des Wir und die Fotos der Erwachsenen; Fotos von Kindern und Hunden sieht nur die Gruppe „Familie“. Jede Person ändert ihr eigenes Foto, für Kinder, Hunde und Personen ohne eigenen Zugang der Admin. Keine Gesichtserkennung, keine Weitergabe.</p>
   <p><b>Neuigkeiten</b> (wer etwas auf die Liste gesetzt oder gemerkt hat) entstehen in der App aus diesen Daten und bleiben auf deinem Gerät.</p>
   <p><b>E-Mails:</b> Wir schicken dir nur E-Mails, die zum Konto gehören: den Link zum Bestätigen deiner E-Mail-Adresse, den Link für ein neues Passwort, den Link zum Bestätigen einer neuen E-Mail-Adresse und den Hinweis bei einer Anmeldung auf einem neuen Gerät. Sie gehen über <span class="missing">[Mail-Dienst eintragen]</span>.</p>
   <!-- [Mail-Dienst eintragen]: the SMTP provider PocketBase uses on the server (the previous text said "Postfach bei All-Inkl"; the handoff says hallo@djuu.de is at All-Inkl). Confirm in the dashboard, then name it here and under 7. -->
   <p><b>„Wo seid ihr?“:</b> Ein Standort wird nur gesendet, wenn die gefragte Person zustimmt. Ihn sehen nur die beiden, und er wird nach 24 Stunden automatisch gelöscht (spätestens eine Stunde später).</p>
-  <p><b>Familienkalender:</b> Eure gemerkten Termine sind über eine geheime Adresse abrufbar; wer sie kennt, sieht diese Termine und den Namen eures Wir. Abonniert ihr den Kalender, holt eure Kalender-App (zum Beispiel Google Kalender) die Termine regelmäßig von unserem Server. Ihr könnt die Adresse jederzeit erneuern, dann funktioniert die alte nicht mehr.</p>
+  <p><b>Familienkalender:</b> Eure Kalender-Einträge und gemerkten Termine sind für jede Person über eine eigene geheime Adresse abrufbar; wer sie kennt, sieht, was diese Person im Kalender sehen darf, und den Namen eures Wir. Abonniert ihr den Kalender, holt eure Kalender-App (zum Beispiel Google Kalender) die Termine regelmäßig von unserem Server. Ihr könnt die Adresse jederzeit erneuern, dann funktioniert die alte nicht mehr.</p>
+  <p><b>Notfall-Infos:</b> Ein Admin (und wer im Wir die Notfall-Infos bearbeiten darf, in der Gruppe „Familie“ von Anfang an) kann zu einem Kind Gesundheitsangaben eintragen (Allergien, Medikamente, Kinderarzt, Hinweise, Notfallkontakte), damit Babysitter und Familie im Notfall Bescheid wissen. Das sind Gesundheitsdaten (Art. 9 DSGVO). Wir speichern sie nur mit deiner ausdrücklichen Einwilligung (Art. 9 Abs. 2 lit. a DSGVO), die du beim Speichern mit einem Haken gibst; wir speichern, wer eingewilligt hat und wann. Sie sehen die Admins und die Personen, denen der Admin den Bereich „Notfall-Infos“ freigibt (die Gruppe „Familie“ von Anfang an, Helfer:innen erst nach Freigabe und nur, solange ihr Zugang läuft); damit sie im Notfall auch ohne Netz da sind, liegen sie zusätzlich auf deren Geräten und werden dort gelöscht, wenn der Zugang endet, beim Abmelden oder wenn das Wir gelöscht wird. Widerruf: Notfall-Infos › Löschen; dann sind sie sofort weg.</p>
+  <!-- [juristisch prüfen] Art. 9 DSGVO: explicit consent given by one admin for a child's health data – whether one parent may consent for both, wording of the consent text ("Ich willige ein, dass diese Gesundheitsangaben im Wir gespeichert und für die Personen sichtbar sind, denen der Admin die Notfall-Infos freigibt (zum Beispiel Babysitter)."), storage on helpers' devices. -->
+  <p><b>Mitteilungen</b> (nur wenn du sie unter Wir › Einstellungen › Mitteilungen selbst einschaltest, alle sind aus): Wir speichern für dein Gerät die Adresse, die dein Browser für Mitteilungen vergibt, zwei Schlüssel zum Verschlüsseln, die gewählten Themen und die Sprache. Die Nachricht (zum Beispiel „Abholen heute: Mia übernimmt“) geht verschlüsselt über den Mitteilungsdienst deines Browsers oder Handys (Google, Apple, Mozilla oder Microsoft) an dein Gerät; der Dienst kann den Inhalt nicht lesen, sieht aber, dass eine Nachricht kommt. Ausschalten oder Abmelden löscht das sofort.</p>
+  <!-- [juristisch prüfen] Push services (Google FCM, Apple APNs, Mozilla, Microsoft WNS) as recipients/processors and the transfer to the USA. -->
+  <p><b>Meine Daten herunterladen:</b> Unter Wir › Konto bekommst du alles, was Djuu über dich speichert und was du im Wir sehen darfst, als Datei (Art. 15 und 20 DSGVO).</p>
   <p><b>Einladungen:</b> Ein Einladungslink gilt 7 Tage und nur einmal. Wer ihn öffnet, sieht vor dem Beitreten den Namen der einladenden Person und die Anfangsbuchstaben der Personen im Wir. Wir speichern den Link selbst nicht, nur eine Prüfsumme (Hash) davon.</p>
   <p>Zweck ist allein, dass ihr euch in der Familie organisieren könnt (Art. 6 Abs. 1 lit. b DSGVO). Die Angaben zu Kindern trägt ein Elternteil oder eine andere berechtigte Person im Wir ein.</p>
   <!-- [juristisch prüfen] Legal basis for children's data entered by a parent (Art. 6 (1) b for the account holder vs. data of third persons/children), and whether Art. 6 (1) b covers helpers' data. -->
@@ -105,6 +111,7 @@
     <li>Wir löschen dein Konto, deine Person im Wir, deine Orte unter „Meine Orte“ und dein Foto. Was du in die gemeinsamen Listen eingetragen oder gemerkt hast, bleibt für die anderen im Wir erhalten, aber ohne deinen Namen.</li>
     <li>Bist du die oder der letzte Admin des Wir, wird das ganze Wir mit allen Personen, Listen, Gemerktem, Fotos und geteilten Orten gelöscht, für alle. Die App zeigt vorher, wen das betrifft. Die Konten der anderen bleiben bestehen, ohne Wir. Gibt es noch einen anderen Admin, bleibt das Wir bestehen.</li>
     <li>Ein Admin kann eine Person aus dem Wir entfernen; ihr Konto bleibt dann bestehen, ohne Wir.</li>
+    <li>Deine Beiträge für alle (Ergänzungen, neue Orte, Bewertungen, Fotos, Meldungen) werden mit dem Konto gelöscht.</li>
   </ul>
   <p>Gelöschte Daten können noch bis zu 7 Tage in unseren Sicherungskopien stehen (siehe Speicherdauer).</p>
 
@@ -132,6 +139,7 @@
     <li><b>GitHub Inc.</b> (USA): Auslieferung der App über GitHub Pages.</li>
     <li><b><span class="missing">[Mail-Dienst eintragen]</span></b>: Versand der E-Mails zum Konto.</li>
     <li><b>Anthropic PBC</b> (USA): nur „Frag Djuu“, wenn eingeschaltet, und die Übersetzung von Termintiteln.</li>
+    <li><b>Mitteilungsdienst deines Browsers</b> (Google, Apple, Mozilla oder Microsoft): nur wenn du Mitteilungen einschaltest, Zustellung verschlüsselter Nachrichten.</li>
   </ul>
   <!-- [juristisch prüfen] Data processing agreements (Art. 28 DSGVO) with each of these, and whether GitHub and Anthropic act as processors. -->
 
@@ -143,17 +151,22 @@
     <tr><td>Links zum Bestätigen, für ein neues Passwort oder eine neue E-Mail</td><td>gelten nur kurz (Stunden bis wenige Tage, steht in der E-Mail)</td></tr>
     <tr><td>Einladungslinks</td><td>gültig 7 Tage oder bis zur Benutzung</td></tr>
     <tr><td>„Wo seid ihr?“ mit Standort</td><td>24 Stunden</td></tr>
+    <tr><td>Beiträge für alle (Ergänzungen, neue Orte, Bewertungen, Fotos)</td><td>freigegebene, bis du sie oder dein Konto löschst; abgelehnte und Meldungen, bis sie erledigt sind, höchstens 90 Tage</td></tr>
+    <tr><td>Notfall-Infos</td><td>bis ein Admin sie löscht, das Kind entfernt oder das Wir gelöscht wird</td></tr>
+    <tr><td>Anmeldung für Mitteilungen</td><td>bis du sie ausschaltest, dich abmeldest oder der Browser sie beendet</td></tr>
     <tr><td>Server-Protokoll (IP-Adresse, Browser, Adresse, Uhrzeit)</td><td>höchstens 5 Tage</td></tr>
     <tr><td>Zähler für „Frag Djuu“</td><td>bis zum Ende des Tages</td></tr>
     <tr><td>Tägliche Sicherungskopien des Servers</td><td>7 Tage</td></tr>
     <tr><td>Daten auf deinem Gerät</td><td>bis du sie in der App oder in den Website-Daten deines Browsers löschst</td></tr>
   </table>
 
-  <h3>9. Meldungen und Feedback</h3>
-  <p>Meldest du einen Ort oder schreibst uns, öffnet sich dein E-Mail-Programm. Du siehst die Nachricht, bevor du sie abschickst. Wir nutzen sie nur, um zu antworten und Daten zu korrigieren, und löschen sie, wenn das erledigt ist.</p>
+  <h3>9. Beiträge, Meldungen und Feedback</h3>
+  <p><b>Beiträge für alle:</b> Ergänzt du mit Konto Angaben zu einem Ort, trägst einen neuen Ort ein, bewertest ihn oder lädst ein Foto hoch, speichern wir das mit deinem Konto auf unserem Server. Bevor andere es sehen, prüft es eine Person aus dem Djuu-Team. Andere sehen nur den Inhalt und den Monat, nie deinen Namen oder dein Konto. Fotos verkleinert die App vor dem Senden und speichert sie neu als JPEG; dabei gehen Ortsangaben (GPS) und andere eingebettete Daten verloren, und der Server entfernt sie zur Sicherheit noch einmal. Unter Wir › Konto › „Meine Beiträge“ siehst du alles, was du gesendet hast, auch ob es übernommen wurde, und kannst jeden Beitrag jederzeit löschen. Ohne Konto bleibt alles nur auf deinem Gerät. Zweck ist, die Angaben für alle Familien zu verbessern (Art. 6 Abs. 1 lit. f DSGVO, unser und euer berechtigtes Interesse an richtigen Angaben).</p>
+  <!-- [juristisch prüfen] Community contributions: legal basis (Art. 6 (1) f vs. b), retention of rejected items/reports (90 days), moderation and DSA notice-and-action duties for user content. -->
+  <p>Meldest du ohne Konto einen Ort oder schreibst uns, öffnet sich dein E-Mail-Programm. Du siehst die Nachricht, bevor du sie abschickst. Wir nutzen sie nur, um zu antworten und Daten zu korrigieren, und löschen sie, wenn das erledigt ist.</p>
 
   <h3>10. Deine Rechte</h3>
-  <p>Du hast das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung und Datenübertragbarkeit. Eine erteilte Einwilligung kannst du jederzeit widerrufen. Verarbeiten wir Daten aufgrund unseres berechtigten Interesses, kannst du aus Gründen, die sich aus deiner besonderen Situation ergeben, widersprechen (Art. 21 DSGVO). Schreib uns dafür an die oben genannte Adresse. Du kannst dich außerdem bei einer Datenschutz-Aufsichtsbehörde beschweren, in Hamburg beim <a href="https://datenschutz-hamburg.de" rel="noopener">Hamburgischen Beauftragten für Datenschutz und Informationsfreiheit</a>. Steht ein Ort mit deinen persönlichen Daten in Djuu, nehmen wir ihn auf Nachricht heraus.</p>
+  <p>Du hast das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung und Datenübertragbarkeit. Eine erteilte Einwilligung kannst du jederzeit widerrufen. Verarbeiten wir Daten aufgrund unseres berechtigten Interesses, kannst du aus Gründen, die sich aus deiner besonderen Situation ergeben, widersprechen (Art. 21 DSGVO). Schreib uns dafür an die oben genannte Adresse. Du kannst dich außerdem bei einer Datenschutz-Aufsichtsbehörde beschweren, in Hamburg beim <a href="https://datenschutz-hamburg.de" rel="noopener">Hamburgischen Beauftragten für Datenschutz und Informationsfreiheit</a>. Steht ein Ort mit deinen persönlichen Daten in Djuu, nehmen wir ihn auf Nachricht heraus. Eine Kopie deiner Daten kannst du jederzeit selbst unter Wir › Konto › Meine Daten herunterladen holen.</p>
   <p>Ändert sich, was Djuu speichert oder sendet, passen wir diese Seite an und ändern das Datum oben.</p>
 
   <h2 id="daten">Daten und Lizenzen</h2>
@@ -176,7 +189,7 @@
   <a class="back" href="./">‹ Back to the app</a>
   <h1>Djuu</h1>
   <nav><a href="#impressum">Legal notice</a><a href="#agb">Terms of use</a><a href="#datenschutz">Privacy</a><a href="#daten">Data and licences</a></nav>
-  <p class="stand">As of 20 Nov 2026 · Draft, the legal review is still pending. This is a translation for your convenience; only the German version is legally binding.</p>
+  <p class="stand">As of 21 Nov 2026 · Draft, the legal review is still pending. This is a translation for your convenience; only the German version is legally binding.</p>
 
   <h2 id="impressum">Legal notice</h2>
   <p>Information according to § 5 of the German Digital Services Act (DDG):</p>
@@ -211,7 +224,7 @@
 
   <h3>2. Storage on your device</h3>
   <p>Djuu sets no cookies. To work, the app keeps data in your browser’s storage (local storage and, for photos, IndexedDB) and uses a service worker to store the app files and events so that it also starts without a connection. This is strictly necessary for the service you use (§ 25(2) no. 2 TDDDG); no consent is required for it.</p>
-  <p>Kept on your device only: language, map style, area and filters, your reviews and the places you added with their photos (until you send them to us by email yourself), and your answers under “What fits you?”. These answers (for example single parent, rainbow family, inclusion) can be sensitive; Djuu only stores them with your explicit consent (Art. 9(2)(a) GDPR), uses them only for suggestions, and you can delete them at any time, which also withdraws your consent.</p>
+  <p>Kept on your device only: language, map style, area and filters, without an account your reviews, additions and the places you added with their photos (until you sign in and send them yourself, see 9.), and your answers under “What fits you?”. With an account, reviews, additions, new places and photos go to our server to be checked (see 9.); the device only keeps a copy so you can see what is still waiting for the check. These answers (for example single parent, rainbow family, inclusion) can be sensitive; Djuu only stores them with your explicit consent (Art. 9(2)(a) GDPR), uses them only for suggestions, and you can delete them at any time, which also withdraws your consent.</p>
   <p>Your location is only used if you allow it in the browser, and only calculated in the browser. It only goes to our server if you send it once yourself with “Where are you?” (see below).</p>
   <p>If you delete the website data in your browser, the data on the device is gone. What is stored in your account stays there.</p>
 
@@ -221,15 +234,19 @@
     <li><b>Your account:</b> email address, password (only as a secure hash, never in plain text), whether the email is confirmed, and your personal settings: which news you switched off and your settings for events. For security the server also remembers on which devices you signed in (an identifier made from IP address and browser) and sends you an email when you sign in on a new device.</li>
     <li><b>Your Us:</b> the name and photo of the Us.</li>
     <li><b>People in the Us</b> (everything except the name is optional): adults with name, role, group (family or helper), access rights, an end date for time-limited access, colour, photo, working hours and, for people with their own login, the email address; children with name, birth year, birth month or full date of birth (as exact as you enter it), nursery or school, clothes and shoe size, colour and photo; dogs with name and photo.</li>
-    <li><b>Shared lists:</b> shopping list with what you often buy, items to get, saved places and events, “We went”, each with the person who added it.</li>
+    <li><b>Shared lists and calendar:</b> shopping lists with what you often buy, to-do and packing lists (optionally with a person and a date), items to get, family calendar entries (for example drop-off and pick-up), saved places and events, each with the person who added it, and which lists you follow.</li>
+    <li><b>Emergency info</b> (optional, only with explicit consent): for a child, allergies, medicines, paediatrician, notes and emergency contacts. See below.</li>
     <li><b>My places:</b> name, postcode, optionally an address, and the coordinates of the postcode.</li>
   </ul>
-  <p><b>Who sees what:</b> the “family” group sees everything in the Us. Helpers see only the adults and the areas the admin opens for them; they never see children, dogs, their photos or your places. Time-limited access ends automatically. The adults’ email addresses are seen by admins only. Your places under “My places” are seen only by you until you share one with the Us.</p>
+  <p><b>Who sees what:</b> the “family” group sees everything in the Us. Helpers see only the adults and the areas the admin opens for them; they never see children, dogs, their photos or your places; they only see the emergency info if the admin opens this area for them, and only while their access lasts. Time-limited access ends automatically. The adults’ email addresses are seen by admins only (and everyone sees their own). The person who created the Us cannot be removed by others and can hand the Us over to another admin. Your places under “My places” are seen only by you until you share one with the Us.</p>
   <p><b>Photos</b> are cut round in the app, reduced to at most 512 pixels and stored with us. Everyone in the Us sees the photo of the Us and the adults’ photos; photos of children and dogs are seen by the “family” group only. Everyone changes their own photo; for children, dogs and people without their own login, the admin does. No face recognition, nothing is passed on.</p>
   <p><b>News</b> (who added or saved something) is made in the app from this data and stays on your device.</p>
   <p><b>Emails:</b> we only send emails that belong to the account: the link to confirm your email address, the link for a new password, the link to confirm a new email address, and the notice when you sign in on a new device. They are sent via <span class="missing">[mail service to be added]</span>.</p>
   <p><b>“Where are you?”:</b> a location is only sent if the person asked agrees. Only the two of you see it, and it is deleted automatically after 24 hours (at the latest one hour later).</p>
-  <p><b>Family calendar:</b> your saved events can be fetched via a secret address; anyone who knows it sees these events and the name of your Us. If you subscribe to the calendar, your calendar app (for example Google Calendar) regularly fetches the events from our server. You can renew the address at any time; the old one then stops working.</p>
+  <p><b>Family calendar:</b> your calendar entries and saved events can be fetched by each person via their own secret address; anyone who knows it sees what that person may see in the calendar and the name of your Us. If you subscribe to the calendar, your calendar app (for example Google Calendar) regularly fetches the events from our server. You can renew the address at any time; the old one then stops working.</p>
+  <p><b>Emergency info:</b> an admin (and whoever may edit the emergency info in the Us, from the start the “family” group) can enter health details for a child (allergies, medicines, paediatrician, notes, emergency contacts) so that babysitters and family know what to do in an emergency. This is health data (Art. 9 GDPR). We only store it with your explicit consent (Art. 9(2)(a) GDPR), which you give with a tick when saving; we store who consented and when. It is seen by the admins and by the people the admin opens the “Emergency info” area for (the “family” group from the start, helpers only once it is opened for them and only while their access lasts); so that it is there in an emergency even without a connection, it is also kept on their devices and deleted there when the access ends, on sign-out or when the Us is deleted. Withdrawal: Emergency info › Delete; it is gone at once.</p>
+  <p><b>Notifications</b> (only if you switch them on yourself under Us › Settings › Notifications; all are off): for your device we store the address your browser issues for notifications, two encryption keys, the chosen topics and the language. The message (for example “Pick-up today: Mia takes over”) goes encrypted via your browser’s or phone’s notification service (Google, Apple, Mozilla or Microsoft) to your device; the service cannot read the content but sees that a message arrives. Switching off or signing out deletes this at once.</p>
+  <p><b>Download my data:</b> under Us › Account you get everything Djuu stores about you and what you may see in the Us as a file (Art. 15 and 20 GDPR).</p>
   <p><b>Invitations:</b> an invitation link is valid for 7 days and only once. Whoever opens it sees, before joining, the name of the person inviting and the initials of the people in the Us. We don’t store the link itself, only a checksum (hash) of it.</p>
   <p>The only purpose is that you can organise yourselves as a family (Art. 6(1)(b) GDPR). Details about children are entered by a parent or another authorised person in the Us.</p>
 
@@ -239,6 +256,7 @@
     <li>We delete your account, your person in the Us, your places under “My places” and your photo. What you added to the shared lists or saved stays for the others in the Us, but without your name.</li>
     <li>If you are the last admin of the Us, the whole Us with all people, lists, saved items, photos and shared places is deleted, for everyone. The app shows beforehand who is affected. The other people’s accounts remain, without an Us. If there is another admin, the Us stays.</li>
     <li>An admin can remove a person from the Us; that person’s account then remains, without an Us.</li>
+    <li>Your contributions for everyone (additions, new places, reviews, photos, reports) are deleted with the account.</li>
   </ul>
   <p>Deleted data may remain in our backups for up to 7 days (see storage periods).</p>
 
@@ -265,6 +283,7 @@
     <li><b>GitHub Inc.</b> (USA): delivery of the app via GitHub Pages.</li>
     <li><b><span class="missing">[mail service to be added]</span></b>: sending the account emails.</li>
     <li><b>Anthropic PBC</b> (USA): only “Ask Djuu”, when switched on, and translating event titles.</li>
+    <li><b>Your browser’s notification service</b> (Google, Apple, Mozilla or Microsoft): only if you switch on notifications, delivery of encrypted messages.</li>
   </ul>
 
   <h3>8. How long we keep data</h3>
@@ -275,17 +294,21 @@
     <tr><td>Links to confirm, for a new password or a new email</td><td>valid only briefly (hours to a few days, stated in the email)</td></tr>
     <tr><td>Invitation links</td><td>valid 7 days or until used</td></tr>
     <tr><td>“Where are you?” with location</td><td>24 hours</td></tr>
+    <tr><td>Contributions for everyone (additions, new places, reviews, photos)</td><td>approved ones until you delete them or your account; rejected ones and reports until handled, at most 90 days</td></tr>
+    <tr><td>Emergency info</td><td>until an admin deletes it, the child is removed or the Us is deleted</td></tr>
+    <tr><td>Notification sign-up</td><td>until you switch it off, sign out or the browser ends it</td></tr>
     <tr><td>Server log (IP address, browser, address, time)</td><td>at most 5 days</td></tr>
     <tr><td>Counter for “Ask Djuu”</td><td>until the end of the day</td></tr>
     <tr><td>Daily server backups</td><td>7 days</td></tr>
     <tr><td>Data on your device</td><td>until you delete it in the app or in your browser’s website data</td></tr>
   </table>
 
-  <h3>9. Reports and feedback</h3>
-  <p>If you report a place or write to us, your email app opens. You see the message before you send it. We use it only to reply and to correct data, and delete it once that is done.</p>
+  <h3>9. Contributions, reports and feedback</h3>
+  <p><b>Contributions for everyone:</b> if you add details about a place, add a new place, review it or upload a photo with an account, we store it with your account on our server. Before others see it, a person from the Djuu team checks it. Others only see the content and the month, never your name or account. The app makes photos smaller and saves them again as JPEG before sending; this drops location data (GPS) and other embedded data, and the server removes them once more to be safe. Under Us › Account › “My contributions” you see everything you sent, including whether it was accepted, and can delete any contribution at any time. Without an account everything stays on your device only. The purpose is better information for all families (Art. 6(1)(f) GDPR, our and your legitimate interest in correct information).</p>
+  <p>If you report a place without an account or write to us, your email app opens. You see the message before you send it. We use it only to reply and to correct data, and delete it once that is done.</p>
 
   <h3>10. Your rights</h3>
-  <p>You have the right of access, rectification, erasure, restriction of processing and data portability. You can withdraw any consent at any time. Where we process data based on our legitimate interest, you can object on grounds relating to your particular situation (Art. 21 GDPR). Just write to the address above. You can also lodge a complaint with a data protection authority, in Hamburg the <a href="https://datenschutz-hamburg.de" rel="noopener">Hamburg Commissioner for Data Protection and Freedom of Information</a>. If a place with your personal data is listed in Djuu, we remove it on request.</p>
+  <p>You have the right of access, rectification, erasure, restriction of processing and data portability. You can withdraw any consent at any time. Where we process data based on our legitimate interest, you can object on grounds relating to your particular situation (Art. 21 GDPR). Just write to the address above. You can also lodge a complaint with a data protection authority, in Hamburg the <a href="https://datenschutz-hamburg.de" rel="noopener">Hamburg Commissioner for Data Protection and Freedom of Information</a>. If a place with your personal data is listed in Djuu, we remove it on request. You can get a copy of your data yourself at any time under Us › Account › Download my data.</p>
   <p>If what Djuu stores or sends changes, we update this page and the date at the top.</p>
 
   <h2 id="daten">Data and licences</h2>
@@ -322,13 +345,18 @@
   document.querySelector('.controller').innerHTML = who + mail;
   document.querySelector('.mstv').innerHTML = c.name ? `${esc(c.name)}, ${T.above}` : `<span class="missing">${T.later}</span>`;
   // Only http(s) links from our own data file become links.
-  const link = (name, url) => /^https?:\/\//.test(url || '') ? `<a href="${esc(url)}" rel="noopener">${esc(name)}</a>` : esc(name);
+  // Never as a link (Djuu rule): hamburg.de and all its sub-domains, hamburg-tourism.de, Facebook, Instagram, TikTok, X/Twitter.
+  // Such a source keeps its address as plain text when the licence needs a reference.
+  const BLOCKED = /(^|\.)(hamburg\.de|hamburg-tourism\.de|facebook\.com|fb\.com|fb\.me|instagram\.com|tiktok\.com|twitter\.com|x\.com)$/i;
+  const blocked = url => { try { return BLOCKED.test(new URL(url).hostname.replace(/\.$/, '')); } catch (e) { return true; } };
+  const link = (name, url, ok = true) => !/^https?:\/\//.test(url || '') ? esc(name) : ok && !blocked(url) ? `<a href="${esc(url)}" rel="noopener">${esc(name)}</a>` : `${esc(name)}<br><small>${esc(url)}</small>`;
   // sources.json rows: [name, licence id, attribution, url]
   const LIC = { 'odbl 1.0': 'https://opendatacommons.org/licenses/odbl/1-0/', 'dl-de/by-2-0': 'https://www.govdata.de/dl-de/by-2-0', 'dl-de/by-2.0': 'https://www.govdata.de/dl-de/by-2-0',
     'dl-zero-de/2.0': 'https://www.govdata.de/dl-de/zero-2-0', 'cc by 4.0': 'https://creativecommons.org/licenses/by/4.0/', 'cc0 1.0': 'https://creativecommons.org/publicdomain/zero/1.0/',
     'cdla permissive 2.0': 'https://cdla.dev/permissive-2-0/', 'apache-2.0': 'https://www.apache.org/licenses/LICENSE-2.0' };
   fetch('data/sources.json').then(r => r.json()).then(d => {
-    const rows = d.sources.map(s => `<tr><td>${link(s[0], s[3])}</td><td>${link(s[1], LIC[String(s[1] || '').toLowerCase()])}${s[2] && s[2] !== s[1] ? `<br><small>${esc(s[2])}</small>` : ''}</td></tr>`).join('');
+    // a row is [name, licence id, attribution, url] (newer files may add {link: false} or a 5th value false for a source that must not be linked)
+    const rows = d.sources.map(r => Array.isArray(r) ? r : r && typeof r === 'object' ? [r.name, r.licence, r.attribution, r.url, r.link] : []).map(s => `<tr><td>${link(s[0], s[3], s[4] !== false && !(s[4] && s[4].link === false))}</td><td>${link(s[1], LIC[String(s[1] || '').toLowerCase()])}${s[2] && s[2] !== s[1] ? `<br><small>${esc(s[2])}</small>` : ''}</td></tr>`).join('');
     document.querySelector('.sources').innerHTML = `<table><tr><th>${T.source}</th><th>${T.licence}</th></tr>${rows}</table>`;
   }).catch(() => { document.querySelector('.sources').textContent = T.failed; });
   if (location.hash) document.querySelector(location.hash)?.scrollIntoView();

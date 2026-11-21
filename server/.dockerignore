@@ -1,0 +1,4 @@
+# Only what the api image needs: keeps the admin login, backups, push keys and the pipeline out of the build context
+*
+!pb_migrations
+!pb_hooks

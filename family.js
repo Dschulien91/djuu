@@ -105,7 +105,9 @@ SHOP_PHRASES.sort((a, b) => b[0].length - a[0].length);
 
 store.shop = Object.assign({ items: [], history: {}, learned: {}, rank: {}, trips: 0, seq: [] }, store.shop || {});
 store.errands = store.errands || [];
-const SH = { pending: null, menu: null, undo: null, editing: null }; // screen state, not saved
+const SH = { pending: null, menu: null, undo: null, editing: null, list: '' }; // screen state, not saved; list: the shopping list on screen ('' = the main one)
+// an entry of the shopping list on screen (more lists: lists.js; to-dos and packing lists are never part of a shopping list)
+const inList = (i, l = SH.list || '') => (i.list || '') === l;
 
 // "2 Milch", "Milch 2x", "500 g Hack" -> quantity and name
 function parseItem(text) {
@@ -147,14 +149,14 @@ function catOrder() {
   out.sonst = 99;
   return out;
 }
-const openItems = () => store.shop.items.filter(i => !i.done && !i.later);
+const openItems = (l = SH.list || '') => store.shop.items.filter(i => inList(i, l) && !i.done && !i.later);
 // items added on purpose although the same thing was on the list ("Trotzdem hinzufügen"): never merged (this phone only)
 const FORCED_KEY = 'djuu.forcedItems';
 const forcedItems = new Set((() => { try { return JSON.parse(localStorage.getItem(FORCED_KEY)) || []; } catch (e) { return []; } })());
 const rememberForced = id => { forcedItems.add(id); try { localStorage.setItem(FORCED_KEY, JSON.stringify([...forcedItems].slice(-200))); } catch (e) { /* storage blocked */ } };
 function findDuplicate(name) {
   const k = itemKey(name);
-  return openItems().concat(store.shop.items.filter(i => i.later)).find(i => itemKey(i.name) === k || (k.length >= 5 && typoDist(itemKey(i.name), k, 1) <= 1));
+  return openItems().concat(store.shop.items.filter(i => inList(i) && i.later)).find(i => itemKey(i.name) === k || (k.length >= 5 && typoDist(itemKey(i.name), k, 1) <= 1));
 }
 function addShopItem(text, force = false) {
   const { qty, name } = parseItem(text);
@@ -163,7 +165,7 @@ function addShopItem(text, force = false) {
   if (dup) { SH.pending = { text, qty, name, dup: dup.id }; renderPanel(); return; }
   const id = pbId();
   if (force) rememberForced(id);
-  store.shop.items.push({ id, name: name.slice(0, 60), qty: qty.slice(0, 20), cat: shopCat(name), by: meId(), at: Date.now(), done: false, later: false });
+  store.shop.items.push({ id, name: name.slice(0, 60), qty: qty.slice(0, 20), cat: shopCat(name), by: meId(), at: Date.now(), done: false, later: false, ...(SH.list ? { list: SH.list } : {}) });
   SH.pending = null; save(); renderPanel();
   setTimeout(() => $('#shIn')?.focus(), 30);
 }
@@ -183,7 +185,7 @@ function mergeShopDuplicates() {
   let merged = 0;
   for (const mine of items.filter(i => i.by === me && !i.done && !i.unsaved && !forcedItems.has(i.id)).sort((a, b) => b.at - a.at)) {
     if (!items.includes(mine)) continue;
-    const older = items.find(i => i !== mine && !i.done && !i.unsaved && !!i.later === !!mine.later && (i.at < mine.at || (i.at === mine.at && i.id < mine.id)) && itemKey(i.name) === itemKey(mine.name));
+    const older = items.find(i => i !== mine && (i.list || '') === (mine.list || '') && !i.done && !i.unsaved && !!i.later === !!mine.later && (i.at < mine.at || (i.at === mine.at && i.id < mine.id)) && itemKey(i.name) === itemKey(mine.name));
     if (!older) continue;
     if (mine.qty && older.qty) older.qty = addQty(older.qty, mine.qty); else if (mine.qty) older.qty = mine.qty;
     items.splice(items.indexOf(mine), 1);
@@ -193,19 +195,19 @@ function mergeShopDuplicates() {
   return merged;
 }
 function finishTrip() {
-  const s = store.shop, done = s.items.filter(i => i.done);
+  const s = store.shop, done = s.items.filter(i => inList(i) && i.done);
   if (!done.length) return;
   // learn the shop: position of each category in the order things went into the trolley
   const seen = [];
   for (const c of s.seq) if (!seen.includes(c)) seen.push(c);
   seen.forEach((c, i) => { const pos = i / Math.max(1, seen.length - 1); s.rank[c] = s.rank[c] == null ? pos : s.rank[c] * .6 + pos * .4; });
   for (const i of done) { const h = s.history[itemKey(i.name)] || { name: i.name, cat: i.cat, n: 0 }; h.n++; h.last = Date.now(); h.name = i.name; h.cat = i.cat; s.history[itemKey(i.name)] = h; }
-  s.items = s.items.filter(i => !i.done).map(i => ({ ...i, later: false })); // "Nächstes Mal" comes back
+  s.items = s.items.filter(i => !(inList(i) && i.done)).map(i => (inList(i) ? { ...i, later: false } : i)); // "Nächstes Mal" comes back
   s.trips++; s.seq = [];
   save(); toast(tl('Einkauf fertig: {n} erledigt.', { n: `${done.length} ${done.length === 1 ? tl('Sache') : tl('Sachen')}` }));
 }
 function shopHtml() {
-  const s = store.shop, order = catOrder(), open = openItems();
+  const s = { ...store.shop, items: store.shop.items.filter(i => inList(i)) }, order = catOrder(), open = openItems();
   const groups = {};
   for (const i of open) (groups[i.cat] || (groups[i.cat] = [])).push(i);
   const cats = Object.keys(groups).sort((a, b) => order[a] - order[b]);
@@ -219,7 +221,7 @@ function shopHtml() {
       ${SH.menu === i.id ? `<li class="shmenu"><button type="button" class="chip" data-shlater="${i.id}">${tl('Nächstes Mal')}</button><button type="button" class="chip" data-shdel="${i.id}">${tl('Löschen')}</button>
         <span class="muted">${tl('Gang:')}</span>${SHOP_CATS.map(([id, l]) => `<button type="button" class="chip${i.cat === id ? ' on' : ''}" data-shcat="${i.id}|${id}">${esc(tl(l))}</button>`).join('')}</li>` : ''}`;
   const p = SH.pending, pd = p && s.items.find(i => i.id === p.dup);
-  return `<form class="shadd" id="shForm"><input id="shIn" autocomplete="off" placeholder="${tl('Was fehlt? z. B. 2 Milch')}" maxlength="60" aria-label="${tl('Neuer Eintrag')}"><button type="submit" class="btn primary" aria-label="${tl('Hinzufügen')}">${svg('plus')}</button></form>
+  return `${typeof shopListChips === 'function' ? shopListChips() : ''}<form class="shadd" id="shForm"><input id="shIn" autocomplete="off" placeholder="${tl('Was fehlt? z. B. 2 Milch')}" maxlength="60" aria-label="${tl('Neuer Eintrag')}"><button type="submit" class="btn primary" aria-label="${tl('Hinzufügen')}">${svg('plus')}</button></form>
     ${p && pd ? `<div class="dupcard"><b>„${esc(pd.name)}${tl('“ steht schon drauf')}${pd.later ? tl(' (für nächstes Mal)') : ''}${pd.qty ? ', ' + esc(pd.qty) : ''}${memberById(pd.by) ? `, ${tl('von {name}', { name: esc(memberById(pd.by).name) })}` : ''}.</b>
       <div class="fgrid"><button type="button" class="chip on" data-shraise="1">${tl('Menge erhöhen')}</button><button type="button" class="chip" data-shforce="1">${tl('Trotzdem hinzufügen')}</button><button type="button" class="chip" data-shcancel="1">${tl('Abbrechen')}</button></div></div>` : ''}
     ${often.length ? `<div class="row shoften">${often.map(([k, h]) => `<button type="button" class="chip" data-shagain="${esc(k)}">${svg('plus')}${esc(h.name)}</button>`).join('')}</div>` : ''}
@@ -304,7 +306,7 @@ document.addEventListener('click', e => {
   else if (d.shclear) {
     // everything on the list goes, "Nächstes Mal" stays and becomes the new list; one tap brings it all back
     const before = JSON.parse(JSON.stringify(s.items));
-    s.items = s.items.filter(i => i.later && !i.done).map(i => ({ ...i, later: false })); save(); renderPanel();
+    s.items = s.items.filter(i => !inList(i) || (i.later && !i.done)).map(i => (inList(i) ? { ...i, later: false } : i)); save(); renderPanel();
     SH.undo = before; toastAction(tl('Liste geleert.'), tl('Rückgängig'), () => { s.items = SH.undo; SH.undo = null; save(); renderPanel(); });
   }
   else if (d.erbought) { const x = store.errands.find(r => r.id === d.erbought); x.state = x.state === 'gekauft' ? 'ja' : 'gekauft'; save(); renderPanel(); }
@@ -340,7 +342,8 @@ function toastAction(msg, label, fn) {
 // Also runs when the family's list comes from the server (sync.js), so every phone shows them in the right aisle.
 function resortSonst() {
   let moved = 0;
-  for (const i of store.shop.items) if (i.cat === 'sonst' && !store.shop.learned[itemKey(i.name)]) { const c = shopCat(i.name); if (c !== 'sonst') { i.cat = c; moved++; } }
+  const shopping = i => !i.list || typeof listKindOf !== 'function' || listKindOf(i.list) === 'shop'; // to-dos and packing lists have no aisles
+  for (const i of store.shop.items) if (shopping(i) && i.cat === 'sonst' && !store.shop.learned[itemKey(i.name)]) { const c = shopCat(i.name); if (c !== 'sonst') { i.cat = c; moved++; } }
   for (const h of Object.values(store.shop.history)) if (h.cat === 'sonst') h.cat = shopCat(h.name);
   return moved;
 }
