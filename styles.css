@@ -158,6 +158,7 @@ details.fold summary::-webkit-details-marker { display: none; }
 .review:first-child { border-top: 0; }
 .stars-read { color: #CC6A00; letter-spacing: 1px; }
 .linkbtn { border: 0; background: none; padding: 4px 0; color: var(--muted); font-size: 12.5px; text-decoration: underline; }
+.linkbtn.dogrun { color: inherit; font-size: inherit; padding: 0; }
 
 /* question flow, forms, wizard */
 .qflow { display: grid; gap: 18px; padding: 10px 0; text-align: center; }

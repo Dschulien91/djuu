@@ -7,7 +7,7 @@
    User input is stored on this device only until the server exists (server-ready shape, see STORE). */
 'use strict'; // i18n-skip
 
-const VERSION = '0.66';
+const VERSION = '0.67';
 const CONTACT = window.DJUU_CONTACT || {}; // config.js: reports and feedback stay hidden until an address is set
 // Logo on light backgrounds, as specified in the design PDF.
 const LOGO = `<span class="logo" role="img" aria-label="djuu"><span style="color:#6B4EE6">d</span><span style="color:#0E8F84">j</span><span style="color:#D6336C">u</span><span style="color:#CC6A00">u</span>
@@ -175,6 +175,7 @@ const ATTRS = [
   { id: 'hund', label: tl('Hunde erlaubt'), keys: ['dog'], q: tl('Sind Hunde erlaubt?') },
   { id: 'hst_nahe', label: tl('Haltestelle in der Nähe'), keys: ['stop_near'], groups: ['spielen', 'gastro', 'entdecken', 'gesundheit', 'familie'], nochip: 1 },
   { id: 'baenke', label: tl('Sitzbänke'), keys: ['bench_count'], count: 1, groups: ['spielen', 'entdecken'], nochip: 1 },
+  { id: 'hundewiese', label: tl('Hundewiese in der Nähe'), keys: [], groups: ['spielen', 'gastro'], dogOnly: 1, nofact: 1 },
   { id: 'trinkwasser', label: tl('Trinkwasser'), keys: ['drinking_water'], groups: ['spielen', 'entdecken', 'gastro', 'sanitaer'], nochipIn: ['sanitaer'] },
   { id: 'babyccino', label: tl('Babyccino'), keys: ['babyccino'], groups: ['gastro'], hide: 1 },
   { id: 'kinder_wc', label: tl('Kindertoilette'), keys: ['toilets_children'], groups: INDOOR, nofilter: 1 },
@@ -235,6 +236,8 @@ const PRESETS = [
   { id: 'wasser', label: tl('Wasserspielplatz'), icon: 'waves', groups: ['spielen'], tags: ['wasserspiel'], filters: [] },
   { id: 'hitze', label: tl('Es ist heiß: Baden und Wasser'), icon: 'waves', groups: ['spielen', 'entdecken'], tags: ['wasserspiel', 'baden'], filters: [] },
   { id: 'refill', label: tl('Wasserflasche auffüllen'), icon: 'cup', groups: ['sanitaer'], tags: ['trinkwasser'], filters: [] },
+  { id: 'spielplatz-hund', label: tl('Spielplatz mit Hundewiese daneben'), icon: 'paw', groups: ['spielen'], tags: ['spielplatz', 'abenteuer'], filters: ['hundewiese'] },
+  { id: 'einkehr-hund', label: tl('Einkehren nach der Hundewiese'), icon: 'cup', groups: ['gastro'], filters: ['hund', 'hundewiese'] },
   { id: 'cafe-hund', label: tl('Café mit Kind und Hund'), icon: 'cup', groups: ['gastro'], tags: ['cafe'], filters: ['hund'] },
   { id: 'hund', label: tl('Hund darf rennen'), icon: 'paw', groups: ['entdecken'], tags: ['hundeauslauf'], filters: [] },
 ];
@@ -468,6 +471,7 @@ function attrVal(p, id) {
   if (id === 'notdienst') return p.cat !== 'apotheke' || !LIVE.ok ? { v: null } : { v: dutyNow(p) ? 'yes' : 'no', src: 'aponet.de', method: 'live' }; // worked out now, not at load
   if (id === 'toilette' && p.cat === 'wc') base = { v: 'yes', src: tl('Kategorie') };
   else if (id === 'wasser' && p.gear?.has('wasser')) base = { v: 'yes', src: tl('OpenStreetMap') };
+  else if (id === 'hundewiese') return p.dogRun && p.dogRun[1] <= dogRunMax(p) ? { v: 'yes', src: tl('OpenStreetMap') } : { v: null };
   else for (const k of a.keys) {
     const f = p.f[k];
     const v = f && normValue(a, f[0]);
@@ -502,7 +506,8 @@ function filterVal(p, f) {
   const v = attrVal(p, f).v;
   return v === 'yes' || v === 'limited' ? true : v === 'no' ? false : null;
 }
-const relevantAttrs = p => ATTRS.filter(a => (!a.groups || a.groups.includes(groupOf(p).id)) && (a.id !== 'hund' || hasDog()));
+const dogFact = a => a.id === 'hund' || a.dogOnly; // shown only to families with a dog
+const relevantAttrs = p => ATTRS.filter(a => (!a.groups || a.groups.includes(groupOf(p).id)) && (!dogFact(a) || hasDog()));
 // the few "yes" facts shown under a name in lists and on the pin card: no dog (own chip), no near-by facts, no duplicates of tags
 function chipAttrs(p, n = 2) {
   return relevantAttrs(p).filter(a => a.id !== 'hund' && !a.nochip && !a.nofilter && !a.nofact && !a.live && attrVal(p, a.id).v === 'yes' && ![...p.tags].some(t => PROP_TAGS.has(t) && TAG_LABEL[t] === a.label)).slice(0, n);
@@ -525,6 +530,35 @@ function buildPlace(row) {
 }
 // Elevators rarely have a name in OpenStreetMap ("Aufzug <street>"): name them after their station (the nearest Bahnhof within
 // 300 m, else a stop within 150 m) and their platform, so "Aufzug Hauptbahnhof" can be found. The station keeps a list of its lifts.
+// Dog runs near playgrounds (dogs may not enter the playground: one parent stays, the other walks the dog) and near cafés.
+// p.dogRun = [id of the nearest dog run within 1 km, metres]
+const DOG_RUN_PLAY = new Set(['spielplatz', 'abenteuer']), DOG_RUN_EAT = new Set(['cafe', 'restaurant', 'imbiss', 'eis']);
+const dogRunMax = p => DOG_RUN_EAT.has(p.cat) ? 500 : 300;
+const isDogRun = p => p.cat === 'hundeauslauf' || p.tags.has('hundeauslauf');
+// Parks without dogs, by the lists of the Bezirke (hundefreie Parkanlagen: Altona, Eimsbüttel, Harburg), the cemetery ordinance
+// (state cemeteries) and the visitor rules of the botanical garden; places and their playgrounds, by id (checked Nov 2026)
+const DOG_FREE_PARK = tl('In der ganzen Anlage sind Hunde verboten.'), DOG_FREE_GUIDE = tl('In der ganzen Anlage sind Hunde verboten, außer Blinden- und Führhunde.');
+const DOG_BANS = {
+  dj_8ffdae678203: tl('Im ganzen Wohlers Park sind Hunde verboten, auch Führhunde.'), dj_8daf68f3959d: tl('Im ganzen Wohlers Park sind Hunde verboten, auch Führhunde.'),
+  dj_d41b70b1445b: DOG_FREE_PARK, dj_cdeb1cb76162: DOG_FREE_PARK, // August-Lütgens-Park
+  dj_01c754f97e40: DOG_FREE_PARK, // Fischers Park
+  dj_d83365e9f902: DOG_FREE_GUIDE, dj_78f75f5720b9: DOG_FREE_GUIDE, // Unna-Park
+  dj_399c801cd62f: DOG_FREE_PARK, // Schulgarten im Harburger Stadtpark
+  dj_361a1dcba9a3: tl('Auf den staatlichen Friedhöfen sind Hunde verboten, außer Blindenführhunde.'), // Ohlsdorf
+  dj_682b8f959c84: tl('Tiere sind hier nicht erlaubt, außer Blindenführhunde.'), // Loki-Schmidt-Garten
+};
+function markDogRuns() {
+  for (const [id, rule] of Object.entries(DOG_BANS)) { const p = byId.get(id); if (p) { p.f.dog = ['no']; p.f.dog_rule = [rule]; } }
+  // official bathing waters (they carry a water quality): dogs may not bathe there (environment authority)
+  for (const p of places) if (p.f.water_status && !p.f.dog_rule) p.f.dog_rule = [tl('An offiziellen Badestellen dürfen Hunde nicht baden.')];
+  const runs = places.filter(isDogRun);
+  for (const p of places) {
+    if (!DOG_RUN_PLAY.has(p.cat) && !DOG_RUN_EAT.has(p.cat)) continue;
+    let best = null, bd = 1000;
+    for (const r of runs) { if (Math.abs(r.lat - p.lat) > 0.01 || Math.abs(r.lon - p.lon) > 0.016) continue; const d = dist([p.lat, p.lon], [r.lat, r.lon]); if (d < bd) { bd = d; best = r; } }
+    if (best) p.dogRun = [best.id, Math.round(bd)];
+  }
+}
 function nameLifts() {
   const named = cat => places.filter(p => p.cat === cat && p.named);
   const rail = named('bahnhof'), stops = named('haltestelle');
@@ -1319,6 +1353,13 @@ async function photoTags(ids) {
 }
 // reviews show the month only, never a name
 const fmtMonth = t => new Date(t).toLocaleDateString(LOCALE, { month: 'long', year: 'numeric' });
+// for families with a dog: playgrounds say that dogs stay outside, and where the nearest dog run is; cafés name a dog run close by
+function dogRunLine(p) {
+  const r = p.dogRun && byId.get(p.dogRun[0]);
+  const run = r ? `${tl('Nächste Hundewiese:')} <button type="button" class="linkbtn dogrun" data-detail="${esc(r.id)}">${esc(r.name)}</button> (${fmtDist(p.dogRun[1])})` : '';
+  if (DOG_RUN_PLAY.has(p.cat)) return DOG_BANS[p.id] ? run : `<b>${tl('Hunde dürfen nicht auf den Spielplatz.')}</b>${run ? ' ' + run : ''}`;
+  return DOG_RUN_EAT.has(p.cat) && run && p.dogRun[1] <= dogRunMax(p) && dogOf(p) !== 'nein' ? run : '';
+}
 async function detailView(id) {
   const p = byId.get(id), f = p.f;
   const d = dist(origin(), [p.lat, p.lon]);
@@ -1347,6 +1388,7 @@ async function detailView(id) {
   const extra = [
     f.description && esc(f.description[0]),
     hasDog() && f.dog_rule && `<b>${esc(f.dog_rule[0])}</b>`,
+    hasDog() && dogRunLine(p),
     f.water_status && `<b>${tl('Wasserqualität:')}</b> ${esc(f.water_status[0])}`,
     f.age_groups && !f.krippe && !f.elementar && `<b>${tl('Für Altersgruppen:')}</b> ${esc(f.age_groups[0])} ${tl('Jahre')}`, // a Kita says it with Krippe / Elementar
     f.care_types && !f.krippe && !f.elementar && `${tl('Betreuung:')} ${esc(f.care_types[0])}`,
@@ -1355,6 +1397,7 @@ async function detailView(id) {
     hasDog() && f.dog_offleash && `<b>${f.dog_offleash[0] === 'alle' ? tl('Freilauf für alle Hunde') : f.dog_offleash[0] === 'gepruefte' ? tl('Freilauf nur für geprüfte Hunde (§ 9)') : tl('Nur an der Leine')}</b>`,
     f.services && esc(f.services[0]).slice(0, 280),
     f.transit && p.cat === 'haltestelle' && `<b>${tl('Linien:')}</b> ${esc(f.transit[0])}`,
+    hasDog() && (p.cat === 'haltestelle' || p.cat === 'bahnhof') && tl('Hunde fahren im HVV ohne Ticket mit: an der Leine und nicht auf den Sitzen (einige Rassen sind ausgeschlossen).'),
     f.stop_near && `${tl('Nächste Haltestelle:')} ${esc(f.stop_near[0].split('|')[1])} (${esc(f.stop_near[0].split('|')[0])} m)`,
     sportText(f.sport?.[0]) && `<b>${tl('Sport:')}</b> ${esc(sportText(f.sport[0]))}`,
     f.season && `<b>${tl('Saison:')}</b> ${esc(f.season[0])}`,
@@ -1536,10 +1579,10 @@ function filtersBody() {
   };
   // stations and lifts have no opening hours of their own, Kitas and advice centres hardly publish any
   const timeBlock = gs.length && gs.every(g => g === 'mobil' || g === 'familie') && !TIME_FILTERS.some(f => state.filters.has(f.id)) ? '' : block(tl('Öffnungszeiten'), TIME_FILTERS);
-  if (!hasDog()) state.filters.delete('hund');
+  if (!hasDog()) for (const a of ATTRS) if (dogFact(a)) state.filters.delete(a.id);
   // hidden: facts without data yet (hide), duplicates or dead ones (nofilter), facts shown only on place pages (nochip),
   // pool facts outside "Wasser & Schwimmen"; an active filter always keeps its chip, so it can be switched off
-  const attrBlock = block(tl('Ausstattung'), ATTRS.filter(a => state.filters.has(a.id) || (fits(a) && !a.hide && !a.nofilter && !a.nochip && (!a.pool || poolChosen()) && (a.id !== 'hund' || hasDog()))), true);
+  const attrBlock = block(tl('Ausstattung'), ATTRS.filter(a => state.filters.has(a.id) || (fits(a) && !a.hide && !a.nofilter && !a.nochip && (!a.pool || poolChosen()) && (!dogFact(a) || hasDog()))), true);
   // ages of places are mostly unknown (most "0–3" hits were Kitas): Krippe/Elementar and "Für Kleinkinder" say it better.
   // Age chips appear only when a question set one (Suchen), so it can be switched off.
   const ageBlock = block(tl('Alter'), AGE_FILTERS.filter(a => state.filters.has(a.id)));
@@ -3454,6 +3497,7 @@ $('#panelBody').innerHTML = `<div class="ph"><h2>${tl('Lade Orte …')}</h2></di
     SOURCES = data.sources;
     for (const row of data.places) { const p = buildPlace(row); places.push(p); byId.set(p.id, p); }
     nameLifts();
+    markDogRuns();
     if (typeof commStart === 'function') commStart(); // approved entries of everyone (kept copy at once, news from the server later)
     addUserPlaces();
     if (store.area && store.area.type) { state.area = store.area; drawArea(); if (state.area.center === 'me') locate(false); }

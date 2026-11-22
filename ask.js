@@ -104,7 +104,7 @@ function askResultsHtml() {
 const VOCAB = () => ({
   groups: GROUPS.filter(g => !g.offers).map(g => g.id),
   tags: [...new Set(Object.entries(TAGS).filter(([id]) => !GROUP[id].offers).flatMap(([, l]) => l.flatMap(t => [t.id, ...(t.of || [])])))], // museum, natur, baden … too
-  filters: ATTRS.map(a => a.id).filter(id => id !== 'hund' || hasDog()).concat(['jetzt', 'sonntag']),
+  filters: ATTRS.filter(a => !dogFact(a) || hasDog()).map(a => a.id).concat(['jetzt', 'sonntag']),
 });
 // which group a tag belongs to (the first that has it)
 const groupOfTag = t => Object.keys(TAGS).find(id => !GROUP[id].offers && TAGS[id].some(x => x.id === t || x.of?.includes(t))) || null;
