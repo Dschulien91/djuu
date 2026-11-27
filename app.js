@@ -7,7 +7,7 @@
    User input is stored on this device only until the server exists (server-ready shape, see STORE). */
 'use strict'; // i18n-skip
 
-const VERSION = '0.67';
+const VERSION = '0.68';
 const CONTACT = window.DJUU_CONTACT || {}; // config.js: reports and feedback stay hidden until an address is set
 // Logo on light backgrounds, as specified in the design PDF.
 const LOGO = `<span class="logo" role="img" aria-label="djuu"><span style="color:#6B4EE6">d</span><span style="color:#0E8F84">j</span><span style="color:#D6336C">u</span><span style="color:#CC6A00">u</span>
@@ -1397,7 +1397,8 @@ async function detailView(id) {
     hasDog() && f.dog_offleash && `<b>${f.dog_offleash[0] === 'alle' ? tl('Freilauf für alle Hunde') : f.dog_offleash[0] === 'gepruefte' ? tl('Freilauf nur für geprüfte Hunde (§ 9)') : tl('Nur an der Leine')}</b>`,
     f.services && esc(f.services[0]).slice(0, 280),
     f.transit && p.cat === 'haltestelle' && `<b>${tl('Linien:')}</b> ${esc(f.transit[0])}`,
-    hasDog() && (p.cat === 'haltestelle' || p.cat === 'bahnhof') && tl('Hunde fahren im HVV ohne Ticket mit: an der Leine und nicht auf den Sitzen (einige Rassen sind ausgeschlossen).'),
+    // hvv tariff (from 3 Nov 2026): dogs need no ticket. On stops for families with a dog, on dog runs for everyone (visitors too)
+    ((hasDog() && (p.cat === 'haltestelle' || p.cat === 'bahnhof')) || isDogRun(p)) && tl('Hunde fahren im HVV ohne Ticket mit: an der Leine und nicht auf den Sitzen (einige Rassen sind ausgeschlossen).'),
     f.stop_near && `${tl('Nächste Haltestelle:')} ${esc(f.stop_near[0].split('|')[1])} (${esc(f.stop_near[0].split('|')[0])} m)`,
     sportText(f.sport?.[0]) && `<b>${tl('Sport:')}</b> ${esc(sportText(f.sport[0]))}`,
     f.season && `<b>${tl('Saison:')}</b> ${esc(f.season[0])}`,
