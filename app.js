@@ -7,7 +7,7 @@
    User input is stored on this device only until the server exists (server-ready shape, see STORE). */
 'use strict'; // i18n-skip
 
-const VERSION = '0.68';
+const VERSION = '0.69';
 const CONTACT = window.DJUU_CONTACT || {}; // config.js: reports and feedback stay hidden until an address is set
 // Logo on light backgrounds, as specified in the design PDF.
 const LOGO = `<span class="logo" role="img" aria-label="djuu"><span style="color:#6B4EE6">d</span><span style="color:#0E8F84">j</span><span style="color:#D6336C">u</span><span style="color:#CC6A00">u</span>
@@ -534,6 +534,11 @@ function buildPlace(row) {
 // p.dogRun = [id of the nearest dog run within 1 km, metres]
 const DOG_RUN_PLAY = new Set(['spielplatz', 'abenteuer']), DOG_RUN_EAT = new Set(['cafe', 'restaurant', 'imbiss', 'eis']);
 const dogRunMax = p => DOG_RUN_EAT.has(p.cat) ? 500 : 300;
+// bathing places: a pool (indoor, outdoor, thermal bath) or a lake or river beach
+const isBaederland = p => /bäderland/i.test(p.f.operator?.[0] || '') || /bäderland/i.test(p.name);
+const POOL_RE = /hallenbad|schwimmhalle|schulbad|leistungszentrum schwimmen|aktive freizeit|schwimmbad|lehrschwimmbecken|therme|freibad|familienbad|erlebnisbad|freizeitbad|kombibad|planschbecken|swym|-bad\b|^festland$|^midsommerland$/i;
+const isPool = p => p.cat === 'baden' && !p.f.water_status && (isBaederland(p) || POOL_RE.test(p.name));
+const isBeach = p => p.cat === 'baden' && !isPool(p);
 const isDogRun = p => p.cat === 'hundeauslauf' || p.tags.has('hundeauslauf');
 // Parks without dogs, by the lists of the Bezirke (hundefreie Parkanlagen: Altona, Eimsbüttel, Harburg), the cemetery ordinance
 // (state cemeteries) and the visitor rules of the botanical garden; places and their playgrounds, by id (checked Nov 2026)
@@ -549,11 +554,11 @@ const DOG_BANS = {
 };
 function markDogRuns() {
   for (const [id, rule] of Object.entries(DOG_BANS)) { const p = byId.get(id); if (p) { p.f.dog = ['no']; p.f.dog_rule = [rule]; } }
-  // official bathing waters (they carry a water quality): dogs may not bathe there (environment authority)
-  for (const p of places) if (p.f.water_status && !p.f.dog_rule) p.f.dog_rule = [tl('An offiziellen Badestellen dürfen Hunde nicht baden.')];
+  // Bäderland: animals may not come in (Badeordnung § 4 Abs. 6)
+  for (const p of places) if (p.cat === 'baden' && isBaederland(p) && !p.f.dog) p.f.dog = ['no'];
   const runs = places.filter(isDogRun);
   for (const p of places) {
-    if (!DOG_RUN_PLAY.has(p.cat) && !DOG_RUN_EAT.has(p.cat)) continue;
+    if (!DOG_RUN_PLAY.has(p.cat) && !DOG_RUN_EAT.has(p.cat) && !isBeach(p)) continue;
     let best = null, bd = 1000;
     for (const r of runs) { if (Math.abs(r.lat - p.lat) > 0.01 || Math.abs(r.lon - p.lon) > 0.016) continue; const d = dist([p.lat, p.lon], [r.lat, r.lon]); if (d < bd) { bd = d; best = r; } }
     if (best) p.dogRun = [best.id, Math.round(bd)];
@@ -1360,6 +1365,36 @@ function dogRunLine(p) {
   if (DOG_RUN_PLAY.has(p.cat)) return DOG_BANS[p.id] ? run : `<b>${tl('Hunde dürfen nicht auf den Spielplatz.')}</b>${run ? ' ' + run : ''}`;
   return DOG_RUN_EAT.has(p.cat) && run && p.dogRun[1] <= dogRunMax(p) && dogOf(p) !== 'nein' ? run : '';
 }
+// bathing places, for everyone (some parents look for a beach without dogs): what the rules say, and a dog run next to it
+function dogBathLine(p) {
+  if (p.cat !== 'baden') return '';
+  const rule = isBaederland(p) ? tl('Hunde: nicht erlaubt. Tiere dürfen nicht mit ins Bad (Badeordnung von Bäderland).')
+    : p.f.water_status ? tl('Hunde dürfen an dieser Badestelle nicht baden (Regel der Stadt für alle offiziellen Badestellen).') : '';
+  const r = isBeach(p) && p.dogRun && p.dogRun[1] <= dogRunMax(p) && byId.get(p.dogRun[0]);
+  const near = r ? `${r.f.dog_offleash?.[0] === 'alle' ? tl('Hier in der Nähe dürfen alle Hunde frei laufen:') : r.f.dog_offleash?.[0] === 'gepruefte' ? tl('Hier in der Nähe dürfen geprüfte Hunde frei laufen:') : tl('Nächste Hundewiese:')} <button type="button" class="linkbtn dogrun" data-detail="${esc(r.id)}">${esc(r.name)}</button> (${fmtDist(p.dogRun[1])})` : '';
+  return [rule, near].filter(Boolean).join('<br>');
+}
+// families with a dog: one tap tells whether dogs may come (cafés, museums, outings, beaches without a known rule)
+function dogAskHtml(p) {
+  if (!hasDog() || dogOf(p) || isDogRun(p) || isPool(p) || DOG_BANS[p.id] || p.f.water_status || p.user) return '';
+  if (!DOG_RUN_EAT.has(p.cat) && groupOf(p).id !== 'entdecken') return '';
+  if (typeof commMineOf === 'function' && commMineOf(p.id).some(c => c.attrs?.hund)) return '';
+  const b = (v, l) => `<button type="button" class="chip" data-dogans="${esc(p.id)}|${v}">${l}</button>`;
+  return `<div class="sec"><h4>${tl('Dürfen Hunde hierher?')}</h4><p class="muted text">${tl('Wenn du es weißt, hilf anderen Familien mit Hund.')}</p>
+    <div class="fgrid">${b('yes', tl('Ja'))}${b('leashed', tl('Nur an der Leine'))}${b('no', tl('Nein'))}</div></div>`;
+}
+async function answerDog(pid, v) {
+  const p = byId.get(pid); if (!p || !['yes', 'leashed', 'no'].includes(v)) return;
+  if (typeof commSignedIn === 'function' && commSignedIn()) {
+    try { await commSendEntry(pid, { isNew: false, attrs: { hund: v }, ages: [], hours: '', photos: [] }, null); toast(tl('Danke! Nach einer kurzen Prüfung sehen es alle.')); }
+    catch (e) { toast(e.why || tl('Das konnte gerade nicht gesendet werden.')); return; }
+  } else {
+    store.contributions.push({ id: uid('c_'), placeId: pid, isNew: false, type: '', cat: p.cat, name: p.name, lat: p.lat, lon: p.lon, attrs: { hund: v }, ages: [], hours: '', photoIds: [], createdAt: Date.now() });
+    save();
+    toast((typeof commLocalHint === 'function' && commLocalHint()) || tl('Danke! Gespeichert auf diesem Gerät.'));
+  }
+  if (view().type === 'detail' && view().id === pid) renderPanel();
+}
 async function detailView(id) {
   const p = byId.get(id), f = p.f;
   const d = dist(origin(), [p.lat, p.lon]);
@@ -1389,6 +1424,7 @@ async function detailView(id) {
     f.description && esc(f.description[0]),
     hasDog() && f.dog_rule && `<b>${esc(f.dog_rule[0])}</b>`,
     hasDog() && dogRunLine(p),
+    dogBathLine(p),
     f.water_status && `<b>${tl('Wasserqualität:')}</b> ${esc(f.water_status[0])}`,
     f.age_groups && !f.krippe && !f.elementar && `<b>${tl('Für Altersgruppen:')}</b> ${esc(f.age_groups[0])} ${tl('Jahre')}`, // a Kita says it with Krippe / Elementar
     f.care_types && !f.krippe && !f.elementar && `${tl('Betreuung:')} ${esc(f.care_types[0])}`,
@@ -1460,6 +1496,7 @@ async function detailView(id) {
         <span class="s">${r.method === 'user' ? (r.confirmations[0].remote ? tl('Von Eltern eingetragen und geprüft ({n}×, zuletzt {date})', { n: r.confirmations.length, date: fmtDate(r.confirmations[0].at) }) : tl('Von Nutzern bestätigt ({n}×, zuletzt {date}, auf diesem Gerät)', { n: r.confirmations.length, date: fmtDate(r.confirmations[0].at) })) : r.method === 'website' ? `${tl('Webseite des Ortes, automatisch gelesen (')}${Math.round((r.conf || .6) * 100)} % sicher)` : r.method === 'computed' ? tl('Aus Kartendaten berechnet') : esc(r.src || '')}</span>
         ${r.evidence ? `<q>${esc(r.evidence)}</q>` : ''}</div>`).join('')}
       ${f.near_name ? `<p class="note">${tl('Der Name ist nur eine Orientierung: abgeleitet aus dem Park oder der nächsten Straße.')}</p>` : ''}<p class="note">${tl('Datensätze:')} ${p.srcs.map(i => esc(SOURCES[i]?.[1]) + ' (' + esc(SOURCES[i]?.[2]) + ')').join(' · ') || (p.user && !p.mine ? tl('von Eltern eingetragen und geprüft') : p.pending ? tl('von dir eingetragen, wartet auf Prüfung') : tl('von dir eingetragen'))}</p></div></details>
+    ${dogAskHtml(p)}
     ${typeof commPlaceHtml === 'function' ? commPlaceHtml(id) : ''}
     ${CONTACT.email || (typeof commSignedIn === 'function' && commSignedIn()) ? `<button type="button" class="linkbtn" data-reportplace="${esc(id)}" style="margin-top:16px">${tl('Stimmt etwas nicht? Ort melden')}</button>` : ''}
     <p class="note" style="margin-top:12px">${typeof commFootNote === 'function' ? commFootNote() : tl('Was du hier einträgst, bleibt auf diesem Gerät.')}</p>`;
@@ -3306,6 +3343,7 @@ document.addEventListener('click', async e => {
     else navigator.clipboard?.writeText(url).then(() => toast(tl('Link kopiert.')), () => toast(url));
   }
   else if (ds.addinfo) startWizard({ place: byId.get(ds.addinfo) });
+  else if (ds.dogans) { const [pid, v] = ds.dogans.split('|'); answerDog(pid, v); }
   else if (ds.addevent) startWizard({ type: 'event' });
   else if (ds.rate) go({ type: 'rate', id: ds.rate });
   else if (ds.reportplace) go({ type: 'report', id: ds.reportplace });
