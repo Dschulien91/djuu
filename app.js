@@ -7,7 +7,7 @@
    User input is stored on this device only until the server exists (server-ready shape, see STORE). */
 'use strict'; // i18n-skip
 
-const VERSION = '0.71';
+const VERSION = '0.72';
 const CONTACT = window.DJUU_CONTACT || {}; // config.js: reports and feedback stay hidden until an address is set
 // Logo on light backgrounds, as specified in the design PDF.
 const LOGO = `<span class="logo" role="img" aria-label="djuu"><span style="color:#6B4EE6">d</span><span style="color:#0E8F84">j</span><span style="color:#D6336C">u</span><span style="color:#CC6A00">u</span>
@@ -1039,8 +1039,12 @@ const ioOk = p => !state.io || (state.io === 'drinnen' ? p.tags.has('drinnen') :
 // a course or event there). Kitas with an Eltern-Kind-Zentrum are open to every family with small children: always shown.
 const kitaWanted = () => state.tags.has('kita') || state.cats.has('kita') || !!state.q.trim() || [...state.groups].some(id => GROUP[id].offers);
 const kitaShown = p => p.cat !== 'kita' || truthy(p.f.ekiz?.[0] || '') === 'yes' || kitaWanted() || state.onlyPlace === p.id || store.favorites.includes(p.id);
+// Stops, stations and lifts are not where families go, they are how they get there: shown with Mobilität (or one of its
+// sub-categories), a search or a saved one; every place and event page names its station and the state of its lifts
+const TRANSIT_CATS = new Set(['haltestelle', 'bahnhof', 'aufzug']);
+const transitShown = p => !TRANSIT_CATS.has(p.cat) || state.groups.has('mobil') || state.cats.has(p.cat) || !!state.q.trim() || state.onlyPlace === p.id || store.favorites.includes(p.id);
 function inSelection(p) {
-  if (!ioOk(p) || !areaOk(p) || !kitaShown(p)) return false;
+  if (!ioOk(p) || !areaOk(p) || !kitaShown(p) || !transitShown(p)) return false;
   if (!state.groups.size && !state.cats.size) return true;
   if (state.cats.has(p.cat)) return true;
   const several = state.groups.size > 1;
@@ -1338,7 +1342,7 @@ function showPlace(id, fromMap) {
 function cardView(id) {
   const p = byId.get(id), d = dist(origin(), [p.lat, p.lon]), fav = store.favorites.includes(id), ot = openText(p);
   const yes = liveChip(p) + [...p.tags].filter(t => PROP_TAGS.has(t)).slice(0, 2).map(t => `<span>${esc(TAG_LABEL[t])}</span>`).concat(dogChip(dogOf(p)) || [])
-    .concat(chipAttrs(p).map(a => `<span>${esc(a.label)}</span>`)).join('');
+    .concat(chipAttrs(p).map(a => `<span>${esc(a.label)}</span>`)).concat(!TRANSIT_CATS.has(p.cat) && liftWarn([p.lat, p.lon]) ? [`<span class="livechip bad">${tl('Aufzug außer Betrieb')}</span>`] : []).join('');
   return `<div class="pincard"><button type="button" class="pinmain" data-detail="${id}">${badge(p)}
       <span><h3>${esc(p.name)}${p.f.tipp ? ` <span class="tipdot" title="${tl('Djuu-Tipp')}">${svg('star', '')}</span>` : ''}</h3>
       <span class="meta">${esc(CAT_LABEL[p.cat] || '')}${ot ? ' · ' + ot : ''}${state.me ? ' · ' + fmtDist(d) : ''}</span>${yes ? `<span class="mini">${yes}</span>` : ''}</span></button>
@@ -1403,6 +1407,43 @@ async function answerDog(pid, v) {
   }
   if (view().type === 'detail' && view().id === pid) renderPanel();
 }
+// the nearest rail station (U, S, A, regional) within 1 km of a place or event, and what its lifts do now (hvv live data).
+// Bus stops are at street level: not asked.
+const nearStationCache = new Map();
+function nearStation(pos) {
+  if (!pos) return null;
+  const key = pos[0].toFixed(5) + ',' + pos[1].toFixed(5);
+  if (nearStationCache.has(key)) return nearStationCache.get(key);
+  let best = null, bd = 1000;
+  for (const st of places) {
+    if (st.cat !== 'bahnhof' || Math.abs(st.lat - pos[0]) > 0.01 || Math.abs(st.lon - pos[1]) > 0.016) continue;
+    const d = dist(pos, [st.lat, st.lon]); if (d < bd) { bd = d; best = st; }
+  }
+  const r = best ? [best, Math.round(bd)] : null;
+  nearStationCache.set(key, r);
+  return r;
+}
+function stationLifts(st) {
+  const lifts = (st.liftSum ? st.liftSum[5] : st.lifts || []).map(i => byId.get(i)).filter(Boolean);
+  const live = lifts.filter(x => x.lift);
+  const ok = st.liftSum ? st.liftSum[0] : live.filter(x => x.lift[0] === 'in_betrieb').length;
+  const bad = st.liftSum ? st.liftSum[1] : live.filter(x => x.lift[0] === 'ausser_betrieb').length;
+  return { n: lifts.length, ok, bad, step: truthy(st.f.wheelchair?.[0] || '') };
+}
+// "Mit Bahn und Kinderwagen: U Feldstraße (350 m): Aufzug in Betrieb"
+function stationLine(pos, selfId) {
+  const ns = nearStation(pos); if (!ns || ns[0].id === selfId) return '';
+  const [st, d] = ns, L = stationLifts(st);
+  const lines = (st.f.transit?.[0] || '').split(/,\s*/).filter(x => /^(U|S|A|RB|RE)\d/.test(x)).slice(0, 4).join(', ');
+  const state_ = L.bad ? `<span class="badtext">${L.bad >= L.n ? tl('Aufzug außer Betrieb') : tl('{bad} von {n} Aufzügen außer Betrieb', { bad: L.bad, n: L.n })}</span>`
+    : L.ok ? (L.ok > 1 ? tl('{n} Aufzüge in Betrieb', { n: L.ok }) : tl('Aufzug in Betrieb'))
+    : L.n ? tl('Aufzug, Status gerade unbekannt')
+    : L.step === 'yes' ? tl('stufenlos') : L.step === 'no' ? tl('kein Aufzug, nicht stufenlos') : '';
+  return `<b>${tl('Mit Bahn und Kinderwagen:')}</b> <button type="button" class="linkbtn dogrun" data-detail="${esc(st.id)}">${esc(st.name)}${lines ? ' · ' + esc(lines) : ''}</button> (${fmtDist(d)})${state_ ? ': ' + state_ : ''}`;
+}
+// a quiet warning on cards and event rows, only when a lift of the nearest station is out of order (events: the next 3 days)
+const liftWarn = pos => { const ns = nearStation(pos); return !!ns && stationLifts(ns[0]).bad > 0; };
+const liftWarnChip = () => `<span class="tag reg">${tl('Aufzug außer Betrieb')}</span>`;
 async function detailView(id) {
   const p = byId.get(id), f = p.f;
   const d = dist(origin(), [p.lat, p.lon]);
@@ -1443,6 +1484,7 @@ async function detailView(id) {
     f.transit && p.cat === 'haltestelle' && `<b>${tl('Linien:')}</b> ${esc(f.transit[0])}`,
     // hvv tariff (from 3 Nov 2026): dogs need no ticket. On stops for families with a dog, on dog runs for everyone (visitors too)
     ((hasDog() && (p.cat === 'haltestelle' || p.cat === 'bahnhof')) || isDogRun(p)) && tl('Hunde fahren im HVV ohne Ticket mit: an der Leine und nicht auf den Sitzen (einige Rassen sind ausgeschlossen).'),
+    !TRANSIT_CATS.has(p.cat) && stationLine([p.lat, p.lon], p.id),
     f.stop_near && `${tl('Nächste Haltestelle:')} ${esc(f.stop_near[0].split('|')[1])} (${esc(f.stop_near[0].split('|')[0])} m)`,
     sportText(f.sport?.[0]) && `<b>${tl('Sport:')}</b> ${esc(sportText(f.sport[0]))}`,
     f.season && `<b>${tl('Saison:')}</b> ${esc(f.season[0])}`,
@@ -2390,6 +2432,7 @@ function evPlaceView() {
   return `<div class="ph sheethead"><h2>${tl('Ort')}</h2><button type="button" class="round" data-back="1" aria-label="${tl('Schließen')}">${svg('close')}</button></div>${evPlaceHtml(false)}${evSheetFoot()}`;
 }
 // tags under a title: age, recurring, registration, price, status
+const soonOffer = o => { const d = nextAfterNow(o); return !!d && d - Date.now() < 3 * 864e5; };
 function evTags(o, withRecurring, why) {
   const kids = whoTag(o);
   const fits = !why?.length && offerFits(o) === true; // in Für euch the reason line says it (and "neu")
@@ -2404,7 +2447,8 @@ function evTags(o, withRecurring, why) {
     o.registration === 'Warteliste' && `<span class="tag reg">${tl('Warteliste')}</span>`,
     o.registration === 'Tickets' && `<span>${tl('Tickets')}</span>`,
     o.online && `<span class="tag ok">${tl('Online')}</span>`,
-    o.free === 1 && `<span>${tl('kostenlos')}</span>`, dogChip(offerDog(o))].filter(Boolean).join('');
+    o.free === 1 && `<span>${tl('kostenlos')}</span>`, dogChip(offerDog(o)),
+    !o.online && soonOffer(o) && liftWarn(offerPos(o)) && liftWarnChip()].filter(Boolean).join('');
 }
 const timeRange = o => o.time_from ? `${o.time_from}${o.time_to ? '–' + o.time_to : ''}` : '';
 const evMenuBtn = o => o.id ? `<button type="button" class="evmenubtn" data-evmenu="${esc(o.id)}" aria-label="${tl('Mehr Möglichkeiten')}">${svg('more')}</button>` : '';
@@ -2768,6 +2812,7 @@ function offerView(id) {
       : `${dates.length ? `<p class="text">${dates.map(x => esc(fmtLong(x))).join('<br>')}${isRecurring(o) && dates.length === 6 ? `<br>${tl('und weitere')}` : ''}</p>` : `<p class="muted text">${tl('Keine weiteren Termine bekannt.')}</p>`}
       ${o.schedule ? `<p class="note">${tl('Laut Anbieter:')} ${esc(o.schedule)}</p>` : ''}`}</div>
     <div class="sec"><h4>${tl('Wo')}</h4><p class="text">${o.online ? `<b>${tl('Online')}</b><br>` : ''}${esc(o.venue || '')}${o.address ? `<br>${esc(o.address)}` : ''}${d != null ? `<br><span class="muted">${fmtDist(d)} ${tl('von dir')}</span>` : ''}</p>
+      ${!o.online && stationLine(offerPos(o)) ? `<p class="text">${stationLine(offerPos(o))}</p>` : ''}
       ${place ? `<button type="button" class="btn" data-onlyplace="${place.id}">${svg('pin')}${tl('Auf der Karte')}</button>` : ''}</div>
     <div class="sec"><h4>${tl('Für wen')}</h4><p class="text">${esc(who)}${fits === true ? ` · <b class="yes">${tl('passt zu euch')}</b>` : ''}</p>${o.age_guess === 1 && ageLabel(o.age_min_m, o.age_max_m) ? `<p class="note">${tl('Alter geschätzt nach Anbieter und Art des Angebots. Genaues beim Anbieter.')}</p>` : ''}${dogChip(offerDog(o)) ? `<div class="facts">${dogChip(offerDog(o))}</div>` : ''}</div>
     <div class="sec"><h4>${tl('Kosten und Anmeldung')}</h4><p class="text">${o.free ? tl('Kostenlos') : o.price ? esc(o.price) : tl('Preis beim Anbieter')}${o.registration ? ' · ' + esc(regText(o)) : ''}</p></div>
