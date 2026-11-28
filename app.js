@@ -7,7 +7,7 @@
    User input is stored on this device only until the server exists (server-ready shape, see STORE). */
 'use strict'; // i18n-skip
 
-const VERSION = '0.69';
+const VERSION = '0.70';
 const CONTACT = window.DJUU_CONTACT || {}; // config.js: reports and feedback stay hidden until an address is set
 // Logo on light backgrounds, as specified in the design PDF.
 const LOGO = `<span class="logo" role="img" aria-label="djuu"><span style="color:#6B4EE6">d</span><span style="color:#0E8F84">j</span><span style="color:#D6336C">u</span><span style="color:#CC6A00">u</span>
@@ -188,10 +188,10 @@ const ATTRS = [
   { id: 'aufzug_ok', label: tl('Aufzug in Betrieb'), keys: ['elevator_status'], groups: ['mobil'], live: true },
   { id: 'aufzug_kaputt', label: tl('Aufzug außer Betrieb'), keys: ['elevator_status'], groups: ['mobil'], live: true, nofact: 1 },
   // Kitas: what kind of care (Kita register, computed)
-  { id: 'krippe', label: tl('Krippe (unter 3)'), keys: ['krippe'], groups: ['familie'] },
-  { id: 'elementar', label: tl('Elementar (3–6)'), keys: ['elementar'], groups: ['familie'] },
-  { id: 'integration', label: tl('Integration'), keys: ['integration'], groups: ['familie'] },
-  { id: 'hort', label: tl('Hort'), keys: ['hort'], groups: ['familie'] },
+  { id: 'krippe', kitaOnly: 1, label: tl('Krippe (unter 3)'), keys: ['krippe'], groups: ['familie'] },
+  { id: 'elementar', kitaOnly: 1, label: tl('Elementar (3–6)'), keys: ['elementar'], groups: ['familie'] },
+  { id: 'integration', kitaOnly: 1, label: tl('Integration'), keys: ['integration'], groups: ['familie'] },
+  { id: 'hort', kitaOnly: 1, label: tl('Hort'), keys: ['hort'], groups: ['familie'] },
   { id: 'kostenlos', label: tl('Kostenlos'), keys: ['fee'], invert: true, groups: ['spielen', 'entdecken', 'sanitaer', 'familie'], nochipIn: ['spielen', 'familie'], q: tl('Ist es kostenlos?') },
 ];
 const ATTR = Object.fromEntries(ATTRS.map(a => [a.id, a]));
@@ -1031,8 +1031,12 @@ function memberOf(p, g) {
 }
 // Drinnen: only places we know are indoors; Draußen: outdoor places and those without the information
 const ioOk = p => !state.io || (state.io === 'drinnen' ? p.tags.has('drinnen') : p.tags.has('draussen') || !p.tags.has('drinnen'));
+// Kitas are not places to drop in: on the map and in lists only when asked for (sub-category Kitas, a search, a saved one,
+// a course or event there). Kitas with an Eltern-Kind-Zentrum are open to every family with small children: always shown.
+const kitaWanted = () => state.tags.has('kita') || state.cats.has('kita') || !!state.q.trim() || [...state.groups].some(id => GROUP[id].offers);
+const kitaShown = p => p.cat !== 'kita' || truthy(p.f.ekiz?.[0] || '') === 'yes' || kitaWanted() || state.onlyPlace === p.id || store.favorites.includes(p.id);
 function inSelection(p) {
-  if (!ioOk(p) || !areaOk(p)) return false;
+  if (!ioOk(p) || !areaOk(p) || !kitaShown(p)) return false;
   if (!state.groups.size && !state.cats.size) return true;
   if (state.cats.has(p.cat)) return true;
   const several = state.groups.size > 1;
@@ -1620,7 +1624,7 @@ function filtersBody() {
   if (!hasDog()) for (const a of ATTRS) if (dogFact(a)) state.filters.delete(a.id);
   // hidden: facts without data yet (hide), duplicates or dead ones (nofilter), facts shown only on place pages (nochip),
   // pool facts outside "Wasser & Schwimmen"; an active filter always keeps its chip, so it can be switched off
-  const attrBlock = block(tl('Ausstattung'), ATTRS.filter(a => state.filters.has(a.id) || (fits(a) && !a.hide && !a.nofilter && !a.nochip && (!a.pool || poolChosen()) && (!dogFact(a) || hasDog()))), true);
+  const attrBlock = block(tl('Ausstattung'), ATTRS.filter(a => state.filters.has(a.id) || (fits(a) && !a.hide && !a.nofilter && !a.nochip && (!a.pool || poolChosen()) && (!a.kitaOnly || state.tags.has('kita') || state.cats.has('kita')) && (!dogFact(a) || hasDog()))), true);
   // ages of places are mostly unknown (most "0–3" hits were Kitas): Krippe/Elementar and "Für Kleinkinder" say it better.
   // Age chips appear only when a question set one (Suchen), so it can be switched off.
   const ageBlock = block(tl('Alter'), AGE_FILTERS.filter(a => state.filters.has(a.id)));
