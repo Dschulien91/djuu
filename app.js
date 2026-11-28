@@ -7,7 +7,7 @@
    User input is stored on this device only until the server exists (server-ready shape, see STORE). */
 'use strict'; // i18n-skip
 
-const VERSION = '0.72';
+const VERSION = '0.73';
 const CONTACT = window.DJUU_CONTACT || {}; // config.js: reports and feedback stay hidden until an address is set
 // Logo on light backgrounds, as specified in the design PDF.
 const LOGO = `<span class="logo" role="img" aria-label="djuu"><span style="color:#6B4EE6">d</span><span style="color:#0E8F84">j</span><span style="color:#D6336C">u</span><span style="color:#CC6A00">u</span>
@@ -1441,8 +1441,9 @@ function stationLine(pos, selfId) {
     : L.step === 'yes' ? tl('stufenlos') : L.step === 'no' ? tl('kein Aufzug, nicht stufenlos') : '';
   return `<b>${tl('Mit Bahn und Kinderwagen:')}</b> <button type="button" class="linkbtn dogrun" data-detail="${esc(st.id)}">${esc(st.name)}${lines ? ' · ' + esc(lines) : ''}</button> (${fmtDist(d)})${state_ ? ': ' + state_ : ''}`;
 }
-// a quiet warning on cards and event rows, only when a lift of the nearest station is out of order (events: the next 3 days)
-const liftWarn = pos => { const ns = nearStation(pos); return !!ns && stationLifts(ns[0]).bad > 0; };
+// a quiet warning on cards and event rows, only when no lift of the nearest station works (events: the next 3 days);
+// one broken lift of many (Hauptbahnhof) is told on the page itself
+const liftWarn = pos => { const ns = nearStation(pos); if (!ns) return false; const L = stationLifts(ns[0]); return L.bad > 0 && L.ok === 0; };
 const liftWarnChip = () => `<span class="tag reg">${tl('Aufzug außer Betrieb')}</span>`;
 async function detailView(id) {
   const p = byId.get(id), f = p.f;
