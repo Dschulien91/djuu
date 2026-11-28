@@ -7,7 +7,7 @@
    User input is stored on this device only until the server exists (server-ready shape, see STORE). */
 'use strict'; // i18n-skip
 
-const VERSION = '0.70';
+const VERSION = '0.71';
 const CONTACT = window.DJUU_CONTACT || {}; // config.js: reports and feedback stay hidden until an address is set
 // Logo on light backgrounds, as specified in the design PDF.
 const LOGO = `<span class="logo" role="img" aria-label="djuu"><span style="color:#6B4EE6">d</span><span style="color:#0E8F84">j</span><span style="color:#D6336C">u</span><span style="color:#CC6A00">u</span>
@@ -552,7 +552,11 @@ const DOG_BANS = {
   dj_361a1dcba9a3: tl('Auf den staatlichen Friedhöfen sind Hunde verboten, außer Blindenführhunde.'), // Ohlsdorf
   dj_682b8f959c84: tl('Tiere sind hier nicht erlaubt, außer Blindenführhunde.'), // Loki-Schmidt-Garten
 };
+// green areas the city's register of public green spaces (Grünplan, Oct 2026) lists only as a playground, with no park polygon
+// around: the whole area is a playground, so dogs may not come (Grünanlagenverordnung). Places by id (OSM parks inside them).
+const DOG_PLAY_AREAS = new Set('dj_004fb52e2cf7 dj_006364389d1d dj_0983230429c7 dj_0e8fa4ec777d dj_0efcdb0121ef dj_0f257f4e7718 dj_11dd53f01f80 dj_31d111c8c26f dj_36054e534f61 dj_3f0fe747197e dj_45094578c57d dj_4911fc7885a3 dj_559c566ab2a2 dj_58ef9c11a136 dj_5cc2139ba29f dj_5ddc6ce7dee2 dj_6159fb03fda1 dj_6599a53a59ce dj_6d96f5635dd3 dj_6eebda256509 dj_713aa3e5da29 dj_736f0ec94f0f dj_7fe75a5e2cdf dj_8045e58f1608 dj_822ca44d7c84 dj_82cd07a600c0 dj_8384da02f677 dj_83fc21d4e246 dj_86cc01994fec dj_894c9ef122e5 dj_91130137711b dj_94ec95f94447 dj_9668353fba12 dj_971d2adccf23 dj_98b4265d4aac dj_9d03ace88bb2 dj_9e57023b8f8b dj_a1d11a421016 dj_ad08744c046f dj_b0b7a629c3b7 dj_bfaa32bfd866 dj_c7a7a8c0f4d6 dj_c9927f0054c0 dj_caf7263438d7 dj_d0aa8b9e81b4 dj_d430c89ff51c dj_d592664f8ea9 dj_d9560c4c7732 dj_dcc0f8b88f74 dj_e03cdccbeb0a dj_e40048bdeb36 dj_effd6c8c08a9 dj_faf6ff1fed5f dj_fec6e32ba636'.split(' '));
 function markDogRuns() {
+  for (const id of DOG_PLAY_AREAS) { const p = byId.get(id); if (p && !p.f.dog_rule) { p.f.dog = ['no']; p.f.dog_rule = [tl('Die ganze Fläche ist bei der Stadt als Spielplatz eingetragen. Auf Spielplätzen sind Hunde verboten.')]; } }
   for (const [id, rule] of Object.entries(DOG_BANS)) { const p = byId.get(id); if (p) { p.f.dog = ['no']; p.f.dog_rule = [rule]; } }
   // Bäderland: animals may not come in (Badeordnung § 4 Abs. 6)
   for (const p of places) if (p.cat === 'baden' && isBaederland(p) && !p.f.dog) p.f.dog = ['no'];

@@ -37,6 +37,7 @@ window.DJUU_I18N.en = {
   'Hier in der Nähe dürfen alle Hunde frei laufen:': 'Close by, all dogs may run off the leash:', 'Hier in der Nähe dürfen geprüfte Hunde frei laufen:': 'Close by, dogs with a passed obedience test may run off the leash:',
   'Dürfen Hunde hierher?': 'Are dogs allowed here?', 'Wenn du es weißt, hilf anderen Familien mit Hund.': 'If you know, help other families with a dog.',
   'Danke! Nach einer kurzen Prüfung sehen es alle.': 'Thank you! Everyone will see it after a short check.', 'Danke! Gespeichert auf diesem Gerät.': 'Thank you! Saved on this device.',
+  'Die ganze Fläche ist bei der Stadt als Spielplatz eingetragen. Auf Spielplätzen sind Hunde verboten.': 'The whole area is registered with the city as a playground. Dogs are not allowed on playgrounds.',
   'Nächste Hundewiese:': 'Nearest dog park:', 'Hunde dürfen nicht auf den Spielplatz.': 'Dogs are not allowed on the playground.',
   'Musik': 'Music', 'Babyschwimmen': 'Baby swimming', 'Babymassage': 'Baby massage', 'Kreativ': 'Arts & crafts', 'Spielen & Medien': 'Games & media',
   'Sport & Toben': 'Sport & active play', 'Elternthemen': 'Parenting topics', 'Eltern-Café': 'Parents’ café', 'Geburtsvorbereitung': 'Antenatal classes',
