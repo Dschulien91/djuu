@@ -7,7 +7,7 @@
    User input is stored on this device only until the server exists (server-ready shape, see STORE). */
 'use strict'; // i18n-skip
 
-const VERSION = '0.74';
+const VERSION = '0.75';
 const CONTACT = window.DJUU_CONTACT || {}; // config.js: reports and feedback stay hidden until an address is set
 // Logo on light backgrounds, as specified in the design PDF.
 const LOGO = `<span class="logo" role="img" aria-label="djuu"><span style="color:#6B4EE6">d</span><span style="color:#0E8F84">j</span><span style="color:#D6336C">u</span><span style="color:#CC6A00">u</span>
@@ -233,6 +233,7 @@ const PRESETS = [
   { id: 'regen', label: tl('Es regnet: drinnen spielen und entdecken'), icon: 'house', groups: ['spielen', 'entdecken', 'gastro'], cats: ['indoor', 'spielhaus'],
     tags: ['indoorspielplatz', 'klettern', 'trampolin', 'spielhaus', 'museum', 'buecherei', 'baden', 'kindercafe'], io: 'drinnen', filters: [] },
   { id: 'spielecke', label: tl('Café oder Restaurant mit Spielecke'), icon: 'cup', groups: ['gastro'], filters: ['spielecke'] },
+  { id: 'spielplaetze', label: tl('Spielplätze'), icon: 'playground', groups: ['spielen'], tags: ['spielplatz', 'abenteuer'], filters: [], quick: 1 },
   { id: 'kleinkind', label: tl('Spielplatz für die Kleinen'), icon: 'playground', groups: ['spielen'], tags: ['spielplatz'], filters: ['kleinkind'] },
   { id: 'wasser', label: tl('Wasserspielplatz'), icon: 'waves', groups: ['spielen'], tags: ['wasserspiel'], filters: [] },
   { id: 'hitze', label: tl('Es ist heiß: Baden und Wasser'), icon: 'waves', groups: ['spielen', 'entdecken'], tags: ['wasserspiel', 'baden'], filters: [] },
@@ -901,8 +902,9 @@ function iconFor(p, unknown, og) {
   const date = og?.id === 'events' && offerDate.get(p.id) ? pinDate(offerDate.get(p.id)) : '';
   // live state on the pin: a lift out of order (red, crossed), a pharmacy on emergency duty (green ring)
   const bad = !og && p.lift?.[0] === 'ausser_betrieb', duty = !og && !!dutyNow(p);
-  const g = og || groupOf(p), icon = og ? og.icon : iconOf(p), tip = !!p.f.tipp, k = g.id + icon + (unknown ? 'u' : '') + (p.mine ? 'm' : '') + (tip ? 't' : '') + (bad ? 'b' : '') + (duty ? 'd' : '') + date;
-  return iconCache[k] || (iconCache[k] = L.divIcon({ className: '', iconSize: [44, 44], html: `<div class="mkhit"><div class="mk${unknown ? ' unk' : ''}${p.mine ? ' mine' : ''}${tip ? ' tip' : ''}${bad ? ' bad' : ''}${duty ? ' duty' : ''}" style="--c:${bad ? '#C92A2A' : tip ? '#0E8F84' : g.color}"><svg viewBox="0 0 24 24">${ICON[icon]}</svg>${tip ? `<span class="star">${svg('star', '')}</span>` : ''}${bad ? `<span class="badx">${svg('close', '')}</span>` : ''}</div>${date ? `<span class="mkdate">${date}</span>` : ''}</div>` }));
+  const minor = !og && minorPlace(p);
+  const g = og || groupOf(p), icon = og ? og.icon : iconOf(p), tip = !!p.f.tipp, k = g.id + icon + (unknown ? 'u' : '') + (p.mine ? 'm' : '') + (tip ? 't' : '') + (bad ? 'b' : '') + (duty ? 'd' : '') + (minor ? 'g' : '') + date;
+  return iconCache[k] || (iconCache[k] = L.divIcon({ className: '', iconSize: [44, 44], html: `<div class="mkhit"><div class="mk${minor ? ' minor' : ''}${unknown ? ' unk' : ''}${p.mine ? ' mine' : ''}${tip ? ' tip' : ''}${bad ? ' bad' : ''}${duty ? ' duty' : ''}" style="--c:${bad ? '#C92A2A' : tip ? '#0E8F84' : g.color}"><svg viewBox="0 0 24 24">${ICON[icon]}</svg>${tip ? `<span class="star">${svg('star', '')}</span>` : ''}${bad ? `<span class="badx">${svg('close', '')}</span>` : ''}</div>${date ? `<span class="mkdate">${date}</span>` : ''}</div>` }));
 }
 function markerFor(p, unknown, og) {
   if (!p.marker) { p.marker = L.marker([p.lat, p.lon], { title: p.name, alt: p.name }); p.marker.on('click', () => showPlace(p.id, true)); }
@@ -1044,8 +1046,21 @@ const kitaShown = p => p.cat !== 'kita' || truthy(p.f.ekiz?.[0] || '') === 'yes'
 // sub-categories), a search or a saved one; every place and event page names its station and the state of its lifts
 const TRANSIT_CATS = new Set(['haltestelle', 'bahnhof', 'aufzug']);
 const transitShown = p => !TRANSIT_CATS.has(p.cat) || state.groups.has('mobil') || state.cats.has(p.cat) || !!state.q.trim() || state.onlyPlace === p.id || store.favorites.includes(p.id);
-function inSelection(p) {
+// First look (nothing chosen, searched or filtered): only places families go to. Shops, doctors, sports grounds, cafés and
+// restaurants without anything for children … come with a category, a search, a filter or a quick question.
+const FAMILY_CATS = new Set(['spielplatz', 'abenteuer', 'spielhaus', 'indoor', 'park', 'picknick', 'grillplatz', 'museum', 'kultur', 'buecherei', 'baden',
+  'ausflug', 'tierhof', 'freizeit', 'treffpunkt', 'kurs', 'wc', 'wickel', 'familienfreundlich', 'faehre', 'bootsverleih']);
+const FAMILY_GASTRO_FACTS = ['spielecke', 'kindermenue', 'hochstuhl', 'wickeltisch'];
+const familyGastro = p => !!p.f.tipp || p.tags.has('kindercafe') || FAMILY_GASTRO_FACTS.some(id => { const v = attrVal(p, id).v; return v === 'yes' || v === 'limited'; });
+// a café or restaurant without anything known for children: a small grey dot on the map, listed after the family ones
+const minorPlace = p => DOG_RUN_EAT.has(p.cat) && !familyGastro(p);
+const familyPlace = p => FAMILY_CATS.has(p.cat) || !!p.f.tipp || p.cat === 'kita' || (DOG_RUN_EAT.has(p.cat) && familyGastro(p)) || (p.cat === 'hundeauslauf' && hasDog())
+  || p.mine || p.user || store.favorites.includes(p.id);
+const firstLook = () => !state.groups.size && !state.cats.size && !state.q.trim() && !state.filters.size && !state.onlyPlace && !state.preset;
+// broad: ignore the first look (the filter page counts what a filter would find among all places)
+function inSelection(p, broad) {
   if (!ioOk(p) || !areaOk(p) || !kitaShown(p) || !transitShown(p)) return false;
+  if (broad !== true && firstLook() && !familyPlace(p)) return false;
   if (!state.groups.size && !state.cats.size) return true;
   if (state.cats.has(p.cat)) return true;
   const several = state.groups.size > 1;
@@ -1137,7 +1152,7 @@ function selectionHtml() {
   const only = state.onlyPlace && byId.get(state.onlyPlace);
   if (only) return `<div class="row selrow"><button type="button" class="chip selchip" data-clearonly="1">${svg('check')}${tl('Nur dieser Ort')} ${x}</button></div>`;
   const label = state.q ? `„${state.q}“` : state.preset ? PRESETS.find(p => p.id === state.preset).label : state.groups.size ? (g ? g.label : tl('Mehrere Kategorien')) : '';
-  if (!label && !state.io) return '';
+  if (!label && !state.io) return firstLook() && !state.drawing ? quickRowHtml() : '';
   // one row: the category (its name opens it in Suchen, ✕ removes it with everything), then only the chosen sub-categories
   const canOpen = g && TAGS[g.id] && !g.offers && !state.q && !state.preset;
   const cat = !label ? '' : canOpen
@@ -1149,6 +1164,12 @@ function selectionHtml() {
     + (rest ? `<button type="button" class="chip subsel plusn" data-opencat="${g.id}" aria-label="${tl('{n} weitere Unterkategorien', { n: rest })}">+${rest}</button>` : '');
   const io = state.io ? `<button type="button" class="chip selchip" data-io="${state.io}">${svg('check')}${esc(TAG_LABEL[state.io])} ${x}</button>` : '';
   return `<div class="row selrow">${cat}${subs}${io}</div>`;
+}
+// first look: a few shortcuts under the search bar (the quick questions of Suchen, shorter)
+function quickRowHtml() {
+  const c = (attrs, icon, label) => `<button type="button" class="chip quick" ${attrs}>${svg(icon)}${label}</button>`;
+  return `<div class="row selrow quickrow">${c('data-preset="spielplaetze"', 'playground', tl('Spielplätze'))}${c('data-preset="regen"', 'house', tl('Drinnen spielen'))}
+    ${c('data-group="gastro"', 'cup', tl('Essen mit Kindern'))}${c('data-group="sanitaer"', 'baby', tl('Wickeln & WC'))}${c('data-tab="events"', 'cal', tl('Termine'))}</div>`;
 }
 // One level at a time: 0 = Erleben or Service, 1 = categories of that mode, 2 = tags of the chosen category (old top row, unused on the map now).
 function rowHtml() {
@@ -1278,7 +1299,13 @@ function listView() {
   if (offerGroup()) return offerListView(offerGroup());
   const o = origin(), only = state.onlyPlace && byId.get(state.onlyPlace);
   const shown = only ? [only] : shownList(); // "Nur dieser Ort": the list says what the map shows
-  const sorted = shown.map(p => [dist(o, [p.lat, p.lon]), p]).sort((a, b) => maybeLast(a[0], a[1]) - maybeLast(b[0], b[1]));
+  let sorted = shown.map(p => [dist(o, [p.lat, p.lon]), p]).sort((a, b) => maybeLast(a[0], a[1]) - maybeLast(b[0], b[1]));
+  // with cafés and restaurants that have nothing for children: the family ones within 1 km first, then all others by distance
+  const prior = ([d, p]) => d <= 1000 && !minorPlace(p);
+  const mixed = sorted.some(([, p]) => minorPlace(p)) && sorted.some(prior);
+  if (mixed) sorted = sorted.filter(prior).concat(sorted.filter(x => !prior(x)));
+  const firstOther = mixed ? sorted.findIndex(x => !prior(x)) : -1;
+  const rowOf = ([d, p], i) => (i === firstOther && i > 0 ? `<li class="listdiv">${tl('Weitere Lokale')}</li>` : '') + itemHtml(p, d);
   const u = only ? 0 : last.unknown.length;
   const sub = state.filters.size && !only
     ? `${nf.format(last.match.length)} ${tl('passen sicher')}${u ? ` · ${nf.format(u)} ${tl('ohne Angabe')} <button type="button" data-unk="1">${state.showUnknown ? tl('ausblenden') : tl('auch zeigen')}</button>` : ''}`
@@ -1292,7 +1319,7 @@ function listView() {
   const famCard = breakCard || todayFits && !state.filters.size ? breakCard + (!todayFits || state.filters.size ? '' : `<button type="button" class="askcard" data-evtodaycard="1" style="width:100%;border:0;text-align:left;margin:0 0 8px"><div><b>${esc(tl('Heute passend: {what}', { what: todayText }))}</b><span>${tl('für')} ${esc(familyAges().map(k => k.name).join(', ') || tl('euch'))}</span></div>${svg('cal')}</button>`) : '';
   const chosen = state.groups.size || state.q || state.preset;
   return `${panelHead(`${nf.format(shown.length)} ${shown.length === 1 ? tl('Ort') : tl('Orte')}${only ? ' · ' + tl('Nur dieser Ort') : chosen ? ' · ' + esc(topTitle()) : ''}`)}<p class="sub panelsub">${sub}</p>${offline}${toolsHtml()}${famCard}
-    ${sorted.length ? `<ol class="list">${sorted.slice(0, state.listLimit).map(([d, p]) => itemHtml(p, d)).join('')}</ol>
+    ${sorted.length ? `<ol class="list">${sorted.slice(0, state.listLimit).map(rowOf).join('')}</ol>
     ${sorted.length > state.listLimit ? `<button type="button" class="more" data-more="1">${tl('Mehr anzeigen')}</button>` : ''}`
     : `<div class="empty"><b>${tl('Hier ist nichts dabei.')}</b>${state.area.type !== 'all' ? tl('Probier ein größeres Gebiet oder weniger Filter.') : tl('Probier weniger Filter oder zoom raus.')}</div>`}`;
 }
@@ -1659,7 +1686,7 @@ const shownTotal = () => last.match.length + (state.showUnknown ? last.unknown.l
 function filtersBody() {
   const gs = [...state.groups];
   const fits = a => !gs.length ? UNIVERSAL_FILTERS.has(a.id) : (!a.groups || gs.some(g => a.groups.includes(g))) && !(a.nochipIn && gs.every(g => a.nochipIn.includes(g)));
-  const sel = places.filter(inSelection), counts = new Map();
+  const sel = places.filter(p => inSelection(p, true)), counts = new Map();
   const count = id => { if (!counts.has(id)) { let n = 0; for (const p of sel) if (filterVal(p, id) === true) n++; counts.set(id, n); } return counts.get(id); };
   const chipFor = x => `<button type="button" class="chip${state.filters.has(x.id) ? ' on' : ''}" data-filter="${x.id}">${esc(x.label)} <span class="n">${nf.format(count(x.id))}</span></button>`;
   const block = (title, all, sorted = false) => {

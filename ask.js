@@ -36,7 +36,7 @@ function searchView() {
       ${foldsHtml()}
       ${grid(tl('Erleben'), ERLEBEN, 'erleben')}
       ${grid(tl('Service'), SERVICE, 'service', sos)}
-      <div class="sec"><h4>${tl('Schnelle Fragen')}</h4><ol class="list">${PRESETS.filter(p => hasDog() || !/hund/.test(p.id)).map(p => `<li><button type="button" class="item" data-preset="${p.id}"><span class="badge" style="--c:var(--brand)">${svg(p.icon, '')}</span><span><h3>${esc(p.label)}</h3></span><span></span></button></li>`).join('')}</ol></div>
+      <div class="sec"><h4>${tl('Schnelle Fragen')}</h4><ol class="list">${PRESETS.filter(p => !p.quick && (hasDog() || !/hund/.test(p.id))).map(p => `<li><button type="button" class="item" data-preset="${p.id}"><span class="badge" style="--c:var(--brand)">${svg(p.icon, '')}</span><span><h3>${esc(p.label)}</h3></span><span></span></button></li>`).join('')}</ol></div>
       <button type="button" class="btn" data-group-all="1">${tl('Alle Orte zeigen')}</button>
       ${ASK.wo || ASK.fi ? `<div class="sticky-bar"><button type="button" class="btn big primary" data-showmap="1">${nf.format(shownTotal())} ${tl('Orte zeigen')}</button></div>` : ''}
     </div>`;

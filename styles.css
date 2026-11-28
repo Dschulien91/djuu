@@ -1317,3 +1317,11 @@ a.tel svg.i { width: 15px; height: 15px; }
 .wishedit .calwhen input { flex: 1; }
 .wishacts { display: grid; gap: 8px; margin: 16px 0 4px; }
 .wishacts:empty { display: none; }
+
+/* first look and Gastro: cafés and restaurants without anything known for children are small grey dots */
+.mk.minor { width: 12px; height: 12px; border: 0; background: var(--muted); opacity: .75; box-shadow: 0 0 0 2px var(--surface); }
+.mk.minor > * { display: none; }
+.leaflet-marker-icon.sel .mk.minor { width: 30px; height: 30px; }
+.leaflet-marker-icon.sel .mk.minor > * { display: initial; }
+.list .listdiv { padding: 14px 4px 4px; font-size: 12.5px; color: var(--muted); list-style: none; border: 0; }
+.row.quickrow .chip.quick svg { width: 16px; height: 16px; }

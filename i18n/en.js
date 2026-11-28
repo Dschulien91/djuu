@@ -41,6 +41,7 @@ window.DJUU_I18N.en = {
   'Mit Bahn und Kinderwagen:': 'By train with a pram:', '{bad} von {n} Aufzügen außer Betrieb': '{bad} of {n} lifts out of order',
   '{n} Aufzüge in Betrieb': '{n} lifts working', 'Aufzug, Status gerade unbekannt': 'lift, status unknown right now', 'stufenlos': 'step-free',
   'kein Aufzug, nicht stufenlos': 'no lift, not step-free',
+  'Weitere Lokale': 'More cafés and restaurants', 'Spielplätze': 'Playgrounds', 'Drinnen spielen': 'Play indoors', 'Essen mit Kindern': 'Eating out with children', 'Wickeln & WC': 'Changing & toilets',
   'Nächste Hundewiese:': 'Nearest dog park:', 'Hunde dürfen nicht auf den Spielplatz.': 'Dogs are not allowed on the playground.',
   'Musik': 'Music', 'Babyschwimmen': 'Baby swimming', 'Babymassage': 'Baby massage', 'Kreativ': 'Arts & crafts', 'Spielen & Medien': 'Games & media',
   'Sport & Toben': 'Sport & active play', 'Elternthemen': 'Parenting topics', 'Eltern-Café': 'Parents’ café', 'Geburtsvorbereitung': 'Antenatal classes',
