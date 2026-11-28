@@ -2,7 +2,7 @@
 // enqueue(), the alarm scan for the family calendar, the texts for Bringen/Abholen changes, Hamburg time.
 // Loaded with require(). Nothing here sends anything itself: the sender container fetches due messages (see server/push/).
 
-const TOPICS = ["cal", "pickup", "lists"];
+const TOPICS = ["cal", "pickup", "lists", "wish"];
 const ALARM_MS = { PT15M: 15 * 60e3, PT1H: 60 * 60e3, P1D: 24 * 60 * 60e3 };
 const pad = (n) => String(n).padStart(2, "0");
 const isYmd = (s) => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ""));

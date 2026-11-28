@@ -1,7 +1,7 @@
 /* Djuu push messages (app side). Loaded after cal.js; uses `auth` and the API address of sync.js.
    window.djuuPush = { supported(), reason(), async state(), async enable(topics), async disable(), async setTopics(topics) }
    - Topics: 'cal' (reminders of calendar entries that involve me), 'pickup' (Bringen/Abholen for me changes),
-     'lists' (new entries on lists I follow). Everything is off until the person switches it on; enable() is only called
+     'lists' (new entries on lists I follow), 'wish' (a reminder before a child's birthday and Christmas). Everything is off until the person switches it on; enable() is only called
      after the person taps a switch (it asks the browser for permission then, never on its own).
    - iPhone/iPad: push works only in the app added to the home screen, so supported() is false in Safari itself
      (reason() = 'ios-install', the Wir page shows a calm note).
@@ -13,7 +13,7 @@
 
 (() => {
   const BASE = (window.DJUU_API || '').replace(/\/$/, '');
-  const TOPICS = ['cal', 'pickup', 'lists'];
+  const TOPICS = ['cal', 'pickup', 'lists', 'wish'];
   const ua = navigator.userAgent || '';
   const ios = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   const standalone = () => (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;

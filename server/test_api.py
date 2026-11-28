@@ -225,7 +225,7 @@ try:
     s, x2 = call('DELETE', f"/api/collections/members/records/{dog.get('id')}", B)
     check('family removes the dog', s == 204, (s, x2))
     s, kk = call('GET', '/api/djuu/kids', C)
-    check('helper gets the children with age only, no birth date', s == 200 and kk['kids'] and all(set(k) == {'id', 'name', 'min', 'max'} for k in kk['kids']), (s, kk))
+    check('helper gets the children with age and sizes only, no birth date', s == 200 and kk['kids'] and all(set(k) == {'id', 'name', 'min', 'max', 'size', 'shoe'} for k in kk['kids']), (s, kk))
     s, kk = call('GET', '/api/djuu/kids', B)
     check('year-only birth date gives an age range', s == 200 and kk['kids'][0]['min'] is not None, (s, kk))
     s, l = call('GET', '/api/collections/saved_offers/records', C)

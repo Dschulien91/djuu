@@ -3,7 +3,7 @@
 // - push_subs: one browser subscription per phone. The person reads and changes only their own. The endpoint must be an
 //   https address of a known push service (checked in pb_hooks/djuu_push.pb.js: no requests to other servers).
 //   The keys are never sent back by the API (hidden per answer by a hook; a hidden field could not be written by the app);
-//   topics are 'cal', 'pickup', 'lists'; lang 'de' or 'en'.
+//   topics are 'cal', 'pickup', 'lists', 'wish' (added with 1764000000_djuu_wish); lang 'de' or 'en'.
 // - push_queue: what is to be sent, written by hooks only (no API access). The sender container (server/push/) fetches due
 //   messages through a secret-protected route inside the server network and reports back.
 //   lang empty = to all of the person's subscriptions; dedup keeps one message per event.

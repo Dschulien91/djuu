@@ -379,9 +379,9 @@ function kidView(k) {
     ${k.approx ? hint(tl('Das Alter ist ungefähr. Mit dem Geburtsdatum passen die Vorschläge genauer.')) : ''}
     ${birthHtml(i, k)}
     <div class="field"><label for="kSchool">${tl('Kita oder Schule')}</label><input id="kSchool" data-kid="${i}" data-k="school" maxlength="60" placeholder="${tl('Kita oder Schule, Klasse')}" value="${esc(k.school || '')}"></div>
-    <div class="kidline"><div class="field"><label for="kSize">${tl('Kleidergröße')}</label><input id="kSize" data-kid="${i}" data-k="size" maxlength="12" placeholder="104" value="${esc(k.size || '')}"></div>
-      <div class="field"><label for="kShoe">${tl('Schuhgröße')}</label><input id="kShoe" data-kid="${i}" data-k="shoe" maxlength="8" placeholder="28" value="${esc(k.shoe || '')}"></div></div>
-    <p class="note">${tl('Die Größen stehen bei Besorgungen für dieses Kind.')}</p>
+    <div class="kidline"><div class="field"><label for="kSize">${tl('Kleidergröße')}</label><input id="kSize" data-kid="${i}" data-k="size" maxlength="20" placeholder="104" value="${esc(k.size || '')}"></div>
+      <div class="field"><label for="kShoe">${tl('Schuhgröße')}</label><input id="kShoe" data-kid="${i}" data-k="shoe" maxlength="20" placeholder="28" value="${esc(k.shoe || '')}"></div></div>
+    <p class="note">${tl('Die Größen stehen bei Besorgungen und Wunschlisten für dieses Kind.')}</p>
     ${careKidHtml(k)}
     ${typeof calKidHtml === 'function' ? calKidHtml(k) : ''}
     ${isAdmin() || meAdult()?.grp === 'family' ? `<button type="button" class="btn wide danger" data-kidremove="${k.id}">${tl('Eintrag entfernen')}</button>` : ''}
@@ -666,7 +666,8 @@ async function deleteCare(id) {
 // ---------- Einstellungen › Mitteilungen: push messages on this phone, per topic, all off until switched on ----------
 const PUSH_TOPICS = () => [['cal', tl('Kalender-Erinnerungen'), tl('Zu Einträgen mit Erinnerung, die dich betreffen')],
   ['pickup', tl('Abholen und Bringen'), tl('Wenn jemand übernimmt oder sich etwas ändert, das dich betrifft')],
-  ['lists', tl('Listen'), tl('Neue Einträge in Listen, denen du folgst. Folgen schaltest du in der Liste ein.')]];
+  ['lists', tl('Listen'), tl('Neue Einträge in Listen, denen du folgst. Folgen schaltest du in der Liste ein.')],
+  ['wish', tl('Wunschlisten'), tl('Erinnerung an Wunschlisten (Geburtstage, Weihnachten)')]].filter(([k]) => k !== 'wish' || meAdult()?.grp !== 'helper');
 const pushOk = () => !!window.djuuPush && window.djuuPush.supported();
 async function loadPushState() {
   if (W.pushLoading || !pushOk()) return;

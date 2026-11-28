@@ -1,6 +1,7 @@
 """Checks for the Wir features of round 2: more lists (lists + shop_items.list/assignee/due), emergency information
 (kid_care), single occurrences of repeating calendar entries (cal_entries.changes, /api/djuu/cal-take, feed) and
-followed lists with push messages (members.follow_lists, push_queue), including permission attacks
+followed lists with push messages (members.follow_lists, push_queue), wish lists (kind 'wish', wish fields of the entries,
+children's sizes, push topic 'wish' and its reminder scan), including permission attacks
 (helper, expired helper, other Wir, stranger).
 Run like test_api.py: python3 test_family_api.py http://<container-ip>:8090 <admin-email> <admin-password>
 Creates throwaway users and Wirs and deletes everything it created at the end (also when a check crashes)."""
@@ -311,6 +312,139 @@ try:
         call('POST', '/api/djuu/member', A, {'id': MB, 'until': ''})
     else:
         skip('push messages for followed lists', 'push_queue / push_subs not on this server yet (server agent)')
+
+    # ---------------- Wunschlisten (migration 1764000000) ----------------
+    s, kidw = create('/api/collections/members/records', A, {'family': FAM, 'name': 'Lotta', 'kind': 'kid', 'birth_ym': '2022-12', 'birth_day': 13})
+    KIDW = kidw.get('id')
+    wl = {'family': FAM, 'name': 'Lotta · 4. Geburtstag', 'kind': 'wish', 'kid': KIDW, 'occasion': 'birthday', 'date': '2026-12-13',
+          'avoid': 'keine Süßigkeiten, wenig Plastik', 'surprise': True, 'sort': 9}
+    s, lw = create('/api/collections/lists/records', A, wl)
+    check('wish list for a child with occasion, date, "Bitte nicht" and surprise', s == 200 and lw.get('kind') == 'wish' and lw.get('kid') == KIDW and lw.get('occasion') == 'birthday'
+          and lw.get('date') == '2026-12-13' and lw.get('avoid') == wl['avoid'] and lw.get('surprise') is True, (s, lw))
+    LW = lw.get('id')
+    s, lw2 = create('/api/collections/lists/records', B, {'family': FAM, 'name': 'Taufe', 'kind': 'wish', 'occasion': 'other', 'occasion_name': 'Taufe'})
+    check('family member creates a wish list for the whole family (no child)', s == 200 and lw2.get('kid') == '' and lw2.get('occasion_name') == 'Taufe', (s, lw2))
+    s, x = create('/api/collections/lists/records', A, {**wl, 'kid': KID2})
+    check('wish list: the child must be of the same Wir', s in REFUSED, (s, x))
+    s, x = create('/api/collections/lists/records', A, {**wl, 'kid': MB})
+    check('wish list: … and a child, not an adult', s in REFUSED, (s, x))
+    s, x = call('PATCH', f'/api/collections/lists/records/{LW}', A, {'kid': KID2})
+    check('wish list: the child cannot be changed to another Wir\'s child', s in REFUSED, (s, x))
+    s, x = call('PATCH', f'/api/collections/lists/records/{LW}', B, {'kid': KID, 'surprise': False})
+    check('wish list: family member changes child and surprise', s == 200 and x.get('kid') == KID and x.get('surprise') is False, (s, x))
+    call('PATCH', f'/api/collections/lists/records/{LW}', B, {'kid': KIDW, 'surprise': True})
+    for bad, why in (({'date': '13.12.2026'}, 'date must be YYYY-MM-DD'), ({'avoid': 'x' * 301}, '"Bitte nicht" at most 300'), ({'occasion': 'ostern'}, 'unknown occasion'),
+                     ({'occasion_name': 'x' * 41}, 'occasion name at most 40')):
+        s, x = create('/api/collections/lists/records', A, {**wl, **bad})
+        check(f'wish list: {why}', s in REFUSED, (s, x))
+    s, x = create('/api/collections/lists/records', H, {**wl, 'name': 'H'})
+    check('wish list: helper with "Ansehen" cannot create one', s in REFUSED, (s, x))
+    check('wish list: other Wir and strangers do not see it', LW not in {r['id'] for r in (items('/api/collections/lists/records', D) or [])} and items('/api/collections/lists/records', X) == [], '')
+
+    gv = [{'name': 'Oma Rita', 'member': '', 'by': MA, 'at': 1764300000000}, {'name': '', 'member': MB, 'by': MB, 'at': 1764300001000}]
+    s, w1 = create('/api/collections/shop_items/records', A, {'family': FAM, 'name': 'Duplo Zug', 'list': LW, 'added_by': MA, 'link': 'https://example.org/duplo?x=1#a',
+                                                               'price': 'ca. 20 €', 'note': 'gebraucht ist okay', 'prio': True, 'givers': gv})
+    g1 = (w1 or {}).get('givers') or []
+    check('wish entry with link, price, note, prio and two givers', s == 200 and w1.get('link') == 'https://example.org/duplo?x=1#a' and w1.get('price') == 'ca. 20 €'
+          and w1.get('note') == 'gebraucht ist okay' and w1.get('prio') is True and len(g1) == 2, (s, w1))
+    check('… a giver from the Wir gets their name, the outsider keeps the typed name and who entered it',
+          g1[:1] == [{'name': 'Oma Rita', 'member': '', 'by': MA, 'at': 1764300000000}] and g1[1:2] and g1[1]['name'] == 'Ben' and g1[1]['member'] == MB, g1)
+    W1 = w1.get('id')
+    for bad, why in (('http://example.org/x', 'http'), ('javascript:alert(1)', 'javascript:'), ('https://example.org/a b', 'space'), ('https://example.org/"><script>', 'quotes and brackets'),
+                     ('https://localhost/x', 'no dot in the host'), ('https://user@example.org/', 'user in the address'), ('https://example.org/' + 'a' * 490, 'longer than 500'),
+                     ('ftp://example.org', 'ftp'), (' https://example.org/ok', None)):
+        s, x = create('/api/collections/shop_items/records', A, {'family': FAM, 'name': 'X', 'list': LW, 'link': bad})
+        if why is None: check('wish link: spaces around a good link are trimmed', s == 200 and x.get('link') == 'https://example.org/ok', (s, x)); continue
+        check(f'wish link refused: {why}', s == 400, (s, x))
+    s, x = call('PATCH', f'/api/collections/shop_items/records/{W1}', A, {'link': 'javascript:alert(1)'})
+    check('wish link refused on change too, with a code for the app', s == 400 and code(x) == 'invalid_link', (s, x))
+    s, x = call('PATCH', f'/api/collections/shop_items/records/{W1}', A, {'link': ''})
+    check('wish link can be removed', s == 200 and x.get('link') == '', (s, x))
+    s, x = call('PATCH', f'/api/collections/shop_items/records/{W1}', B, {'givers': gv + [{'name': 'Fremd', 'member': MD, 'by': MD}, {'name': ' ', 'member': 'nope'}]})
+    gx = (x or {}).get('givers') or []
+    check('givers: people of another Wir are dropped to a plain name, empty ones removed', s == 200 and len(gx) == 3 and gx[2]['name'] == 'Fremd' and gx[2]['member'] == '' and gx[2]['by'] == '', (s, gx))
+    s, x = call('PATCH', f'/api/collections/shop_items/records/{W1}', B, {'givers': [{'name': f'P{i}'} for i in range(7)]})
+    check('givers: at most 6', s == 400 and code(x) == 'limit_reached', (s, x))
+    s, x = call('PATCH', f'/api/collections/shop_items/records/{W1}', B, {'givers': [{'name': 'x' * 60, 'at': 'soon'}]})
+    gx = (x or {}).get('givers') or [{}]
+    check('givers: names cut to 40, a missing time is the server\'s', s == 200 and len(gx[0].get('name', '')) == 40 and isinstance(gx[0].get('at'), int) and gx[0]['at'] > 1764000000000, (s, gx))
+    s, x = call('PATCH', f'/api/collections/shop_items/records/{W1}', B, {'givers': {'name': 'not a list'}})
+    check('givers: something else than a list becomes no givers', s == 200 and x.get('givers') == [], (s, x))
+    for bad, why in (({'price': 'x' * 31}, 'price at most 30'), ({'note': 'x' * 201}, 'note at most 200'), ({'wish_state': 'lost'}, 'unknown state')):
+        s, x = call('PATCH', f'/api/collections/shop_items/records/{W1}', A, bad)
+        check(f'wish entry: {why}', s == 400, (s, x))
+    s, x = call('PATCH', f'/api/collections/shop_items/records/{W1}', A, {'wish_state': 'received', 'givers': gv})
+    check('wish entry marked received, givers kept', s == 200 and x.get('wish_state') == 'received' and len(x.get('givers') or []) == 2, (s, x))
+    s, x = call('PATCH', f'/api/collections/shop_items/records/{W1}', B, {'done': True, 'done_by': MB})
+    check('… thanked (done) by a family member', s == 200 and x.get('done') is True, (s, x))
+    s, w2 = create('/api/collections/shop_items/records', B, {'family': FAM, 'name': 'Matschhose', 'list': LW, 'added_by': MB, 'note': 'Größe 104', 'wish_state': 'gone'})
+    check('wish entry "nicht mehr nötig" is kept', s == 200 and w2.get('wish_state') == 'gone', (s, w2))
+    check('helper with "Ansehen" reads the wish list and its entries', LW in {r['id'] for r in (items('/api/collections/lists/records', H) or [])}
+          and W1 in {r['id'] for r in (items('/api/collections/shop_items/records', H) or [])}, '')
+    s, x = call('PATCH', f'/api/collections/shop_items/records/{W1}', H, {'givers': [{'name': 'Hanna', 'member': MH, 'by': MH}]})
+    check('… but cannot say "Das schenke ich" without "Mitbearbeiten"', s in REFUSED, (s, x))
+    s, x = create('/api/collections/shop_items/records', D, {'family': FAM2, 'name': 'X', 'list': LW})
+    check('other Wir cannot add to the wish list', s in REFUSED, (s, x))
+    # a helper without access to "Einkauf"
+    Q = mkuser('Q')
+    s, inv = call('POST', '/api/djuu/invite', A, {'grp': 'helper', 'role': 'Nachbar:in'})
+    s, j = call('POST', '/api/djuu/join', Q, {'token': inv.get('token'), 'myName': 'Quentin'})
+    MQ = j.get('member')
+    s, x = call('POST', '/api/djuu/member', A, {'id': MQ, 'perms': {'perm_shop': 'none', 'perm_errands': 'view', 'perm_cal': 'view', 'perm_saved': 'none'}})
+    lq, iq = items('/api/collections/lists/records', Q) or [], items('/api/collections/shop_items/records', Q) or []
+    check('helper without "Einkauf" reads no wish list and no wish entry', s == 200 and LW not in {r['id'] for r in lq} and not [r for r in lq if r['kind'] == 'wish']
+          and W1 not in {r['id'] for r in iq} and LT in {r['id'] for r in lq}, (s, [r['kind'] for r in lq]))
+    s, x = call('GET', f'/api/collections/lists/records/{LW}', Q)
+    check('… not even by id', s == 404, (s, x))
+    # children's sizes (members.size / members.shoe)
+    s, x = call('PATCH', f'/api/collections/members/records/{KIDW}', B, {'size': '98/104', 'shoe': '25'})
+    check('kid sizes: family member sets clothes and shoe size', s == 200 and x.get('size') == '98/104' and x.get('shoe') == '25', (s, x))
+    s, x = call('PATCH', f'/api/collections/members/records/{KIDW}', B, {'size': 'Gr. 98/104, eher 104', 'shoe': '25 (Weite M), bis 26'})
+    check('kid sizes: up to 20 characters', s == 200 and len(x.get('size', '')) == 20 and len(x.get('shoe', '')) == 20, (s, x))
+    s, x = call('PATCH', f'/api/collections/members/records/{KIDW}', B, {'size': 'x' * 21})
+    check('kid sizes: more than 20 refused', s == 400, (s, x))
+    call('PATCH', f'/api/collections/members/records/{KIDW}', B, {'size': '98/104', 'shoe': '25'})
+    s, x = call('PATCH', f'/api/collections/members/records/{KIDW}', Q, {'size': '1'})
+    check('kid sizes: a helper cannot change them', s in REFUSED, (s, x))
+    s, kk = call('GET', '/api/djuu/kids', Q)
+    lot = [k for k in (kk or {}).get('kids', []) if k['id'] == KIDW]
+    check('kid sizes: helpers see them through /api/djuu/kids, still no birth date', s == 200 and lot and lot[0]['size'] == '98/104' and lot[0]['shoe'] == '25'
+          and 'birth_ym' not in lot[0] and 'birth_day' not in lot[0], (s, kk))
+    # push topic 'wish' and the reminders
+    K1 = {'p256dh': 'BDCZrguB_ZyljgTnk0fFTogtGZqp3Tog4GgKg3EVgzfNKtP6NZO-vpqQkno1aVIPRC0YsnyWeh5C1LyU2yj_730', 'auth': 'BNupwalVgwX6jaANeGKxzg'}
+    ep = lambda: 'https://fcm.googleapis.com/fcm/send/test-wish-' + secrets.token_hex(8)
+    s, sw = create('/api/collections/push_subs/records', A, {'user': users['A']['id'], 'endpoint': ep(), 'keys': K1, 'topics': ['wish', 'lists', 'wish'], 'lang': 'de'})
+    check('push: the topic "wish" is accepted', s == 200 and sw.get('topics') == ['wish', 'lists'], (s, sw))
+    s, x = create('/api/collections/push_subs/records', A, {'user': users['A']['id'], 'endpoint': ep(), 'keys': K1, 'topics': ['wishes'], 'lang': 'de'})
+    check('push: … unknown topics still refused', s == 400, (s, x))
+    create('/api/collections/push_subs/records', B, {'user': users['B']['id'], 'endpoint': ep(), 'keys': K1, 'topics': ['wish'], 'lang': 'en'})
+    create('/api/collections/push_subs/records', Q, {'user': users['Q']['id'], 'endpoint': ep(), 'keys': K1, 'topics': ['wish'], 'lang': 'de'})
+    create('/api/collections/push_subs/records', D, {'user': users['D']['id'], 'endpoint': ep(), 'keys': K1, 'topics': ['wish'], 'lang': 'de'})
+    s, x = call('POST', '/api/djuu/push/wish-scan', None, {'today': '2026-11-01'})
+    check('push: the reminder scan route answers 404 without the secret', s == 404, (s, x))
+    SECRET = os.environ.get('DJUU_PUSH_SECRET', '')
+    if SECRET:
+        wq = lambda k: items(f"/api/collections/push_queue/records?perPage=50&filter={urllib.request.quote('user=' + chr(39) + users[k]['id'] + chr(39) + ' && topic=' + chr(39) + 'wish' + chr(39))}", SU) or []
+        s, x = call('POST', '/api/djuu/push/wish-scan', None, {'today': '2026-11-01'}, headers={'X-Djuu-Push': SECRET, 'X-Forwarded-For': '1.2.3.4'})
+        check('push: … and not through the proxy', s == 404, (s, x))
+        s, x = call('POST', '/api/djuu/push/wish-scan', None, {'today': '2026-11-01'}, headers={'X-Djuu-Push': SECRET})  # Lotta: 13 Dec = 1 Nov + 42 days
+        s2, x2 = call('POST', '/api/djuu/push/wish-scan', None, {'today': '2026-11-01'}, headers={'X-Djuu-Push': SECRET})
+        qa, qb, qq, qd = wq('A'), wq('B'), wq('Q'), wq('D')
+        check('wish reminders: on 1 November and 42 days before the birthday, once per event (also when the scan runs twice)', s == 200 and s2 == 200 and len(qa) == 2 and x2.get('n') == 0, (x, x2, qa))
+        check('… German texts and the link to the lists',
+              {q['body'] for q in qa} == {'Bald ist Weihnachten. Möchtet ihr eine Wunschliste anlegen oder ergänzen?', 'Bald hat Lotta Geburtstag. Möchtet ihr eine Wunschliste anlegen oder ergänzen?'}
+              and all(q['url'] == './#wir=lists' and q['title'] == 'Wunschliste' for q in qa), qa)
+        check('… English for an English phone', {q['body'] for q in qb} == {'Christmas is coming. Would you like to start a wish list or add to one?', "Lotta's birthday is coming up. Would you like to start a wish list or add to one?"}, qb)
+        check('… never for helpers', qq == [], qq)
+        check('… another Wir: Christmas only (a child with the birth year only gets no birthday reminder)', len(qd) == 1 and qd[0]['body'].startswith('Bald ist Weihnachten'), qd)
+        s, x = call('POST', '/api/djuu/push/wish-scan', None, {'today': '2026-11-02'}, headers={'X-Djuu-Push': SECRET})
+        check('… nothing on other days', s == 200 and x.get('n') == 0 and len(wq('A')) == 2, (s, x))
+        call('POST', '/api/djuu/member', A, {'id': MB, 'perms': {'perm_shop': 'none'}})
+        s, x = call('POST', '/api/djuu/push/wish-scan', None, {'today': '2027-11-01'}, headers={'X-Djuu-Push': SECRET})
+        check('… next year again (Christmas and birthday), but not for someone without "Einkauf"', s == 200 and len(wq('A')) == 4 and len(wq('B')) == 2, (x, len(wq('B'))))
+        call('POST', '/api/djuu/member', A, {'id': MB, 'perms': {'perm_shop': 'edit'}})
+    else:
+        skip('wish reminders (cron scan)', 'set DJUU_PUSH_SECRET to run them (stop the push container meanwhile)')
 
     # ---------------- expired helper ----------------
     s, x = call('POST', '/api/djuu/member', A, {'id': MH, 'until': '2020-01-01'})

@@ -7,7 +7,7 @@
    User input is stored on this device only until the server exists (server-ready shape, see STORE). */
 'use strict'; // i18n-skip
 
-const VERSION = '0.73';
+const VERSION = '0.74';
 const CONTACT = window.DJUU_CONTACT || {}; // config.js: reports and feedback stay hidden until an address is set
 // Logo on light backgrounds, as specified in the design PDF.
 const LOGO = `<span class="logo" role="img" aria-label="djuu"><span style="color:#6B4EE6">d</span><span style="color:#0E8F84">j</span><span style="color:#D6336C">u</span><span style="color:#CC6A00">u</span>
@@ -41,6 +41,7 @@ const ICON = {
   cup: '<path d="M4 9h12v4a6 6 0 0 1-12 0V9z"/><path d="M16 10h1.5a2.5 2.5 0 0 1 0 5H16"/><path d="M8 3v3M12 3v3"/>',
   baby: '<circle cx="12" cy="12.5" r="8.5"/><path d="M9.2 11.5h.01M14.8 11.5h.01M9.8 15.2a3.2 3.2 0 0 0 4.4 0"/><path d="M11 4.2c.6-1 2.2-.9 2.2.4"/>',
   bag: '<path d="M5 8h14l-1.2 12H6.2L5 8z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/>',
+  gift: '<rect x="3.5" y="8.5" width="17" height="4" rx="1"/><path d="M5 12.5V20.5h14v-8M12 8.5v12M12 8.5C10.5 5 6.5 4.5 7 7.2c.3 1.3 2.6 1.3 5 1.3M12 8.5c1.5-3.5 5.5-4 5-1.3-.3 1.3-2.6 1.3-5 1.3"/>',
   house: '<path d="M3 11l9-7 9 7"/><path d="M5 9.5V20h14V9.5"/><path d="M10 20v-5h4v5"/>',
   tree: '<path d="M12 22v-5"/><path d="M12 2.5L18.5 12H15l3 5H6l3-5H5.5L12 2.5z"/>',
   museum: '<path d="M3 9l9-5 9 5"/><path d="M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 20.5h18"/>',

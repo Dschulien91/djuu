@@ -183,7 +183,8 @@ function mergeShopDuplicates() {
   if (typeof perm === 'function' && perm('shop') !== 'edit') return 0;
   const me = meId(), items = store.shop.items;
   let merged = 0;
-  for (const mine of items.filter(i => i.by === me && !i.done && !i.unsaved && !forcedItems.has(i.id)).sort((a, b) => b.at - a.at)) {
+  const wish = i => !!i.list && typeof listKindOf === 'function' && listKindOf(i.list) === 'wish'; // wishes of the same name stay apart
+  for (const mine of items.filter(i => i.by === me && !i.done && !i.unsaved && !forcedItems.has(i.id) && !wish(i)).sort((a, b) => b.at - a.at)) {
     if (!items.includes(mine)) continue;
     const older = items.find(i => i !== mine && (i.list || '') === (mine.list || '') && !i.done && !i.unsaved && !!i.later === !!mine.later && (i.at < mine.at || (i.at === mine.at && i.id < mine.id)) && itemKey(i.name) === itemKey(mine.name));
     if (!older) continue;

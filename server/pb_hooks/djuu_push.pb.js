@@ -2,7 +2,8 @@
 // Push messages (migration 1763970000; shared code in djuu_push.js). Topics, all off until switched on in the app:
 // - cal: a reminder ("Erinnerung" = alarm) of a family calendar entry that involves me, at start minus the alarm;
 // - pickup: a new Bringen/Abholen for me, someone takes over or changes one I was planned for, or it is cancelled;
-// - lists: an entry added to a list I follow (queued by the lists hook, djuu_family.pb.js).
+// - lists: an entry added to a list I follow (queued by the lists hook, djuu_family.pb.js);
+// - wish: a reminder to start or add to a wish list, 42 days before a child's birthday and on 1 November (djuu_wish.pb.js).
 // The sender container (server/push/) polls POST /api/djuu/push/claim every 30 s from inside the server network with a
 // secret (DJUU_PUSH_SECRET, a file on the server, never in the repo) and reports back through /api/djuu/push/done.
 // Both routes answer 404 to anyone else, and the proxy does not forward them (see NOTES: Caddy).
@@ -25,7 +26,7 @@ const pushSubCheck = (e) => {
     r.set("keys", { p256dh, auth });
     let topics = [];
     try { topics = JSON.parse(toString(r.get("topics")) || "[]"); } catch (x) { throw bad("push_topics"); }
-    if (!Array.isArray(topics) || topics.some((t) => !["cal", "pickup", "lists"].includes(t))) throw bad("push_topics");
+    if (!Array.isArray(topics) || topics.some((t) => !["cal", "pickup", "lists", "wish"].includes(t))) throw bad("push_topics");
     r.set("topics", [...new Set(topics)]);
     if (!["de", "en"].includes(r.getString("lang"))) r.set("lang", "de");
     if (isNew) {

@@ -68,21 +68,34 @@ const SPECS = {
     },
     shadowExtra: r => ({ account: !!r.user }),
   },
-  // more lists (lists.js): shopping lists besides the main one, to-do lists, packing lists
+  // more lists (lists.js): shopping lists besides the main one, to-do lists, packing lists, wish lists (child, occasion, date,
+  // "Bitte nicht", surprise). New fields are '' when empty or off, so lists saved before them never look changed.
   lists: {
     local: () => store.lists || [], key: x => x.id, newId: x => x.id,
-    payload: x => ({ name: (x.name || '').slice(0, 40) || tl('Liste'), kind: x.kind || 'shop', sort: +x.sort || 0, archived: !!x.archived }),
-    setAll(rs) { store.lists = rs.map(r => ({ id: r.id, name: r.name || '', kind: r.kind || 'shop', sort: r.sort || 0, archived: !!r.archived, at: when(r.created), ...(r._unsaved ? { unsaved: r._unsaved } : {}) })); },
+    payload: x => ({ name: (x.name || '').slice(0, 40) || tl('Liste'), kind: x.kind || 'shop', sort: +x.sort || 0, archived: !!x.archived,
+      kid: memberRef(x.kid), occasion: ['xmas', 'birthday', 'other'].includes(x.occ) ? x.occ : '', occasion_name: (x.occName || '').slice(0, 40),
+      date: /^\d{4}-\d{2}-\d{2}$/.test(x.date || '') ? x.date : '', avoid: (x.avoid || '').slice(0, 300), surprise: x.surprise ? true : '' }),
+    setAll(rs) {
+      store.lists = rs.map(r => ({ id: r.id, name: r.name || '', kind: r.kind || 'shop', sort: r.sort || 0, archived: !!r.archived, at: when(r.created),
+        ...(r.kind === 'wish' ? { kid: r.kid || '', occ: r.occasion || '', occName: r.occasion_name || '', date: r.date || '', avoid: r.avoid || '', surprise: !!r.surprise } : {}),
+        ...(r._unsaved ? { unsaved: r._unsaved } : {}) }));
+    },
     area: p => (p.kind === 'todo' ? 'errands' : 'shop'),
   },
-  // the entries of all lists: the main shopping list (no list), more shopping lists, to-dos (assignee, due) and packing lists
+  // the entries of all lists: the main shopping list (no list), more shopping lists, to-dos (assignee, due), packing lists and
+  // wishes (link, price, note, prio, givers, wish_state; on wish lists `done` = thanked). Empty / off is '' (never looks changed).
   shop_items: {
     local: () => store.shop.items, key: x => x.id, newId: x => x.id,
     payload: x => ({ name: x.name, qty: x.qty || '', cat: x.cat || 'sonst', added_by: memberRef(x.by), done_by: memberRef(x.doneBy), done: !!x.done, later: !!x.later,
-      list: isPbId(x.list) ? x.list : '', assignee: memberRef(x.assignee), due: /^\d{4}-\d{2}-\d{2}$/.test(x.due || '') ? x.due : '' }),
+      list: isPbId(x.list) ? x.list : '', assignee: memberRef(x.assignee), due: /^\d{4}-\d{2}-\d{2}$/.test(x.due || '') ? x.due : '',
+      link: x.link || '', price: (x.price || '').slice(0, 30), note: (x.note || '').slice(0, 200), prio: x.prio ? true : '', givers: giversOf(x.givers),
+      wish_state: ['received', 'gone'].includes(x.wstate) ? x.wstate : '' }),
     setAll(rs) {
       store.shop.items = rs.map(r => ({ id: r.id, name: r.name, qty: r.qty, cat: r.cat, by: r.added_by, doneBy: r.done_by, done: r.done, later: r.later,
-        ...(r.list ? { list: r.list } : {}), ...(r.assignee ? { assignee: r.assignee } : {}), ...(r.due ? { due: r.due } : {}), at: when(r.created), ...(r._unsaved ? { unsaved: r._unsaved } : {}) }));
+        ...(r.list ? { list: r.list } : {}), ...(r.assignee ? { assignee: r.assignee } : {}), ...(r.due ? { due: r.due } : {}),
+        ...(r.link ? { link: r.link } : {}), ...(r.price ? { price: r.price } : {}), ...(r.note ? { note: r.note } : {}), ...(r.prio ? { prio: true } : {}),
+        ...(giversOf(r.givers).length ? { givers: giversOf(r.givers) } : {}), ...(r.wish_state ? { wstate: r.wish_state } : {}),
+        at: when(r.created), ...(r._unsaved ? { unsaved: r._unsaved } : {}) }));
       resortSonst();
     },
     // to-dos belong to "Besorgungen", everything else to "Einkauf"
@@ -145,6 +158,11 @@ const SPECS = {
   },
 };
 const COLLS = Object.keys(SPECS);
+// who gives a wish: at most 6 of { name, member, by, at } (the server cleans them the same way)
+function giversOf(v) {
+  return (Array.isArray(v) ? v : []).filter(g => g && typeof g === 'object' && String(g.name || '').trim()).slice(0, 6)
+    .map(g => ({ name: String(g.name).trim().slice(0, 40), member: isPbId(g.member) ? g.member : '', by: isPbId(g.by) ? g.by : '', at: +g.at || 0 }));
+}
 // access to the emergency information (members.perm_care): a server without the field still lets every active adult read it
 // (only admins write); an empty value is the default of the group (family edits, helpers see nothing)
 function careLevel(r) {
@@ -303,6 +321,7 @@ async function flush() {
 // why the server refused a change, in words
 function reasonOf(e) {
   if (e.code === 'limit_reached') return tl('Das Limit für diesen Bereich ist erreicht.');
+  if (e.code === 'invalid_link') return tl('Der Link muss mit https:// beginnen.');
   const fields = Object.values(e.data?.data || {}).filter(f => f && typeof f === 'object' && f.code);
   if (fields.some(f => /max|length|size/i.test(f.code + ' ' + (f.message || '')))) return tl('Der Text ist zu lang.');
   if (fields.length) return tl('Eine Angabe passt nicht.');
@@ -632,7 +651,7 @@ async function downloadMyData() {
 async function helperKids() {
   const me = store.profile.adults.find(a => a.id === auth.member);
   if (me?.grp !== 'helper') { store.profile.kids = store.profile.kids.filter(k => !k.remote); return; }
-  try { store.profile.kids = (await api('GET', '/api/djuu/kids')).kids.map(k => ({ id: k.id, name: k.name, ageMin: k.min, ageMax: k.max, remote: true })); }
+  try { store.profile.kids = (await api('GET', '/api/djuu/kids')).kids.map(k => ({ id: k.id, name: k.name, ageMin: k.min, ageMax: k.max, size: k.size || '', shoe: k.shoe || '', remote: true })); }
   catch (e) { /* keep what is known */ }
 }
 // personal settings kept in the account (on every phone of this person): news topics that are switched off, and more
